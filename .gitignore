@@ -1,0 +1,24 @@
+# Binaries
+backend/server
+*.exe
+
+# Dependencies
+backend/vendor/
+frontend/node_modules/
+
+# Build output
+frontend/dist/
+
+# Data (persistent volume)
+data/database.sqlite
+data/certificates/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

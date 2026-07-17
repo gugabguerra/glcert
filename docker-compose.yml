@@ -1,0 +1,14 @@
+services:
+  glcert:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - glcert-data:/data
+    environment:
+      - DATA_DIR=/data
+      - PORT=8080
+    restart: unless-stopped
+
+volumes:
+  glcert-data:
