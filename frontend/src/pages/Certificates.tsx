@@ -1,7 +1,7 @@
-import { Title, Table, Button, Group, Badge, ActionIcon, Modal, Text, Stack, Anchor, Select, Center, Loader } from '@mantine/core';
+import { Title, Table, Button, Group, Badge, ActionIcon, Modal, Text, Stack, Anchor, Select, Center, Loader, Tooltip } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { IconTrash, IconPlus } from '@tabler/icons-react';
 import { authFetch, authFetchJson } from '../api';
 
@@ -38,6 +38,37 @@ function Certificates() {
   const filteredCerts = typeFilter
     ? certs.filter((c) => c.type === typeFilter)
     : certs;
+
+  const [sortKey, setSortKey] = useState<string>('name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  const toggleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDirection(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDirection('asc');
+    }
+  };
+
+  const sortedData = useMemo(() => {
+    return [...filteredCerts].sort((a, b) => {
+      let aVal: string | number;
+      let bVal: string | number;
+      switch (sortKey) {
+        case 'name': aVal = a.name; bVal = b.name; break;
+        case 'description': aVal = a.description; bVal = b.description; break;
+        case 'type': aVal = a.type; bVal = b.type; break;
+        case 'issuer': aVal = a.caName || 'Self-Signed'; bVal = b.caName || 'Self-Signed'; break;
+        case 'version': aVal = a.currentVersion; bVal = b.currentVersion; break;
+        default: aVal = a.name; bVal = b.name;
+      }
+      const dir = sortDirection === 'asc' ? 1 : -1;
+      if (aVal < bVal) return -dir;
+      if (aVal > bVal) return dir;
+      return 0;
+    });
+  }, [filteredCerts, sortKey, sortDirection]);
 
   const typeColors: Record<string, string> = {
     server: 'blue',
@@ -80,16 +111,26 @@ function Certificates() {
         <Table striped highlightOnHover>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Name</Table.Th>
-              <Table.Th>Description</Table.Th>
-              <Table.Th>Type</Table.Th>
-              <Table.Th>Issuer</Table.Th>
-              <Table.Th>Version</Table.Th>
+              <Table.Th style={{ cursor: 'pointer' }} onClick={() => toggleSort('name')}>
+                Name {sortKey === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
+              </Table.Th>
+              <Table.Th style={{ cursor: 'pointer' }} onClick={() => toggleSort('description')}>
+                Description {sortKey === 'description' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
+              </Table.Th>
+              <Table.Th style={{ cursor: 'pointer' }} onClick={() => toggleSort('type')}>
+                Type {sortKey === 'type' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
+              </Table.Th>
+              <Table.Th style={{ cursor: 'pointer' }} onClick={() => toggleSort('issuer')}>
+                Issuer {sortKey === 'issuer' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
+              </Table.Th>
+              <Table.Th style={{ cursor: 'pointer' }} onClick={() => toggleSort('version')}>
+                Version {sortKey === 'version' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
+              </Table.Th>
               <Table.Th>Actions</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {filteredCerts.map((cert) => (
+            {sortedData.map((cert) => (
               <Table.Tr key={cert.id}>
                 <Table.Td>
                   <Anchor component={Link} to={`/certificates/${cert.id}`}>
@@ -105,13 +146,15 @@ function Certificates() {
                 <Table.Td>{cert.caName || 'Self-Signed'}</Table.Td>
                 <Table.Td>v{cert.currentVersion}</Table.Td>
                 <Table.Td>
-                  <ActionIcon
-                    color="red"
-                    variant="subtle"
-                    onClick={() => setDeleteId(cert.id)}
-                  >
-                    <IconTrash size={16} />
-                  </ActionIcon>
+                  <Tooltip label="Delete certificate">
+                    <ActionIcon
+                      color="red"
+                      variant="subtle"
+                      onClick={() => setDeleteId(cert.id)}
+                    >
+                      <IconTrash size={16} />
+                    </ActionIcon>
+                  </Tooltip>
                 </Table.Td>
               </Table.Tr>
             ))}

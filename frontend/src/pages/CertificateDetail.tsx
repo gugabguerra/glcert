@@ -1,8 +1,8 @@
-import { Title, Text, Button, Group, Stack, Badge, Divider, ActionIcon, Table, Modal, Center, Loader, SimpleGrid, Paper } from '@mantine/core';
+import { Title, Text, Button, Group, Stack, Badge, Divider, ActionIcon, Table, Modal, Center, Loader, SimpleGrid, Paper, Tooltip } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import { IconDownload, IconTrash, IconRefresh, IconHistory, IconEye } from '@tabler/icons-react';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { authFetch, authFetchJson, downloadFile } from '../api';
 
 interface Certificate {
@@ -41,6 +41,8 @@ function CertificateDetail() {
   const [showDelete, setShowDelete] = useState(false);
   const [deleteVersionNum, setDeleteVersionNum] = useState<number | null>(null);
   const [detailVersion, setDetailVersion] = useState<CertificateVersion | null>(null);
+  const [sortKey, setSortKey] = useState<string>('version');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   const { data: cert, isLoading } = useQuery<Certificate>({
     queryKey: ['certificate', id],
@@ -90,6 +92,43 @@ function CertificateDetail() {
     },
   });
 
+  const toggleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDirection(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDirection('asc');
+    }
+  };
+
+  const sortedVersions = useMemo(() => {
+    return [...versions].sort((a, b) => {
+      let aVal: string | number;
+      let bVal: string | number;
+      switch (sortKey) {
+        case 'version': aVal = a.version; bVal = b.version; break;
+        case 'algorithm': aVal = a.publicKeyAlgorithm; bVal = b.publicKeyAlgorithm; break;
+        case 'created': aVal = new Date(a.createdAt).getTime(); bVal = new Date(b.createdAt).getTime(); break;
+        case 'expires': aVal = new Date(a.expiresAt).getTime(); bVal = new Date(b.expiresAt).getTime(); break;
+        case 'status':
+          const statusPriority = (v: CertificateVersion) => {
+            if (v.revoked) return 3;
+            if (new Date(v.expiresAt) < new Date()) return 2;
+            if (v.version === cert?.currentVersion) return 0;
+            return 1;
+          };
+          aVal = statusPriority(a); bVal = statusPriority(b); break;
+        default: aVal = a.version; bVal = b.version;
+      }
+      const dir = sortDirection === 'asc' ? 1 : -1;
+      if (aVal < bVal) return -dir;
+      if (aVal > bVal) return dir;
+      return 0;
+    });
+  }, [versions, sortKey, sortDirection, cert?.currentVersion]);
+
+  const detailVersionData = detailVersion ? versions.find(v => v.id === detailVersion.id) ?? detailVersion : null;
+
   if (isLoading) return <Center py={80}><Loader /></Center>;
   if (!cert) return <Text>Certificate not found</Text>;
 
@@ -98,8 +137,6 @@ function CertificateDetail() {
     client: 'green',
     selfsigned: 'orange',
   };
-
-  const detailVersionData = detailVersion ? versions.find(v => v.id === detailVersion.id) ?? detailVersion : null;
 
   return (
     <Stack>
@@ -112,20 +149,28 @@ function CertificateDetail() {
           <Text c="dimmed">{cert.description}</Text>
         </div>
         <Group>
-          <ActionIcon variant="subtle" onClick={() => downloadFile(`/api/certificates/${id}/download/cert`, `cert-${id}-cert.pem`)}>
-            <IconDownload size={20} />
-          </ActionIcon>
-          <ActionIcon variant="subtle" onClick={() => downloadFile(`/api/certificates/${id}/download/key`, `cert-${id}-key.pem`)}>
-            <IconDownload size={20} />
-          </ActionIcon>
-          {cert.caName && (
-            <ActionIcon variant="subtle" onClick={() => downloadFile(`/api/certificates/${id}/download/ca`, `cert-${id}-ca.pem`)}>
+          <Tooltip label="Download certificate">
+            <ActionIcon variant="subtle" onClick={() => downloadFile(`/api/certificates/${id}/download/cert`, `cert-${id}-cert.pem`)}>
               <IconDownload size={20} />
             </ActionIcon>
+          </Tooltip>
+          <Tooltip label="Download private key">
+            <ActionIcon variant="subtle" onClick={() => downloadFile(`/api/certificates/${id}/download/key`, `cert-${id}-key.pem`)}>
+              <IconDownload size={20} />
+            </ActionIcon>
+          </Tooltip>
+          {cert.caName && (
+            <Tooltip label="Download CA certificate">
+              <ActionIcon variant="subtle" onClick={() => downloadFile(`/api/certificates/${id}/download/ca`, `cert-${id}-ca.pem`)}>
+                <IconDownload size={20} />
+              </ActionIcon>
+            </Tooltip>
           )}
-          <ActionIcon color="red" variant="subtle" onClick={() => setShowDelete(true)}>
-            <IconTrash size={20} />
-          </ActionIcon>
+          <Tooltip label="Delete certificate">
+            <ActionIcon color="red" variant="subtle" onClick={() => setShowDelete(true)}>
+              <IconTrash size={20} />
+            </ActionIcon>
+          </Tooltip>
         </Group>
       </Group>
 
@@ -184,16 +229,26 @@ function CertificateDetail() {
         <Table striped highlightOnHover>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Version</Table.Th>
-              <Table.Th>Algorithm</Table.Th>
-              <Table.Th>Created</Table.Th>
-              <Table.Th>Expires</Table.Th>
-              <Table.Th>Status</Table.Th>
+              <Table.Th style={{ cursor: 'pointer' }} onClick={() => toggleSort('version')}>
+                Version {sortKey === 'version' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
+              </Table.Th>
+              <Table.Th style={{ cursor: 'pointer' }} onClick={() => toggleSort('algorithm')}>
+                Algorithm {sortKey === 'algorithm' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
+              </Table.Th>
+              <Table.Th style={{ cursor: 'pointer' }} onClick={() => toggleSort('created')}>
+                Created {sortKey === 'created' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
+              </Table.Th>
+              <Table.Th style={{ cursor: 'pointer' }} onClick={() => toggleSort('expires')}>
+                Expires {sortKey === 'expires' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
+              </Table.Th>
+              <Table.Th style={{ cursor: 'pointer' }} onClick={() => toggleSort('status')}>
+                Status {sortKey === 'status' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
+              </Table.Th>
               <Table.Th>Actions</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {versions.map((v) => {
+            {sortedVersions.map((v) => {
               const isCurrent = v.version === cert.currentVersion;
               return (
                 <Table.Tr key={v.id}>
@@ -214,33 +269,36 @@ function CertificateDetail() {
                   </Table.Td>
                   <Table.Td>
                     <Group gap="xs">
-                      <ActionIcon
-                        variant="subtle"
-                        color="blue"
-                        title="View details"
-                        onClick={() => setDetailVersion(v)}
-                      >
-                        <IconEye size={16} />
-                      </ActionIcon>
-                      {!isCurrent && !v.revoked && (
+                      <Tooltip label="View details">
                         <ActionIcon
                           variant="subtle"
                           color="blue"
-                          title="Restore this version"
-                          onClick={() => restoreMutation.mutate(v.version)}
+                          onClick={() => setDetailVersion(v)}
                         >
-                          <IconHistory size={16} />
+                          <IconEye size={16} />
                         </ActionIcon>
+                      </Tooltip>
+                      {!isCurrent && !v.revoked && (
+                        <Tooltip label="Restore version">
+                          <ActionIcon
+                            variant="subtle"
+                            color="blue"
+                            onClick={() => restoreMutation.mutate(v.version)}
+                          >
+                            <IconHistory size={16} />
+                          </ActionIcon>
+                        </Tooltip>
                       )}
                       {!isCurrent && versions.length > 1 && (
-                        <ActionIcon
-                          variant="subtle"
-                          color="red"
-                          title="Delete this version"
-                          onClick={() => setDeleteVersionNum(v.version)}
-                        >
-                          <IconTrash size={16} />
-                        </ActionIcon>
+                        <Tooltip label="Delete version">
+                          <ActionIcon
+                            variant="subtle"
+                            color="red"
+                            onClick={() => setDeleteVersionNum(v.version)}
+                          >
+                            <IconTrash size={16} />
+                          </ActionIcon>
+                        </Tooltip>
                       )}
                     </Group>
                   </Table.Td>
