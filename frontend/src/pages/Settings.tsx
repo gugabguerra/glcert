@@ -11,7 +11,6 @@ import {
   Text,
   Modal,
   useMantineColorScheme,
-  useComputedColorScheme,
   SimpleGrid,
   Paper,
   Space,
@@ -37,8 +36,7 @@ interface Settings {
 
 function SettingsPage() {
   const queryClient = useQueryClient();
-  const { setColorScheme } = useMantineColorScheme();
-  const computedColorScheme = useComputedColorScheme('dark');
+  const { setColorScheme, colorScheme } = useMantineColorScheme();
 
   const form = useForm({
     initialValues: {
@@ -235,7 +233,7 @@ function SettingsPage() {
                 { value: 'dark', label: 'Dark' },
                 { value: 'auto', label: 'System' },
               ]}
-              value={computedColorScheme}
+              value={colorScheme}
               onChange={(value) => {
                 if (value) {
                   setColorScheme(value as 'light' | 'dark' | 'auto');
