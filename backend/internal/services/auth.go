@@ -125,6 +125,30 @@ func (s *AuthService) Login(username, password string) (string, error) {
 	return token, nil
 }
 
+func (s *AuthService) ChangePassword(currentPassword, newPassword string) error {
+	var storedHash string
+	err := s.db.QueryRow("SELECT password_hash FROM admin WHERE id = 1").Scan(&storedHash)
+	if err != nil {
+		return fmt.Errorf("admin not found")
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(storedHash), []byte(currentPassword)); err != nil {
+		return fmt.Errorf("invalid current password")
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("hash password: %w", err)
+	}
+
+	_, err = s.db.Exec("UPDATE admin SET password_hash = ? WHERE id = 1", string(hash))
+	if err != nil {
+		return fmt.Errorf("update password: %w", err)
+	}
+
+	return nil
+}
+
 func (s *AuthService) ValidateSession(token string) bool {
 	var count int
 	err := s.db.QueryRow("SELECT COUNT(*) FROM sessions WHERE token = ? AND expires_at > ?", token, time.Now()).Scan(&count)

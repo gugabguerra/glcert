@@ -46,6 +46,7 @@ func main() {
 			r.Use(authMiddleware.RequireAuth)
 
 			r.Post("/auth/logout", authHandler.Logout)
+			r.Put("/auth/password", authHandler.ChangePassword)
 
 			h := handlers.New(db)
 			r.Get("/dashboard", h.GetDashboardStats)

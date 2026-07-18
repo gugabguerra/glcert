@@ -129,6 +129,50 @@ func (s *CryptoService) LoadPassphrase(adminPassword string) error {
 	return nil
 }
 
+func (s *CryptoService) ChangeAdminPassword(oldPassword, newPassword string) error {
+	encoded, err := os.ReadFile(s.GetPassphrasePath())
+	if err != nil {
+		return fmt.Errorf("read passphrase file: %w", err)
+	}
+
+	data, err := base64.StdEncoding.DecodeString(string(encoded))
+	if err != nil {
+		return fmt.Errorf("decode passphrase file: %w", err)
+	}
+
+	if len(data) < 16 {
+		return fmt.Errorf("invalid passphrase file")
+	}
+
+	salt := data[:16]
+	encrypted := data[16:]
+
+	key := s.deriveKey(oldPassword, salt)
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return fmt.Errorf("create cipher: %w", err)
+	}
+
+	oldGcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return fmt.Errorf("create GCM: %w", err)
+	}
+
+	nonceSize := oldGcm.NonceSize()
+	if len(encrypted) < nonceSize {
+		return fmt.Errorf("invalid encrypted data")
+	}
+
+	nonce, ciphertext := encrypted[:nonceSize], encrypted[nonceSize:]
+	passphrase, err := oldGcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return fmt.Errorf("decrypt passphrase: %w", err)
+	}
+
+	return s.SavePassphrase(string(passphrase), newPassword)
+}
+
 func (s *CryptoService) Encrypt(data []byte) ([]byte, error) {
 	if !s.enabled || s.gcm == nil {
 		return data, nil
