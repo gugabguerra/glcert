@@ -48,6 +48,8 @@ function CADetail() {
   if (!ca) return <Text>CA not found</Text>;
 
   const isExpired = new Date(ca.expiresAt) < new Date();
+  const daysLeft = Math.ceil((new Date(ca.expiresAt).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+  const isExpiringSoon = !isExpired && daysLeft <= 30;
 
   return (
     <Stack>
@@ -113,6 +115,8 @@ function CADetail() {
           <Text fw={500}>Status:</Text>
           {isExpired ? (
             <Badge color="red">Expired</Badge>
+          ) : isExpiringSoon ? (
+            <Badge color="yellow">Expiring Soon</Badge>
           ) : (
             <Badge color="green">Active</Badge>
           )}

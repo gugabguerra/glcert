@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/glcert/glcert/internal/models"
@@ -47,9 +48,11 @@ func (h *CertHandler) List(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.db.Query(`
 		SELECT c.id, c.name, c.description, c.type, c.certificate_authority_id,
 			c.current_version, c.created_at, c.updated_at,
-			COALESCE(ca.name, '') as ca_name
+			COALESCE(ca.name, '') as ca_name,
+			cv.expires_at
 		FROM certificates c
 		LEFT JOIN certificate_authorities ca ON c.certificate_authority_id = ca.id
+		LEFT JOIN certificate_versions cv ON cv.certificate_id = c.id AND cv.version = c.current_version
 		ORDER BY c.created_at DESC
 	`)
 	if err != nil {
@@ -60,14 +63,15 @@ func (h *CertHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	type CertWithCA struct {
 		models.Certificate
-		CAName string `json:"caName"`
+		CAName   string     `json:"caName"`
+		ExpiresAt *time.Time `json:"expiresAt"`
 	}
 
 	var certs []CertWithCA
 	for rows.Next() {
 		var c CertWithCA
 		if err := rows.Scan(&c.ID, &c.Name, &c.Description, &c.Type, &c.CertificateAuthorityID,
-			&c.CurrentVersion, &c.CreatedAt, &c.UpdatedAt, &c.CAName); err != nil {
+			&c.CurrentVersion, &c.CreatedAt, &c.UpdatedAt, &c.CAName, &c.ExpiresAt); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}

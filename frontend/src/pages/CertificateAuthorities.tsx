@@ -32,7 +32,7 @@ function CertificateAuthorities() {
     },
   });
 
-  const [sortKey, setSortKey] = useState<string>('name');
+  const [sortKey, setSortKey] = useState<string>('expires');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   const toggleSort = (key: string) => {

@@ -204,6 +204,33 @@ function CertificateDetail() {
           <Text fw={500}>Created:</Text>
           <Text>{new Date(cert.createdAt).toLocaleString()}</Text>
         </Group>
+        {(() => {
+          const currentVersion = versions.find(v => v.version === cert.currentVersion);
+          if (!currentVersion) return null;
+          const expiresAt = new Date(currentVersion.expiresAt);
+          const now = new Date();
+          const daysLeft = Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          const isExpired = expiresAt < now;
+          const isExpiringSoon = !isExpired && daysLeft <= 30;
+          return (
+            <>
+              <Group>
+                <Text fw={500}>Expires:</Text>
+                <Text>{expiresAt.toLocaleString()}</Text>
+              </Group>
+              <Group>
+                <Text fw={500}>Status:</Text>
+                {isExpired ? (
+                  <Badge color="red">Expired</Badge>
+                ) : isExpiringSoon ? (
+                  <Badge color="yellow">Expiring Soon</Badge>
+                ) : (
+                  <Badge color="green">Active</Badge>
+                )}
+              </Group>
+            </>
+          );
+        })()}
         <Group>
           <Text fw={500}>Current Version:</Text>
           <Text>v{cert.currentVersion}</Text>

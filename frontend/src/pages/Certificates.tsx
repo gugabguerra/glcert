@@ -15,6 +15,7 @@ interface Certificate {
   createdAt: string;
   updatedAt: string;
   caName: string;
+  expiresAt: string | null;
 }
 
 function Certificates() {
@@ -39,7 +40,7 @@ function Certificates() {
     ? certs.filter((c) => c.type === typeFilter)
     : certs;
 
-  const [sortKey, setSortKey] = useState<string>('name');
+  const [sortKey, setSortKey] = useState<string>('expires');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   const toggleSort = (key: string) => {
@@ -51,17 +52,33 @@ function Certificates() {
     }
   };
 
+  const isExpired = (expiresAt: string | null) => expiresAt ? new Date(expiresAt) < new Date() : false;
+  const isExpiringSoon = (expiresAt: string | null) => {
+    if (!expiresAt) return false;
+    const expiry = new Date(expiresAt);
+    const now = new Date();
+    const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+    return expiry > now && expiry.getTime() - now.getTime() < thirtyDays;
+  };
+
+  const getStatusPriority = (expiresAt: string | null) => {
+    if (isExpired(expiresAt)) return 2;
+    if (isExpiringSoon(expiresAt)) return 1;
+    return 0;
+  };
+
   const sortedData = useMemo(() => {
     return [...filteredCerts].sort((a, b) => {
       let aVal: string | number;
       let bVal: string | number;
       switch (sortKey) {
         case 'name': aVal = a.name; bVal = b.name; break;
-        case 'description': aVal = a.description; bVal = b.description; break;
         case 'type': aVal = a.type; bVal = b.type; break;
         case 'issuer': aVal = a.caName || 'Self-Signed'; bVal = b.caName || 'Self-Signed'; break;
         case 'version': aVal = a.currentVersion; bVal = b.currentVersion; break;
-        default: aVal = a.name; bVal = b.name;
+        case 'expires': aVal = a.expiresAt ? new Date(a.expiresAt).getTime() : 0; bVal = b.expiresAt ? new Date(b.expiresAt).getTime() : 0; break;
+        case 'status': aVal = getStatusPriority(a.expiresAt); bVal = getStatusPriority(b.expiresAt); break;
+        default: aVal = a.expiresAt ? new Date(a.expiresAt).getTime() : 0; bVal = b.expiresAt ? new Date(b.expiresAt).getTime() : 0;
       }
       const dir = sortDirection === 'asc' ? 1 : -1;
       if (aVal < bVal) return -dir;
@@ -114,9 +131,6 @@ function Certificates() {
               <Table.Th style={{ cursor: 'pointer' }} onClick={() => toggleSort('name')}>
                 Name {sortKey === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
               </Table.Th>
-              <Table.Th style={{ cursor: 'pointer' }} onClick={() => toggleSort('description')}>
-                Description {sortKey === 'description' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
-              </Table.Th>
               <Table.Th style={{ cursor: 'pointer' }} onClick={() => toggleSort('type')}>
                 Type {sortKey === 'type' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
               </Table.Th>
@@ -125,6 +139,12 @@ function Certificates() {
               </Table.Th>
               <Table.Th style={{ cursor: 'pointer' }} onClick={() => toggleSort('version')}>
                 Version {sortKey === 'version' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
+              </Table.Th>
+              <Table.Th style={{ cursor: 'pointer' }} onClick={() => toggleSort('expires')}>
+                Expires {sortKey === 'expires' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
+              </Table.Th>
+              <Table.Th style={{ cursor: 'pointer' }} onClick={() => toggleSort('status')}>
+                Status {sortKey === 'status' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
               </Table.Th>
               <Table.Th>Actions</Table.Th>
             </Table.Tr>
@@ -137,7 +157,6 @@ function Certificates() {
                     {cert.name}
                   </Anchor>
                 </Table.Td>
-                <Table.Td>{cert.description}</Table.Td>
                 <Table.Td>
                   <Badge color={typeColors[cert.type] || 'gray'}>
                     {cert.type}
@@ -145,6 +164,18 @@ function Certificates() {
                 </Table.Td>
                 <Table.Td>{cert.caName || 'Self-Signed'}</Table.Td>
                 <Table.Td>v{cert.currentVersion}</Table.Td>
+                <Table.Td>{cert.expiresAt ? new Date(cert.expiresAt).toLocaleDateString() : '—'}</Table.Td>
+                <Table.Td>
+                  {cert.expiresAt && (
+                    isExpired(cert.expiresAt) ? (
+                      <Badge color="red">Expired</Badge>
+                    ) : isExpiringSoon(cert.expiresAt) ? (
+                      <Badge color="yellow">Expiring Soon</Badge>
+                    ) : (
+                      <Badge color="green">Active</Badge>
+                    )
+                  )}
+                </Table.Td>
                 <Table.Td>
                   <Tooltip label="Delete certificate">
                     <ActionIcon
