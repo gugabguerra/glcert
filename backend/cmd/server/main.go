@@ -98,6 +98,9 @@ func main() {
 		})
 	})
 
+	staticHandler := handlers.NewStaticHandler("./static")
+	r.Handle("/*", staticHandler)
+
 	go func() {
 		time.Sleep(5 * time.Minute)
 		ticker := time.NewTicker(1 * time.Hour)
