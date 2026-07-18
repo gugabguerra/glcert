@@ -1,4 +1,4 @@
-import { Title, Text, Button, Group, Stack, Badge, Divider, ActionIcon, Table, Modal, Center, Loader, SimpleGrid, Paper, Tooltip, TextInput } from '@mantine/core';
+import { Title, Text, Button, Group, Stack, Badge, Divider, ActionIcon, Table, Modal, Center, Loader, SimpleGrid, Paper, Tooltip, TextInput, NumberInput } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import { IconDownload, IconTrash, IconRefresh, IconHistory, IconEye, IconLink } from '@tabler/icons-react';
@@ -44,6 +44,8 @@ function CertificateDetail() {
   const [sortKey, setSortKey] = useState<string>('version');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [shareLinkUrl, setShareLinkUrl] = useState<string | null>(null);
+  const [showRegenerate, setShowRegenerate] = useState(false);
+  const [regenerateValidity, setRegenerateValidity] = useState(365);
 
   const { data: cert, isLoading } = useQuery<Certificate>({
     queryKey: ['certificate', id],
@@ -65,7 +67,11 @@ function CertificateDetail() {
 
   const regenerateMutation = useMutation({
     mutationFn: () =>
-      authFetchJson(`/api/certificates/${id}/regenerate`, { method: 'POST' }),
+      authFetch(`/api/certificates/${id}/regenerate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ validityDays: regenerateValidity }),
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['certificate', id] });
       queryClient.invalidateQueries({ queryKey: ['certificateVersions', id] });
@@ -257,7 +263,7 @@ function CertificateDetail() {
           leftSection={<IconRefresh size={16} />}
           variant="light"
           loading={regenerateMutation.isPending}
-          onClick={() => regenerateMutation.mutate()}
+          onClick={() => setShowRegenerate(true)}
         >
           Regenerate
         </Button>
@@ -379,6 +385,29 @@ function CertificateDetail() {
           <Button variant="default" onClick={() => setShowDelete(false)}>Cancel</Button>
           <Button color="red" loading={deleteMutation.isPending} onClick={() => deleteMutation.mutate()}>
             Delete
+          </Button>
+        </Group>
+      </Modal>
+
+      <Modal opened={showRegenerate} onClose={() => setShowRegenerate(false)} title="Regenerate Certificate">
+        <Text mb="md">This will create a new version of this certificate. The current version will be superseded.</Text>
+        <NumberInput
+          label="Validity (days)"
+          min={1}
+          max={3650}
+          value={regenerateValidity}
+          onChange={(value) => setRegenerateValidity(Number(value) || 365)}
+        />
+        <Group justify="flex-end" mt="md">
+          <Button variant="default" onClick={() => setShowRegenerate(false)}>Cancel</Button>
+          <Button
+            loading={regenerateMutation.isPending}
+            onClick={() => {
+              regenerateMutation.mutate();
+              setShowRegenerate(false);
+            }}
+          >
+            Regenerate
           </Button>
         </Group>
       </Modal>

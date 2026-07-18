@@ -580,6 +580,14 @@ func (h *CertHandler) Regenerate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	var req struct {
+		ValidityDays int `json:"validityDays"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+	if req.ValidityDays <= 0 {
+		req.ValidityDays = 365
+	}
+
 	newVersion := currentVersion + 1
 
 	result, err := h.cert.GenerateCert(services.CreateCertInput{
@@ -596,7 +604,7 @@ func (h *CertHandler) Regenerate(w http.ResponseWriter, r *http.Request) {
 		City:              city,
 		KeyAlgorithm:      "rsa",
 		RSAKeySize:        2048,
-		ValidityDays:      365,
+		ValidityDays:      req.ValidityDays,
 	}, caCertPEM, caKeyPEM)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
