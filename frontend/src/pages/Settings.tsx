@@ -13,8 +13,8 @@ import {
   useMantineColorScheme,
   SimpleGrid,
   Paper,
-  Space,
   Divider,
+  Switch,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -32,6 +32,9 @@ interface Settings {
   defaultRSAKeySize: number;
   defaultECDSACurve: string;
   defaultValidityDays: number;
+  notificationsEnabled: boolean;
+  notificationWebhookUrl: string;
+  notificationThresholdDays: number;
 }
 
 function SettingsPage() {
@@ -60,11 +63,14 @@ function SettingsPage() {
   useEffect(() => {
     if (settingsData) {
       form.setValues(settingsData);
+      setNotificationsEnabled(settingsData.notificationsEnabled ?? false);
+      setWebhookUrl(settingsData.notificationWebhookUrl ?? '');
+      setThresholdDays(settingsData.notificationThresholdDays ?? 30);
     }
   }, [settingsData]);
 
   const mutation = useMutation({
-    mutationFn: (values: Omit<Settings, 'id' | 'createdAt' | 'updatedAt'>) =>
+    mutationFn: (values: Record<string, unknown>) =>
       authFetchJson('/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -80,6 +86,10 @@ function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [webhookUrl, setWebhookUrl] = useState('');
+  const [thresholdDays, setThresholdDays] = useState(30);
+  const [testStatus, setTestStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
 
   const passwordMutation = useMutation({
     mutationFn: (values: { currentPassword: string; newPassword: string }) =>
@@ -98,6 +108,34 @@ function SettingsPage() {
     onError: () => {
       setPasswordSuccess('');
       setPasswordError('Invalid current password');
+    },
+  });
+
+  const testNotificationMutation = useMutation({
+    mutationFn: () =>
+      authFetchJson('/api/notifications/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ webhookUrl }),
+      }),
+    onSuccess: () => setTestStatus('success'),
+    onError: () => setTestStatus('error'),
+  });
+
+  const notificationMutation = useMutation({
+    mutationFn: () =>
+      authFetchJson('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...form.values,
+          notificationsEnabled,
+          notificationWebhookUrl: webhookUrl,
+          notificationThresholdDays: thresholdDays,
+        }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
     },
   });
 
@@ -241,6 +279,65 @@ function SettingsPage() {
                 }
               }}
             />
+          </Paper>
+
+          <Paper withBorder p='md'>
+            <Title order={5} mb='md'>
+              Notifications
+            </Title>
+            <Stack gap='md'>
+              <Switch
+                label='Enable expiration notifications'
+                checked={notificationsEnabled}
+                onChange={(event) => setNotificationsEnabled(event.currentTarget.checked)}
+              />
+              <TextInput
+                label='Webhook URL'
+                placeholder='discord://token@webhookid'
+                value={webhookUrl}
+                onChange={(e) => setWebhookUrl(e.currentTarget.value)}
+                disabled={!notificationsEnabled}
+              />
+              <NumberInput
+                label='Warning threshold (days)'
+                min={1}
+                max={365}
+                value={thresholdDays}
+                onChange={(value) => setThresholdDays(Number(value) || 30)}
+                disabled={!notificationsEnabled}
+              />
+              <Group justify='space-between'>
+                <Button
+                  variant='light'
+                  loading={testNotificationMutation.isPending}
+                  disabled={!notificationsEnabled || !webhookUrl}
+                  onClick={() => {
+                    setTestStatus('idle');
+                    testNotificationMutation.mutate();
+                  }}
+                >
+                  Send Test Notification
+                </Button>
+                {testStatus === 'success' && (
+                  <Text c='green' size='sm'>
+                    Test sent successfully
+                  </Text>
+                )}
+                {testStatus === 'error' && (
+                  <Text c='red' size='sm'>
+                    Failed to send test
+                  </Text>
+                )}
+              </Group>
+              <Group justify='flex-end'>
+                <Button
+                  loading={notificationMutation.isPending}
+                  onClick={() => notificationMutation.mutate()}
+                >
+                  Save Notification Settings
+                </Button>
+              </Group>
+            </Stack>
           </Paper>
 
           <Paper withBorder p='md'>

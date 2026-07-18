@@ -61,12 +61,14 @@ func (h *Handler) GetSettings(w http.ResponseWriter, r *http.Request) {
 	err := h.db.QueryRow(`
 		SELECT id, organization, country, state, city, email,
 			default_key_algorithm, default_rsa_key_size, default_ecdsa_curve,
-			default_validity_days, created_at, updated_at
+			default_validity_days, notifications_enabled, notification_webhook_url,
+			notification_threshold_days, created_at, updated_at
 		FROM settings WHERE id = 1
 	`).Scan(
 		&s.ID, &s.Organization, &s.Country, &s.State, &s.City, &s.Email,
 		&s.DefaultKeyAlgorithm, &s.DefaultRSAKeySize, &s.DefaultECDSACurve,
-		&s.DefaultValidityDays, &s.CreatedAt, &s.UpdatedAt,
+		&s.DefaultValidityDays, &s.NotificationsEnabled, &s.NotificationWebhookURL,
+		&s.NotificationThresholdDays, &s.CreatedAt, &s.UpdatedAt,
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -95,12 +97,16 @@ func (h *Handler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 			default_rsa_key_size = ?,
 			default_ecdsa_curve = ?,
 			default_validity_days = ?,
+			notifications_enabled = ?,
+			notification_webhook_url = ?,
+			notification_threshold_days = ?,
 			updated_at = CURRENT_TIMESTAMP
 		WHERE id = 1
 	`,
 		s.Organization, s.Country, s.State, s.City, s.Email,
 		s.DefaultKeyAlgorithm, s.DefaultRSAKeySize, s.DefaultECDSACurve,
-		s.DefaultValidityDays,
+		s.DefaultValidityDays, s.NotificationsEnabled, s.NotificationWebhookURL,
+		s.NotificationThresholdDays,
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

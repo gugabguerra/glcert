@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -24,6 +25,7 @@ func main() {
 
 	crypto := services.NewCryptoService(cfg.DataDir)
 	auth := services.NewAuthService(db)
+	notificationService := services.NewNotificationService(db)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
@@ -44,6 +46,7 @@ func main() {
 
 		caService := services.NewCAService(cfg.DataDir, crypto)
 		certService := services.NewCertService(cfg.DataDir, crypto)
+		notificationHandler := handlers.NewNotificationHandler(notificationService)
 		shareHandler := handlers.NewShareHandler(db, certService, caService)
 
 		r.Get("/share/{token}", shareHandler.ServeLink)
@@ -60,6 +63,7 @@ func main() {
 			r.Get("/dashboard", h.GetDashboardStats)
 			r.Get("/settings", h.GetSettings)
 			r.Put("/settings", h.UpdateSettings)
+			r.Post("/notifications/test", notificationHandler.TestNotification)
 
 			caHandler := handlers.NewCAHandler(db, caService)
 
@@ -93,6 +97,16 @@ func main() {
 			})
 		})
 	})
+
+	go func() {
+		time.Sleep(5 * time.Minute)
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+		notificationService.CheckAndNotify()
+		for range ticker.C {
+			notificationService.CheckAndNotify()
+		}
+	}()
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	log.Printf("GLCert server starting on %s", addr)

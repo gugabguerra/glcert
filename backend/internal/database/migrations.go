@@ -102,6 +102,18 @@ func migrate(db *sql.DB) error {
 		db.Exec(q) // ignore errors (column already exists)
 	}
 
+	notificationAlterQueries := []string{
+		`ALTER TABLE settings ADD COLUMN notifications_enabled BOOLEAN DEFAULT 0`,
+		`ALTER TABLE settings ADD COLUMN notification_webhook_url TEXT DEFAULT ''`,
+		`ALTER TABLE settings ADD COLUMN notification_threshold_days INTEGER DEFAULT 30`,
+		`ALTER TABLE certificates ADD COLUMN last_notified_at DATETIME`,
+		`ALTER TABLE certificate_authorities ADD COLUMN last_notified_at DATETIME`,
+	}
+
+	for _, q := range notificationAlterQueries {
+		db.Exec(q)
+	}
+
 	// Insert default settings if not exists
 	var count int
 	err = db.QueryRow("SELECT COUNT(*) FROM settings").Scan(&count)

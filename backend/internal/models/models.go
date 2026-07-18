@@ -12,9 +12,12 @@ type Settings struct {
 	DefaultKeyAlgorithm string    `json:"defaultKeyAlgorithm"`
 	DefaultRSAKeySize   int       `json:"defaultRSAKeySize"`
 	DefaultECDSACurve   string    `json:"defaultECDSACurve"`
-	DefaultValidityDays int       `json:"defaultValidityDays"`
-	CreatedAt           time.Time `json:"createdAt"`
-	UpdatedAt           time.Time `json:"updatedAt"`
+	DefaultValidityDays      int       `json:"defaultValidityDays"`
+	NotificationsEnabled      bool      `json:"notificationsEnabled"`
+	NotificationWebhookURL    string    `json:"notificationWebhookUrl"`
+	NotificationThresholdDays int       `json:"notificationThresholdDays"`
+	CreatedAt                time.Time `json:"createdAt"`
+	UpdatedAt                time.Time `json:"updatedAt"`
 }
 
 type CertificateAuthority struct {
