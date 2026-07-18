@@ -1,7 +1,7 @@
-import { Title, Text, Button, Group, Stack, Badge, Divider, ActionIcon, Table, Modal } from '@mantine/core';
+import { Title, Text, Button, Group, Stack, Badge, Divider, ActionIcon, Table, Modal, Center, Loader, SimpleGrid, Paper } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
-import { IconDownload, IconTrash, IconRefresh, IconHistory } from '@tabler/icons-react';
+import { IconDownload, IconTrash, IconRefresh, IconHistory, IconEye } from '@tabler/icons-react';
 import { useState } from 'react';
 import { authFetch, authFetchJson, downloadFile } from '../api';
 
@@ -15,6 +15,9 @@ interface Certificate {
   createdAt: string;
   updatedAt: string;
   caName: string;
+  commonName: string;
+  dnsNames: string[];
+  ipAddresses: string[];
 }
 
 interface CertificateVersion {
@@ -37,13 +40,14 @@ function CertificateDetail() {
   const queryClient = useQueryClient();
   const [showDelete, setShowDelete] = useState(false);
   const [deleteVersionNum, setDeleteVersionNum] = useState<number | null>(null);
+  const [detailVersion, setDetailVersion] = useState<CertificateVersion | null>(null);
 
   const { data: cert, isLoading } = useQuery<Certificate>({
     queryKey: ['certificate', id],
     queryFn: () => authFetchJson(`/api/certificates/${id}`),
   });
 
-  const { data: versions = [] } = useQuery<CertificateVersion[]>({
+  const { data: versions = [], isLoading: versionsLoading } = useQuery<CertificateVersion[]>({
     queryKey: ['certificateVersions', id],
     queryFn: () => authFetchJson(`/api/certificates/${id}/versions`),
   });
@@ -86,7 +90,7 @@ function CertificateDetail() {
     },
   });
 
-  if (isLoading) return <Text>Loading...</Text>;
+  if (isLoading) return <Center py={80}><Loader /></Center>;
   if (!cert) return <Text>Certificate not found</Text>;
 
   const typeColors: Record<string, string> = {
@@ -94,6 +98,8 @@ function CertificateDetail() {
     client: 'green',
     selfsigned: 'orange',
   };
+
+  const detailVersionData = detailVersion ? versions.find(v => v.id === detailVersion.id) ?? detailVersion : null;
 
   return (
     <Stack>
@@ -127,6 +133,10 @@ function CertificateDetail() {
 
       <Stack gap="xs">
         <Group>
+          <Text fw={500}>Common Name:</Text>
+          <Text>{cert.commonName || '—'}</Text>
+        </Group>
+        <Group>
           <Text fw={500}>Issuer:</Text>
           <Text>{cert.caName || 'Self-Signed'}</Text>
         </Group>
@@ -138,6 +148,18 @@ function CertificateDetail() {
           <Text fw={500}>Current Version:</Text>
           <Text>v{cert.currentVersion}</Text>
         </Group>
+        {cert.dnsNames && cert.dnsNames.length > 0 && (
+          <Group>
+            <Text fw={500}>DNS Names:</Text>
+            <Text>{cert.dnsNames.join(', ')}</Text>
+          </Group>
+        )}
+        {cert.ipAddresses && cert.ipAddresses.length > 0 && (
+          <Group>
+            <Text fw={500}>IP Addresses:</Text>
+            <Text>{cert.ipAddresses.join(', ')}</Text>
+          </Group>
+        )}
       </Stack>
 
       <Divider />
@@ -154,7 +176,9 @@ function CertificateDetail() {
         </Button>
       </Group>
 
-      {versions.length === 0 ? (
+      {versionsLoading ? (
+        <Center py={40}><Loader size="sm" /></Center>
+      ) : versions.length === 0 ? (
         <Text c="dimmed">No versions found.</Text>
       ) : (
         <Table striped highlightOnHover>
@@ -190,6 +214,14 @@ function CertificateDetail() {
                   </Table.Td>
                   <Table.Td>
                     <Group gap="xs">
+                      <ActionIcon
+                        variant="subtle"
+                        color="blue"
+                        title="View details"
+                        onClick={() => setDetailVersion(v)}
+                      >
+                        <IconEye size={16} />
+                      </ActionIcon>
                       {!isCurrent && !v.revoked && (
                         <ActionIcon
                           variant="subtle"
@@ -260,6 +292,92 @@ function CertificateDetail() {
             Delete
           </Button>
         </Group>
+      </Modal>
+
+      <Modal
+        opened={detailVersionData !== null}
+        onClose={() => setDetailVersion(null)}
+        title={`Certificate Details — v${detailVersionData?.version}`}
+        size="lg"
+      >
+        {detailVersionData && (
+          <Stack gap="md">
+            <SimpleGrid cols={2}>
+              <Paper p="sm" withBorder>
+                <Text size="xs" c="dimmed">Version</Text>
+                <Text fw={500}>v{detailVersionData.version}</Text>
+              </Paper>
+              <Paper p="sm" withBorder>
+                <Text size="xs" c="dimmed">Status</Text>
+                <Text fw={500}>
+                  {detailVersionData.revoked ? (
+                    <Badge color="red">Revoked</Badge>
+                  ) : new Date(detailVersionData.expiresAt) < new Date() ? (
+                    <Badge color="red">Expired</Badge>
+                  ) : detailVersionData.version === cert.currentVersion ? (
+                    <Badge color="green">Current</Badge>
+                  ) : (
+                    <Badge color="gray">Superseded</Badge>
+                  )}
+                </Text>
+              </Paper>
+              <Paper p="sm" withBorder>
+                <Text size="xs" c="dimmed">Public Key Algorithm</Text>
+                <Text fw={500}>{detailVersionData.publicKeyAlgorithm}</Text>
+              </Paper>
+              <Paper p="sm" withBorder>
+                <Text size="xs" c="dimmed">Signature Algorithm</Text>
+                <Text fw={500}>{detailVersionData.signatureAlgorithm}</Text>
+              </Paper>
+              <Paper p="sm" withBorder>
+                <Text size="xs" c="dimmed">Issuer</Text>
+                <Text fw={500}>{cert.caName || 'Self-Signed'}</Text>
+              </Paper>
+              <Paper p="sm" withBorder>
+                <Text size="xs" c="dimmed">Common Name</Text>
+                <Text fw={500}>{cert.commonName || '—'}</Text>
+              </Paper>
+              <Paper p="sm" withBorder>
+                <Text size="xs" c="dimmed">Serial Number</Text>
+                <Text fw={500} size="sm" style={{ wordBreak: 'break-all' }}>{detailVersionData.serialNumber || '—'}</Text>
+              </Paper>
+              <Paper p="sm" withBorder>
+                <Text size="xs" c="dimmed">Fingerprint</Text>
+                <Text fw={500} size="sm" style={{ wordBreak: 'break-all' }}>{detailVersionData.fingerprint || '—'}</Text>
+              </Paper>
+              <Paper p="sm" withBorder>
+                <Text size="xs" c="dimmed">Created</Text>
+                <Text fw={500}>{new Date(detailVersionData.createdAt).toLocaleString()}</Text>
+              </Paper>
+              <Paper p="sm" withBorder>
+                <Text size="xs" c="dimmed">Expires</Text>
+                <Text fw={500}>{new Date(detailVersionData.expiresAt).toLocaleString()}</Text>
+              </Paper>
+            </SimpleGrid>
+
+            {cert.dnsNames && cert.dnsNames.length > 0 && (
+              <Paper p="sm" withBorder>
+                <Text size="xs" c="dimmed" mb={4}>DNS Names</Text>
+                <Group gap={4}>
+                  {cert.dnsNames.map((name) => (
+                    <Badge key={name} variant="light">{name}</Badge>
+                  ))}
+                </Group>
+              </Paper>
+            )}
+
+            {cert.ipAddresses && cert.ipAddresses.length > 0 && (
+              <Paper p="sm" withBorder>
+                <Text size="xs" c="dimmed" mb={4}>IP Addresses</Text>
+                <Group gap={4}>
+                  {cert.ipAddresses.map((ip) => (
+                    <Badge key={ip} variant="light" color="teal">{ip}</Badge>
+                  ))}
+                </Group>
+              </Paper>
+            )}
+          </Stack>
+        )}
       </Modal>
     </Stack>
   );

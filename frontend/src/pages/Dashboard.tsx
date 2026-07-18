@@ -1,4 +1,4 @@
-import { Title, Text, SimpleGrid, Card, Stack, Anchor, Table, Badge } from '@mantine/core';
+import { Title, Text, SimpleGrid, Card, Stack, Anchor, Table, Badge, Center, Loader } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { authFetchJson } from '../api';
@@ -19,7 +19,7 @@ interface Certificate {
 }
 
 function Dashboard() {
-  const { data: stats } = useQuery<DashboardStats>({
+  const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
     queryKey: ['dashboard'],
     queryFn: () => authFetchJson('/api/dashboard'),
   });
@@ -34,6 +34,8 @@ function Dashboard() {
     client: 'green',
     selfsigned: 'orange',
   };
+
+  if (statsLoading) return <Center py={80}><Loader /></Center>;
 
   return (
     <Stack>

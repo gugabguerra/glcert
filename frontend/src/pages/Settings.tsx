@@ -1,4 +1,4 @@
-import { Title, TextInput, Select, NumberInput, Button, Stack, Group } from '@mantine/core';
+import { Title, TextInput, Select, NumberInput, Button, Stack, Group, Center, Loader } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
@@ -56,6 +56,8 @@ function SettingsPage() {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
     },
   });
+
+  if (isLoading) return <Center py={80}><Loader /></Center>;
 
   return (
     <Stack>

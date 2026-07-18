@@ -65,6 +65,17 @@ function CreateCertificate() {
   }
 
   const caOptions = cas.map((ca) => ({ value: String(ca.id), label: ca.name }));
+  const hasCA = cas.length > 0;
+
+  const typeData = hasCA
+    ? [
+        { value: 'server', label: 'Server' },
+        { value: 'client', label: 'Client' },
+        { value: 'selfsigned', label: 'Self-Signed' },
+      ]
+    : [
+        { value: 'selfsigned', label: 'Self-Signed' },
+      ];
 
   const mutation = useMutation({
     mutationFn: (values: typeof form.values) => {
@@ -96,11 +107,8 @@ function CreateCertificate() {
         <Stack gap="md">
           <Select
             label="Type"
-            data={[
-              { value: 'server', label: 'Server' },
-              { value: 'client', label: 'Client' },
-              { value: 'selfsigned', label: 'Self-Signed' },
-            ]}
+            data={typeData}
+            description={!hasCA ? 'Create a CA first to issue Server or Client certificates' : undefined}
             {...form.getInputProps('type')}
           />
 

@@ -40,13 +40,6 @@ func migrate(db *sql.DB) error {
 			description TEXT DEFAULT '',
 			type TEXT NOT NULL CHECK(type IN ('server', 'client', 'selfsigned')),
 			certificate_authority_id INTEGER,
-			common_name TEXT DEFAULT '',
-			organization TEXT DEFAULT '',
-			country TEXT DEFAULT '',
-			state TEXT DEFAULT '',
-			city TEXT DEFAULT '',
-			dns_names TEXT DEFAULT '[]',
-			ip_addresses TEXT DEFAULT '[]',
 			current_version INTEGER DEFAULT 1,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -72,6 +65,27 @@ func migrate(db *sql.DB) error {
 		if _, err := db.Exec(q); err != nil {
 			return err
 		}
+	}
+
+	// Add columns that may be missing from older schemas
+	alterQueries := []string{
+		`ALTER TABLE certificates ADD COLUMN common_name TEXT DEFAULT ''`,
+		`ALTER TABLE certificates ADD COLUMN organization TEXT DEFAULT ''`,
+		`ALTER TABLE certificates ADD COLUMN country TEXT DEFAULT ''`,
+		`ALTER TABLE certificates ADD COLUMN state TEXT DEFAULT ''`,
+		`ALTER TABLE certificates ADD COLUMN city TEXT DEFAULT ''`,
+		`ALTER TABLE certificates ADD COLUMN dns_names TEXT DEFAULT '[]'`,
+		`ALTER TABLE certificates ADD COLUMN ip_addresses TEXT DEFAULT '[]'`,
+		`ALTER TABLE settings ADD COLUMN setup_complete BOOLEAN DEFAULT FALSE`,
+		`ALTER TABLE settings ADD COLUMN organization TEXT DEFAULT ''`,
+		`ALTER TABLE settings ADD COLUMN country TEXT DEFAULT ''`,
+		`ALTER TABLE settings ADD COLUMN state TEXT DEFAULT ''`,
+		`ALTER TABLE settings ADD COLUMN city TEXT DEFAULT ''`,
+		`ALTER TABLE settings ADD COLUMN email TEXT DEFAULT ''`,
+	}
+
+	for _, q := range alterQueries {
+		db.Exec(q) // ignore errors (column already exists)
 	}
 
 	// Insert default settings if not exists

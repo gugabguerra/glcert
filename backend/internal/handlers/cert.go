@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -88,21 +89,31 @@ func (h *CertHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	type CertWithCA struct {
+	type CertDetail struct {
 		models.Certificate
-		CAName string `json:"caName"`
+		CAName      string   `json:"caName"`
+		CommonName  string   `json:"commonName"`
+		DNSNames    []string `json:"dnsNames"`
+		IPAddresses []string `json:"ipAddresses"`
 	}
 
-	var c CertWithCA
+	var c CertDetail
+	var dnsNamesJSON, ipAddressesJSON sql.NullString
+	var commonName, organization, country, state, city string
 	err = h.db.QueryRow(`
 		SELECT c.id, c.name, c.description, c.type, c.certificate_authority_id,
 			c.current_version, c.created_at, c.updated_at,
-			COALESCE(ca.name, '') as ca_name
+			COALESCE(ca.name, '') as ca_name,
+			COALESCE(c.common_name, ''), COALESCE(c.organization, ''),
+			COALESCE(c.country, ''), COALESCE(c.state, ''), COALESCE(c.city, ''),
+			c.dns_names, c.ip_addresses
 		FROM certificates c
 		LEFT JOIN certificate_authorities ca ON c.certificate_authority_id = ca.id
 		WHERE c.id = ?
 	`, id).Scan(&c.ID, &c.Name, &c.Description, &c.Type, &c.CertificateAuthorityID,
-		&c.CurrentVersion, &c.CreatedAt, &c.UpdatedAt, &c.CAName)
+		&c.CurrentVersion, &c.CreatedAt, &c.UpdatedAt, &c.CAName,
+		&commonName, &organization, &country, &state, &city,
+		&dnsNamesJSON, &ipAddressesJSON)
 	if err == sql.ErrNoRows {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
@@ -110,6 +121,20 @@ func (h *CertHandler) Get(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	c.CommonName = commonName
+	if dnsNamesJSON.Valid {
+		json.Unmarshal([]byte(dnsNamesJSON.String), &c.DNSNames)
+	}
+	if ipAddressesJSON.Valid {
+		json.Unmarshal([]byte(ipAddressesJSON.String), &c.IPAddresses)
+	}
+	if c.DNSNames == nil {
+		c.DNSNames = []string{}
+	}
+	if c.IPAddresses == nil {
+		c.IPAddresses = []string{}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -196,6 +221,7 @@ func (h *CertHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 		caCertPEM, caKeyPEM, err = h.ca.ReadCA(caName, caVersion)
 		if err != nil {
+			log.Printf("create certificate error: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -218,12 +244,14 @@ func (h *CertHandler) Create(w http.ResponseWriter, r *http.Request) {
 		ValidityDays:      req.ValidityDays,
 	}, caCertPEM, caKeyPEM)
 	if err != nil {
+		log.Printf("create certificate error: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	// Save files
 	if err := h.cert.SaveCert(req.Type, req.Name, 1, result.CertPEM, result.KeyPEM, result.CAPem); err != nil {
+		log.Printf("create certificate error: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -239,6 +267,7 @@ func (h *CertHandler) Create(w http.ResponseWriter, r *http.Request) {
 		req.CommonName, req.Organization, req.Country, req.State, req.City,
 		string(dnsNamesBytes), string(ipAddressesBytes))
 	if err != nil {
+		log.Printf("create certificate error: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -252,11 +281,13 @@ func (h *CertHandler) Create(w http.ResponseWriter, r *http.Request) {
 	serialNumber := ""
 	sigAlgo := ""
 	pubKeyAlgo := ""
+	var expiresAt interface{}
 	if parsedCert != nil {
 		fingerprint = fmt.Sprintf("%x", parsedCert.SerialNumber)
 		serialNumber = parsedCert.SerialNumber.String()
 		sigAlgo = parsedCert.SignatureAlgorithm.String()
 		pubKeyAlgo = parsedCert.PublicKeyAlgorithm.String()
+		expiresAt = parsedCert.NotAfter
 	}
 
 	// Insert version
@@ -265,8 +296,9 @@ func (h *CertHandler) Create(w http.ResponseWriter, r *http.Request) {
 		INSERT INTO certificate_versions (certificate_id, version, storage_path, serial_number,
 			fingerprint, signature_algorithm, public_key_algorithm, expires_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	`, certID, 1, storagePath, serialNumber, fingerprint, sigAlgo, pubKeyAlgo, parsedCert.NotAfter)
+	`, certID, 1, storagePath, serialNumber, fingerprint, sigAlgo, pubKeyAlgo, expiresAt)
 	if err != nil {
+		log.Printf("create certificate error: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

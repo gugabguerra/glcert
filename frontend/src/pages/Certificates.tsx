@@ -1,4 +1,4 @@
-import { Title, Table, Button, Group, Badge, ActionIcon, Modal, Text, Stack, Anchor, Select } from '@mantine/core';
+import { Title, Table, Button, Group, Badge, ActionIcon, Modal, Text, Stack, Anchor, Select, Center, Loader } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
@@ -73,7 +73,7 @@ function Certificates() {
       </Group>
 
       {isLoading ? (
-        <Text>Loading...</Text>
+        <Center py={80}><Loader /></Center>
       ) : filteredCerts.length === 0 ? (
         <Text c="dimmed">No certificates yet.</Text>
       ) : (

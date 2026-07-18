@@ -1,4 +1,4 @@
-import { Title, Text, Button, Group, Stack, Badge, Divider, ActionIcon } from '@mantine/core';
+import { Title, Text, Button, Group, Stack, Badge, Divider, ActionIcon, Center, Loader } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import { IconDownload, IconTrash } from '@tabler/icons-react';
@@ -35,7 +35,7 @@ function CADetail() {
     },
   });
 
-  if (isLoading) return <Text>Loading...</Text>;
+  if (isLoading) return <Center py={80}><Loader /></Center>;
   if (!ca) return <Text>CA not found</Text>;
 
   const isExpired = new Date(ca.expiresAt) < new Date();
