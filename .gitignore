@@ -22,3 +22,6 @@ data/certificates/
 # OS
 .DS_Store
 Thumbs.db
+
+# Prompts
+PROMPTS/
