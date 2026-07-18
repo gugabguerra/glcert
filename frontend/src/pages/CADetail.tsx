@@ -1,9 +1,8 @@
-import { Title, Text, Button, Group, Stack, Badge, Divider, ActionIcon, Center, Loader, Tooltip } from '@mantine/core';
+import { Title, Text, Button, Group, Stack, Badge, Divider, ActionIcon, Center, Loader, Tooltip, TextInput, Modal } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
-import { IconDownload, IconTrash } from '@tabler/icons-react';
+import { IconDownload, IconTrash, IconLink } from '@tabler/icons-react';
 import { useState } from 'react';
-import { Modal } from '@mantine/core';
 import { authFetch, authFetchJson, downloadFile } from '../api';
 
 interface CertificateAuthority {
@@ -21,6 +20,7 @@ function CADetail() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showDelete, setShowDelete] = useState(false);
+  const [shareLinkUrl, setShareLinkUrl] = useState<string | null>(null);
 
   const { data: ca, isLoading } = useQuery<CertificateAuthority>({
     queryKey: ['ca', id],
@@ -32,6 +32,15 @@ function CADetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cas'] });
       navigate('/ca');
+    },
+  });
+
+  const shareMutation = useMutation({
+    mutationFn: () =>
+      authFetchJson<{ token: string; expires_at: string }>(`/api/share/ca/${id}`, { method: 'POST' }),
+    onSuccess: (data) => {
+      const url = `${window.location.origin}/api/share/${data.token}`;
+      setShareLinkUrl(url);
     },
   });
 
@@ -71,6 +80,11 @@ function CADetail() {
               onClick={() => setShowDelete(true)}
             >
               <IconTrash size={20} />
+            </ActionIcon>
+          </Tooltip>
+          <Tooltip label="Temporary share link">
+            <ActionIcon variant="subtle" onClick={() => shareMutation.mutate()}>
+              <IconLink size={20} />
             </ActionIcon>
           </Tooltip>
         </Group>
@@ -126,6 +140,9 @@ function CADetail() {
         >
           Download Bundle (ZIP)
         </Button>
+        <Button variant="light" leftSection={<IconLink size={16} />} onClick={() => shareMutation.mutate()}>
+          Temporary Link
+        </Button>
       </Group>
 
       <Modal opened={showDelete} onClose={() => setShowDelete(false)} title="Delete CA">
@@ -142,6 +159,27 @@ function CADetail() {
             Delete
           </Button>
         </Group>
+      </Modal>
+
+      <Modal opened={shareLinkUrl !== null} onClose={() => setShareLinkUrl(null)} title="Temporary Share Link">
+        <Stack gap="sm">
+          <Text size="sm">This link expires in 15 minutes, can only be used once, and requires no authentication.</Text>
+          <TextInput
+            value={shareLinkUrl || ''}
+            readOnly
+            onClick={(e) => (e.target as HTMLInputElement).select()}
+          />
+          <Group justify="flex-end">
+            <Button
+              variant="light"
+              onClick={() => {
+                if (shareLinkUrl) navigator.clipboard.writeText(shareLinkUrl);
+              }}
+            >
+              Copy Link
+            </Button>
+          </Group>
+        </Stack>
       </Modal>
     </Stack>
   );

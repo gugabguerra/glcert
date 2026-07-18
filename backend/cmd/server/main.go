@@ -42,6 +42,12 @@ func main() {
 		r.Post("/auth/setup", authHandler.Setup)
 		r.Post("/auth/login", authHandler.Login)
 
+		caService := services.NewCAService(cfg.DataDir, crypto)
+		certService := services.NewCertService(cfg.DataDir, crypto)
+		shareHandler := handlers.NewShareHandler(db, certService, caService)
+
+		r.Get("/share/{token}", shareHandler.ServeLink)
+
 		r.Group(func(r chi.Router) {
 			r.Use(authMiddleware.RequireAuth)
 
@@ -55,7 +61,6 @@ func main() {
 			r.Get("/settings", h.GetSettings)
 			r.Put("/settings", h.UpdateSettings)
 
-			caService := services.NewCAService(cfg.DataDir, crypto)
 			caHandler := handlers.NewCAHandler(db, caService)
 
 			r.Route("/ca", func(r chi.Router) {
@@ -68,8 +73,9 @@ func main() {
 				r.Get("/{id}/download/bundle", caHandler.DownloadCABundle)
 			})
 
-			certService := services.NewCertService(cfg.DataDir, crypto)
 			certHandler := handlers.NewCertHandler(db, certService, caService)
+
+			r.Post("/share/{type}/{id}", shareHandler.GenerateLink)
 
 			r.Route("/certificates", func(r chi.Router) {
 				r.Get("/", certHandler.List)

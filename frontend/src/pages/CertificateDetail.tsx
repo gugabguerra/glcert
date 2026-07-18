@@ -1,7 +1,7 @@
-import { Title, Text, Button, Group, Stack, Badge, Divider, ActionIcon, Table, Modal, Center, Loader, SimpleGrid, Paper, Tooltip } from '@mantine/core';
+import { Title, Text, Button, Group, Stack, Badge, Divider, ActionIcon, Table, Modal, Center, Loader, SimpleGrid, Paper, Tooltip, TextInput } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
-import { IconDownload, IconTrash, IconRefresh, IconHistory, IconEye } from '@tabler/icons-react';
+import { IconDownload, IconTrash, IconRefresh, IconHistory, IconEye, IconLink } from '@tabler/icons-react';
 import { useState, useMemo } from 'react';
 import { authFetch, authFetchJson, downloadFile } from '../api';
 
@@ -43,6 +43,7 @@ function CertificateDetail() {
   const [detailVersion, setDetailVersion] = useState<CertificateVersion | null>(null);
   const [sortKey, setSortKey] = useState<string>('version');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [shareLinkUrl, setShareLinkUrl] = useState<string | null>(null);
 
   const { data: cert, isLoading } = useQuery<Certificate>({
     queryKey: ['certificate', id],
@@ -89,6 +90,15 @@ function CertificateDetail() {
       queryClient.invalidateQueries({ queryKey: ['certificate', id] });
       queryClient.invalidateQueries({ queryKey: ['certificateVersions', id] });
       setDeleteVersionNum(null);
+    },
+  });
+
+  const shareMutation = useMutation({
+    mutationFn: () =>
+      authFetchJson<{ token: string; expires_at: string }>(`/api/share/certificate/${id}`, { method: 'POST' }),
+    onSuccess: (data) => {
+      const url = `${window.location.origin}/api/share/${data.token}`;
+      setShareLinkUrl(url);
     },
   });
 
@@ -169,6 +179,11 @@ function CertificateDetail() {
           <Tooltip label="Delete certificate">
             <ActionIcon color="red" variant="subtle" onClick={() => setShowDelete(true)}>
               <IconTrash size={20} />
+            </ActionIcon>
+          </Tooltip>
+          <Tooltip label="Temporary share link">
+            <ActionIcon variant="subtle" onClick={() => shareMutation.mutate()}>
+              <IconLink size={20} />
             </ActionIcon>
           </Tooltip>
         </Group>
@@ -326,6 +341,9 @@ function CertificateDetail() {
         <Button variant="filled" onClick={() => downloadFile(`/api/certificates/${id}/download/bundle`, `cert-${id}-bundle.zip`)}>
           Download Bundle (ZIP)
         </Button>
+        <Button variant="light" leftSection={<IconLink size={16} />} onClick={() => shareMutation.mutate()}>
+          Temporary Link
+        </Button>
       </Group>
 
       <Modal opened={showDelete} onClose={() => setShowDelete(false)} title="Delete Certificate">
@@ -436,6 +454,27 @@ function CertificateDetail() {
             )}
           </Stack>
         )}
+      </Modal>
+
+      <Modal opened={shareLinkUrl !== null} onClose={() => setShareLinkUrl(null)} title="Temporary Share Link">
+        <Stack gap="sm">
+          <Text size="sm">This link expires in 15 minutes, can only be used once, and requires no authentication.</Text>
+          <TextInput
+            value={shareLinkUrl || ''}
+            readOnly
+            onClick={(e) => (e.target as HTMLInputElement).select()}
+          />
+          <Group justify="flex-end">
+            <Button
+              variant="light"
+              onClick={() => {
+                if (shareLinkUrl) navigator.clipboard.writeText(shareLinkUrl);
+              }}
+            >
+              Copy Link
+            </Button>
+          </Group>
+        </Stack>
       </Modal>
     </Stack>
   );

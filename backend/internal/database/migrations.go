@@ -67,6 +67,20 @@ func migrate(db *sql.DB) error {
 		}
 	}
 
+	_, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS share_links (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			token TEXT UNIQUE NOT NULL,
+			entity_type TEXT NOT NULL CHECK (entity_type IN ('certificate', 'ca')),
+			entity_id INTEGER NOT NULL,
+			expires_at DATETIME NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)
+	`)
+	if err != nil {
+		return err
+	}
+
 	// Add columns that may be missing from older schemas
 	alterQueries := []string{
 		`ALTER TABLE certificates ADD COLUMN common_name TEXT DEFAULT ''`,
@@ -90,7 +104,7 @@ func migrate(db *sql.DB) error {
 
 	// Insert default settings if not exists
 	var count int
-	err := db.QueryRow("SELECT COUNT(*) FROM settings").Scan(&count)
+	err = db.QueryRow("SELECT COUNT(*) FROM settings").Scan(&count)
 	if err != nil {
 		return err
 	}
