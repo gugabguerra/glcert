@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Title, Text, TextInput, PasswordInput, Button, Stack, Paper,
-  Stepper, Group
+  Stepper, Group, ThemeIcon
 } from '@mantine/core';
+import { IconShieldLock } from '@tabler/icons-react';
 import { useAuth } from '../auth';
 
 function Setup() {
@@ -78,6 +79,11 @@ function Setup() {
 
   return (
     <Paper shadow="md" p="xl" m="auto" maw={500} mt={80}>
+      <Group justify="center" mb="md">
+        <ThemeIcon size={64} variant="light" color="teal" radius="xl">
+          <IconShieldLock size={32} />
+        </ThemeIcon>
+      </Group>
       <Title order={2} ta="center" mb="lg">Welcome to GLCert</Title>
       <Text c="dimmed" ta="center" mb="xl">Set up your PKI manager</Text>
 

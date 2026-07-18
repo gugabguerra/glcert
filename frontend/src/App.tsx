@@ -1,6 +1,7 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { AppShell, Title, Group, Box, Button } from '@mantine/core';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { AppShell, Title, Group, Box, Button, NavLink, ActionIcon, Tooltip, useMantineColorScheme, useComputedColorScheme } from '@mantine/core';
 import { Link } from 'react-router-dom';
+import { IconShield, IconCertificate, IconSettings, IconSun, IconMoon } from '@tabler/icons-react';
 import { AuthProvider, useAuth } from './auth';
 import Login from './pages/Login';
 import Setup from './pages/Setup';
@@ -15,6 +16,18 @@ import CertificateDetail from './pages/CertificateDetail';
 
 function AppRoutes() {
   const { isAuthenticated, isSetupComplete, logout } = useAuth();
+  const location = useLocation();
+
+  const { setColorScheme } = useMantineColorScheme();
+  const computedColorScheme = useComputedColorScheme('dark');
+
+  const cycleColorScheme = () => {
+    const next = computedColorScheme === 'dark' ? 'light' : 'dark';
+    setColorScheme(next);
+    localStorage.setItem('glcert-color-scheme', next);
+  };
+
+  const ColorSchemeIcon = computedColorScheme === 'dark' ? IconSun : IconMoon;
 
   if (isSetupComplete === false) return <Setup />;
   if (!isAuthenticated) return <Login />;
@@ -23,25 +36,23 @@ function AppRoutes() {
     <AppShell header={{ height: 60 }} padding="md">
       <AppShell.Header>
         <Group h="100%" px="md">
-          <Title order={3} style={{ cursor: 'pointer' }}>
-            <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }}>
-              GLCert
+          <Group gap="xs" style={{ cursor: 'pointer' }}>
+            <Link to="/" style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <IconShield size={24} color="var(--mantine-color-teal-6)" />
+              <Title order={3}>GLCert</Title>
             </Link>
-          </Title>
-          <Box component="nav" style={{ flex: 1 }}>
-            <Link to="/" style={{ marginRight: 16, color: 'inherit', textDecoration: 'none' }}>
-              Dashboard
-            </Link>
-            <Link to="/ca" style={{ marginRight: 16, color: 'inherit', textDecoration: 'none' }}>
-              CAs
-            </Link>
-            <Link to="/certificates" style={{ marginRight: 16, color: 'inherit', textDecoration: 'none' }}>
-              Certificates
-            </Link>
-            <Link to="/settings" style={{ color: 'inherit', textDecoration: 'none' }}>
-              Settings
-            </Link>
+          </Group>
+          <Box component="nav" style={{ flex: 1, display: 'flex', gap: 4 }}>
+            <NavLink component={Link} to="/" label="Dashboard" leftSection={<IconSettings size={18} />} active={location.pathname === '/'} />
+            <NavLink component={Link} to="/ca" label="CAs" leftSection={<IconShield size={18} />} active={location.pathname.startsWith('/ca')} />
+            <NavLink component={Link} to="/certificates" label="Certificates" leftSection={<IconCertificate size={18} />} active={location.pathname.startsWith('/certificates')} />
+            <NavLink component={Link} to="/settings" label="Settings" leftSection={<IconSettings size={18} />} active={location.pathname === '/settings'} />
           </Box>
+          <Tooltip label={`Theme: ${computedColorScheme === 'dark' ? 'Light' : 'Dark'}`}>
+            <ActionIcon variant="subtle" size="lg" onClick={cycleColorScheme}>
+              <ColorSchemeIcon size={20} />
+            </ActionIcon>
+          </Tooltip>
           <Button variant="subtle" size="sm" onClick={logout}>
             Sign Out
           </Button>

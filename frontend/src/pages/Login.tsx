@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Title, Text, TextInput, PasswordInput, Button, Stack, Paper } from '@mantine/core';
+import { Title, Text, TextInput, PasswordInput, Button, Stack, Paper, ThemeIcon, Group } from '@mantine/core';
+import { IconShieldLock } from '@tabler/icons-react';
 import { useAuth } from '../auth';
 
 function Login() {
@@ -40,7 +41,12 @@ function Login() {
 
   return (
     <Paper shadow="md" p="xl" m="auto" maw={400} mt={120}>
-      <Title order={2} ta="center" mb="md">GLCert</Title>
+      <Group justify="center" mb="md">
+        <ThemeIcon size={64} variant="light" color="teal" radius="xl">
+          <IconShieldLock size={32} />
+        </ThemeIcon>
+      </Group>
+      <Title order={2} ta="center" mb="xs">GLCert</Title>
       <Text c="dimmed" ta="center" mb="lg">Sign in to manage your certificates</Text>
 
       <form onSubmit={handleSubmit}>

@@ -1,4 +1,5 @@
-import { Title, Text, SimpleGrid, Card, Stack, Anchor, Table, Badge, Center, Loader } from '@mantine/core';
+import { Title, Text, SimpleGrid, Stack, Anchor, Table, Badge, Center, Loader, Paper, ThemeIcon, Group } from '@mantine/core';
+import { IconShieldCheck, IconCertificate, IconClock, IconAlertTriangle } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { authFetchJson } from '../api';
@@ -42,26 +43,50 @@ function Dashboard() {
       <Title>Dashboard</Title>
 
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
-        <Card withBorder>
-          <Text fw={500}>Certificate Authorities</Text>
-          <Text size="xl">{stats?.caCount ?? '—'}</Text>
-        </Card>
-        <Card withBorder>
-          <Text fw={500}>Certificates</Text>
-          <Text size="xl">{stats?.certificateCount ?? '—'}</Text>
-        </Card>
-        <Card withBorder>
-          <Text fw={500}>Expiring Soon</Text>
-          <Text size="xl" c={stats?.expiringSoon ? 'yellow' : undefined}>
-            {stats?.expiringSoon ?? '—'}
-          </Text>
-        </Card>
-        <Card withBorder>
-          <Text fw={500}>Expired</Text>
-          <Text size="xl" c={stats?.expired ? 'red' : undefined}>
-            {stats?.expired ?? '—'}
-          </Text>
-        </Card>
+        <Paper p="lg" withBorder>
+          <Group>
+            <ThemeIcon size="lg" variant="light" color="teal">
+              <IconShieldCheck size={24} />
+            </ThemeIcon>
+            <div>
+              <Text size="xs" c="dimmed" tt="uppercase" fw={700}>Certificate Authorities</Text>
+              <Text fw={700} size="xl">{stats?.caCount ?? '—'}</Text>
+            </div>
+          </Group>
+        </Paper>
+        <Paper p="lg" withBorder>
+          <Group>
+            <ThemeIcon size="lg" variant="light" color="blue">
+              <IconCertificate size={24} />
+            </ThemeIcon>
+            <div>
+              <Text size="xs" c="dimmed" tt="uppercase" fw={700}>Certificates</Text>
+              <Text fw={700} size="xl">{stats?.certificateCount ?? '—'}</Text>
+            </div>
+          </Group>
+        </Paper>
+        <Paper p="lg" withBorder>
+          <Group>
+            <ThemeIcon size="lg" variant="light" color="yellow">
+              <IconClock size={24} />
+            </ThemeIcon>
+            <div>
+              <Text size="xs" c="dimmed" tt="uppercase" fw={700}>Expiring Soon</Text>
+              <Text fw={700} size="xl">{stats?.expiringSoon ?? '—'}</Text>
+            </div>
+          </Group>
+        </Paper>
+        <Paper p="lg" withBorder>
+          <Group>
+            <ThemeIcon size="lg" variant="light" color="red">
+              <IconAlertTriangle size={24} />
+            </ThemeIcon>
+            <div>
+              <Text size="xs" c="dimmed" tt="uppercase" fw={700}>Expired</Text>
+              <Text fw={700} size="xl">{stats?.expired ?? '—'}</Text>
+            </div>
+          </Group>
+        </Paper>
       </SimpleGrid>
 
       {certs.length > 0 && (
