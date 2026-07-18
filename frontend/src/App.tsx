@@ -1,7 +1,7 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AppShell, Title, Group, Box, Button, NavLink, ActionIcon, Tooltip, useMantineColorScheme, useComputedColorScheme } from '@mantine/core';
 import { Link } from 'react-router-dom';
-import { IconShield, IconCertificate, IconSettings, IconSun, IconMoon } from '@tabler/icons-react';
+import { IconShield, IconCertificate, IconSettings, IconSun, IconMoon, IconDeviceDesktop } from '@tabler/icons-react';
 import { AuthProvider, useAuth } from './auth';
 import Login from './pages/Login';
 import Setup from './pages/Setup';
@@ -18,19 +18,19 @@ function AppRoutes() {
   const { isAuthenticated, isSetupComplete, logout } = useAuth();
   const location = useLocation();
 
+  if (isSetupComplete === false) return <Setup />;
+  if (!isAuthenticated) return <Login />;
+
   const { setColorScheme } = useMantineColorScheme();
   const computedColorScheme = useComputedColorScheme('dark');
 
   const cycleColorScheme = () => {
-    const next = computedColorScheme === 'dark' ? 'light' : 'dark';
+    const next = computedColorScheme === 'dark' ? 'light' : computedColorScheme === 'light' ? 'auto' : 'dark';
     setColorScheme(next);
     localStorage.setItem('glcert-color-scheme', next);
   };
 
-  const ColorSchemeIcon = computedColorScheme === 'dark' ? IconSun : IconMoon;
-
-  if (isSetupComplete === false) return <Setup />;
-  if (!isAuthenticated) return <Login />;
+  const ColorSchemeIcon = computedColorScheme === 'dark' ? IconSun : computedColorScheme === 'light' ? IconMoon : IconDeviceDesktop;
 
   return (
     <AppShell header={{ height: 60 }} padding="md">
@@ -48,7 +48,7 @@ function AppRoutes() {
             <NavLink component={Link} to="/certificates" label="Certificates" leftSection={<IconCertificate size={18} />} active={location.pathname.startsWith('/certificates')} />
             <NavLink component={Link} to="/settings" label="Settings" leftSection={<IconSettings size={18} />} active={location.pathname === '/settings'} />
           </Box>
-          <Tooltip label={`Theme: ${computedColorScheme === 'dark' ? 'Light' : 'Dark'}`}>
+          <Tooltip label={`Theme: ${computedColorScheme === 'dark' ? 'Light' : computedColorScheme === 'light' ? 'Dark' : 'Light'}`}>
             <ActionIcon variant="subtle" size="lg" onClick={cycleColorScheme}>
               <ColorSchemeIcon size={20} />
             </ActionIcon>

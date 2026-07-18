@@ -1,4 +1,20 @@
-import { Title, TextInput, Select, NumberInput, Button, Stack, Group, Center, Loader, Divider, Text, Modal } from '@mantine/core';
+import {
+  Title,
+  TextInput,
+  Select,
+  NumberInput,
+  Button,
+  Stack,
+  Group,
+  Center,
+  Loader,
+  Divider,
+  Text,
+  Modal,
+  useMantineColorScheme,
+  useComputedColorScheme,
+  Space,
+} from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -19,6 +35,8 @@ interface Settings {
 
 function SettingsPage() {
   const queryClient = useQueryClient();
+  const { setColorScheme } = useMantineColorScheme();
+  const computedColorScheme = useComputedColorScheme('dark');
 
   const form = useForm({
     initialValues: {
@@ -126,44 +144,42 @@ function SettingsPage() {
     resetMutation.mutate();
   };
 
-  if (isLoading) return <Center py={80}><Loader /></Center>;
+  if (isLoading)
+    return (
+      <Center py={80}>
+        <Loader />
+      </Center>
+    );
 
   return (
     <Stack>
       <Title>Settings</Title>
 
+      <Title order={4}>System Settings</Title>
+      <Text size='sm' c='dimmed'>
+        Configure default values for certificate generation.
+      </Text>
+
       <form onSubmit={form.onSubmit((values) => mutation.mutate(values))}>
-        <Stack gap="md">
+        <Stack gap='md'>
           <TextInput
-            label="Organization"
-            placeholder="My Homelab"
+            label='Organization'
+            placeholder='My Homelab'
             {...form.getInputProps('organization')}
           />
           <Group grow>
-            <TextInput
-              label="Country"
-              placeholder="US"
-              {...form.getInputProps('country')}
-            />
-            <TextInput
-              label="State"
-              placeholder="California"
-              {...form.getInputProps('state')}
-            />
-            <TextInput
-              label="City"
-              placeholder="San Francisco"
-              {...form.getInputProps('city')}
-            />
+            <TextInput label='Country' placeholder='US' {...form.getInputProps('country')} />
+            <TextInput label='State' placeholder='California' {...form.getInputProps('state')} />
+            <TextInput label='City' placeholder='San Francisco' {...form.getInputProps('city')} />
           </Group>
           <TextInput
-            label="Email"
-            placeholder="admin@homelab.local"
+            label='Email'
+            placeholder='admin@homelab.local'
             {...form.getInputProps('email')}
           />
 
           <Select
-            label="Default Key Algorithm"
+            label='Default Key Algorithm'
             data={[
               { value: 'rsa', label: 'RSA' },
               { value: 'ecdsa', label: 'ECDSA' },
@@ -174,7 +190,7 @@ function SettingsPage() {
 
           {form.values.defaultKeyAlgorithm === 'rsa' && (
             <Select
-              label="RSA Key Size"
+              label='RSA Key Size'
               data={[
                 { value: '2048', label: '2048 bits' },
                 { value: '4096', label: '4096 bits' },
@@ -186,7 +202,7 @@ function SettingsPage() {
 
           {form.values.defaultKeyAlgorithm === 'ecdsa' && (
             <Select
-              label="ECDSA Curve"
+              label='ECDSA Curve'
               data={[
                 { value: 'P-256', label: 'P-256' },
                 { value: 'P-384', label: 'P-384' },
@@ -197,48 +213,76 @@ function SettingsPage() {
           )}
 
           <NumberInput
-            label="Default Validity (days)"
+            label='Default Validity (days)'
             min={1}
             max={3650}
             {...form.getInputProps('defaultValidityDays')}
           />
 
-          <Group justify="flex-end">
-            <Button type="submit" loading={mutation.isPending || isLoading}>
+          <Group justify='flex-end'>
+            <Button type='submit' loading={mutation.isPending || isLoading}>
               Save Settings
             </Button>
           </Group>
         </Stack>
       </form>
 
-      <Divider my="xl" />
+      <Divider my='xl' />
 
+      <Title order={4}>User Settings</Title>
+
+      <Stack gap='md' maw={400}>
+        <Select
+          label='Theme'
+          data={[
+            { value: 'light', label: 'Light' },
+            { value: 'dark', label: 'Dark' },
+            { value: 'auto', label: 'System' },
+          ]}
+          value={computedColorScheme}
+          onChange={(value) => {
+            if (value) {
+              setColorScheme(value as 'light' | 'dark' | 'auto');
+              localStorage.setItem('glcert-color-scheme', value);
+            }
+          }}
+        />
+      </Stack>
+      <Space></Space>
       <Title order={4}>Change Password</Title>
-      <Stack gap="md" maw={400}>
+      <Stack gap='md' maw={400}>
         <TextInput
-          label="Current Password"
-          type="password"
+          label='Current Password'
+          type='password'
           value={currentPassword}
           onChange={(e) => setCurrentPassword(e.currentTarget.value)}
         />
         <TextInput
-          label="New Password"
-          type="password"
+          label='New Password'
+          type='password'
           value={newPassword}
           onChange={(e) => setNewPassword(e.currentTarget.value)}
         />
         <TextInput
-          label="Confirm New Password"
-          type="password"
+          label='Confirm New Password'
+          type='password'
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.currentTarget.value)}
         />
-        {passwordError && <Text c="red" size="sm">{passwordError}</Text>}
-        {passwordSuccess && <Text c="green" size="sm">{passwordSuccess}</Text>}
-        <Group justify="flex-end">
+        {passwordError && (
+          <Text c='red' size='sm'>
+            {passwordError}
+          </Text>
+        )}
+        {passwordSuccess && (
+          <Text c='green' size='sm'>
+            {passwordSuccess}
+          </Text>
+        )}
+        <Group justify='flex-end'>
           <Button
-            variant="filled"
-            color="blue"
+            variant='filled'
+            color='blue'
             loading={passwordMutation.isPending}
             onClick={handlePasswordSubmit}
           >
@@ -247,17 +291,20 @@ function SettingsPage() {
         </Group>
       </Stack>
 
-      <Divider my="xl" color="red" />
+      <Divider my='xl' color='red' />
 
-      <Title order={4} c="red">Danger Zone</Title>
-      <Stack gap="md">
-        <Text size="sm" c="dimmed">
-          This will permanently delete all certificate authorities, certificates, admin account, and settings. You will need to go through setup again.
+      <Title order={4} c='red'>
+        Danger Zone
+      </Title>
+      <Stack gap='md'>
+        <Text size='sm' c='dimmed'>
+          This will permanently delete all certificate authorities, certificates, admin account, and
+          settings. You will need to go through setup again.
         </Text>
         <div>
           <Button
-            color="red"
-            variant="filled"
+            color='red'
+            variant='filled'
             onClick={() => {
               setResetConfirmText('');
               setShowResetModal(true);
@@ -271,25 +318,23 @@ function SettingsPage() {
       <Modal
         opened={showResetModal}
         onClose={() => setShowResetModal(false)}
-        title="Factory Reset"
+        title='Factory Reset'
         centered
       >
-        <Stack gap="md">
-          <Text size="sm">
-            This action cannot be undone. All data will be permanently deleted.
-          </Text>
+        <Stack gap='md'>
+          <Text size='sm'>This action cannot be undone. All data will be permanently deleted.</Text>
           <TextInput
             label='Type RESET to confirm'
-            placeholder="RESET"
+            placeholder='RESET'
             value={resetConfirmText}
             onChange={(e) => setResetConfirmText(e.currentTarget.value)}
           />
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => setShowResetModal(false)}>
+          <Group justify='flex-end'>
+            <Button variant='default' onClick={() => setShowResetModal(false)}>
               Cancel
             </Button>
             <Button
-              color="red"
+              color='red'
               loading={resetMutation.isPending}
               disabled={resetConfirmText !== 'RESET'}
               onClick={handleFactoryReset}
