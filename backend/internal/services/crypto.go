@@ -205,3 +205,8 @@ func (s *CryptoService) Decrypt(data []byte) ([]byte, error) {
 
 	return plaintext, nil
 }
+
+func (s *CryptoService) Reset() {
+	s.gcm = nil
+	s.enabled = false
+}

@@ -47,6 +47,8 @@ func main() {
 
 			r.Post("/auth/logout", authHandler.Logout)
 			r.Put("/auth/password", authHandler.ChangePassword)
+			adminHandler := handlers.NewAdminHandler(db, cfg.DataDir, crypto)
+			r.Post("/admin/factory-reset", adminHandler.FactoryReset)
 
 			h := handlers.New(db)
 			r.Get("/dashboard", h.GetDashboardStats)

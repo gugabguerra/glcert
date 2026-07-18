@@ -1,4 +1,4 @@
-import { Title, TextInput, Select, NumberInput, Button, Stack, Group, Center, Loader, Divider, Text } from '@mantine/core';
+import { Title, TextInput, Select, NumberInput, Button, Stack, Group, Center, Loader, Divider, Text, Modal } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -105,6 +105,25 @@ function SettingsPage() {
     }
 
     passwordMutation.mutate({ currentPassword, newPassword });
+  };
+
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetConfirmText, setResetConfirmText] = useState('');
+
+  const resetMutation = useMutation({
+    mutationFn: () =>
+      authFetchJson('/api/admin/factory-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    onSuccess: () => {
+      localStorage.removeItem('auth_token');
+      window.location.reload();
+    },
+  });
+
+  const handleFactoryReset = () => {
+    resetMutation.mutate();
   };
 
   if (isLoading) return <Center py={80}><Loader /></Center>;
@@ -227,6 +246,59 @@ function SettingsPage() {
           </Button>
         </Group>
       </Stack>
+
+      <Divider my="xl" color="red" />
+
+      <Title order={4} c="red">Danger Zone</Title>
+      <Stack gap="md">
+        <Text size="sm" c="dimmed">
+          This will permanently delete all certificate authorities, certificates, admin account, and settings. You will need to go through setup again.
+        </Text>
+        <div>
+          <Button
+            color="red"
+            variant="filled"
+            onClick={() => {
+              setResetConfirmText('');
+              setShowResetModal(true);
+            }}
+          >
+            Factory Reset
+          </Button>
+        </div>
+      </Stack>
+
+      <Modal
+        opened={showResetModal}
+        onClose={() => setShowResetModal(false)}
+        title="Factory Reset"
+        centered
+      >
+        <Stack gap="md">
+          <Text size="sm">
+            This action cannot be undone. All data will be permanently deleted.
+          </Text>
+          <TextInput
+            label='Type RESET to confirm'
+            placeholder="RESET"
+            value={resetConfirmText}
+            onChange={(e) => setResetConfirmText(e.currentTarget.value)}
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setShowResetModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              color="red"
+              loading={resetMutation.isPending}
+              disabled={resetConfirmText !== 'RESET'}
+              onClick={handleFactoryReset}
+            >
+              Factory Reset
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   );
 }
