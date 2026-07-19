@@ -152,6 +152,15 @@ func migrate(db *sql.DB) error {
 		db.Exec(q)
 	}
 
+	passphraseAlterQueries := []string{
+		`ALTER TABLE certificate_authorities ADD COLUMN key_encrypted_passphrase BLOB`,
+		`ALTER TABLE certificate_authorities ADD COLUMN imported BOOLEAN DEFAULT FALSE`,
+	}
+
+	for _, q := range passphraseAlterQueries {
+		db.Exec(q)
+	}
+
 	// Insert default settings if not exists
 	var count int
 	err = db.QueryRow("SELECT COUNT(*) FROM settings").Scan(&count)

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Title, Text, TextInput, Textarea, Button, Stack, Group, FileInput, Paper,
+  Title, Text, TextInput, Textarea, Button, Stack, Group, FileInput, Paper, PasswordInput,
 } from '@mantine/core';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { authFetchJson } from '../api';
@@ -15,6 +15,7 @@ function ImportCA() {
   const [keyFile, setKeyFile] = useState<File | null>(null);
   const [certPEM, setCertPEM] = useState('');
   const [keyPEM, setKeyPEM] = useState('');
+  const [passphrase, setPassphrase] = useState('');
   const [error, setError] = useState('');
 
   const handleFileRead = (file: File | null, setter: (val: string) => void) => {
@@ -39,6 +40,7 @@ function ImportCA() {
           description,
           certPem: certPEM,
           keyPem: keyPEM,
+          passphrase,
         }),
       }),
     onSuccess: (data) => {
@@ -61,7 +63,7 @@ function ImportCA() {
     <Stack>
       <Title>Import Certificate Authority</Title>
       <Text c="dimmed">
-        Import a CA certificate generated externally. The private key must be unencrypted.
+        Import a CA certificate generated externally. Encrypted private keys are supported.
       </Text>
 
       <Paper withBorder p="md">
@@ -103,8 +105,17 @@ function ImportCA() {
               handleFileRead(file, setKeyPEM);
             }}
           />
+          {keyFile && (
+            <PasswordInput
+              label="Key Passphrase"
+              placeholder="If the key is encrypted, enter its passphrase"
+              value={passphrase}
+              onChange={e => setPassphrase(e.currentTarget.value)}
+              autoComplete="off"
+            />
+          )}
           <Text size="xs" c="dimmed">
-            Without a private key, this CA can only be used for trust (verification), not for signing new certificates.
+            Without a private key, this CA can only be used for trust (verification), not for signing new certificates. Encrypted keys (PKCS#8 or legacy PEM) are supported.
           </Text>
 
           {error && <Text c="red" size="sm">{error}</Text>}

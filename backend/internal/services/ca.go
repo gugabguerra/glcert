@@ -1,6 +1,7 @@
 package services
 
 import (
+	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/glcert/glcert/internal/models"
+	pkcs8 "github.com/youmark/pkcs8"
 )
 
 type CAService struct {
@@ -98,6 +100,85 @@ func (s *CAService) GetCAPath(name string, version int) string {
 	return filepath.Join(s.DataDir, "certificates", "ca", name, fmt.Sprintf("v%d", version))
 }
 
+func parsePrivateKeyWithPassphrase(pemData, passphrase []byte) (interface{}, error) {
+	block, _ := pem.Decode(pemData)
+	if block == nil {
+		return nil, fmt.Errorf("failed to decode PEM block")
+	}
+
+	switch {
+	case block.Type == "ENCRYPTED PRIVATE KEY":
+		key, err := pkcs8.ParsePKCS8PrivateKey(block.Bytes, passphrase)
+		if err != nil {
+			return nil, fmt.Errorf("decrypt encrypted private key: %w", err)
+		}
+		return key, nil
+
+	case block.Headers["Proc-Type"] == "4,ENCRYPTED":
+		der, err := x509.DecryptPEMBlock(block, passphrase) //nolint:staticcheck
+		if err != nil {
+			return nil, fmt.Errorf("decrypt PEM key: %w", err)
+		}
+		key, err := x509.ParsePKCS8PrivateKey(der)
+		if err != nil {
+			return nil, fmt.Errorf("parse decrypted key: %w", err)
+		}
+		return key, nil
+
+	case block.Type == "PRIVATE KEY":
+		return x509.ParsePKCS8PrivateKey(block.Bytes)
+
+	case block.Type == "RSA PRIVATE KEY":
+		return x509.ParsePKCS1PrivateKey(block.Bytes)
+
+	case block.Type == "EC PRIVATE KEY":
+		return x509.ParseECPrivateKey(block.Bytes)
+
+	default:
+		return nil, fmt.Errorf("unsupported key type: %s", block.Type)
+	}
+}
+
+func isPassphraseProtectedPEM(pemData []byte) bool {
+	block, _ := pem.Decode(pemData)
+	if block == nil {
+		return false
+	}
+	return block.Type == "ENCRYPTED PRIVATE KEY" ||
+		block.Headers["Proc-Type"] == "4,ENCRYPTED"
+}
+
+func EncryptPEMWithPassphrase(keyPEM []byte, passphrase string) ([]byte, error) {
+	block, _ := pem.Decode(keyPEM)
+	if block == nil {
+		return nil, fmt.Errorf("failed to decode PEM block")
+	}
+
+	var privKey interface{}
+	var err error
+
+	switch block.Type {
+	case "RSA PRIVATE KEY":
+		privKey, err = x509.ParsePKCS1PrivateKey(block.Bytes)
+	case "EC PRIVATE KEY":
+		privKey, err = x509.ParseECPrivateKey(block.Bytes)
+	case "PRIVATE KEY":
+		privKey, err = x509.ParsePKCS8PrivateKey(block.Bytes)
+	default:
+		return nil, fmt.Errorf("unsupported key type: %s", block.Type)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("parse private key: %w", err)
+	}
+
+	encryptedDER, err := pkcs8.MarshalPrivateKey(privKey, []byte(passphrase), nil)
+	if err != nil {
+		return nil, fmt.Errorf("encrypt private key: %w", err)
+	}
+
+	return pem.EncodeToMemory(&pem.Block{Type: "ENCRYPTED PRIVATE KEY", Bytes: encryptedDER}), nil
+}
+
 func (s *CAService) SaveCA(name string, version int, certPEM, keyPEM []byte) error {
 	dir := s.GetCAPath(name, version)
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -124,7 +205,7 @@ func (s *CAService) SaveCA(name string, version int, certPEM, keyPEM []byte) err
 	return nil
 }
 
-func (s *CAService) ReadCA(name string, version int) ([]byte, []byte, error) {
+func (s *CAService) ReadCA(name string, version int, passphrase string) ([]byte, []byte, error) {
 	dir := s.GetCAPath(name, version)
 
 	certPath := filepath.Join(dir, "ca.crt")
@@ -137,9 +218,29 @@ func (s *CAService) ReadCA(name string, version int) ([]byte, []byte, error) {
 	keyPath := filepath.Join(dir, "ca.key")
 	keyData, err := os.ReadFile(keyPath)
 	if err == nil {
-		keyPEM, err = s.crypto.Decrypt(keyData)
+		decrypted, err := s.crypto.Decrypt(keyData)
 		if err != nil {
 			return nil, nil, fmt.Errorf("decrypt private key: %w", err)
+		}
+		keyPEM = decrypted
+	}
+
+	if passphrase != "" && len(keyPEM) > 0 && isPassphraseProtectedPEM(keyPEM) {
+		key, err := parsePrivateKeyWithPassphrase(keyPEM, []byte(passphrase))
+		if err != nil {
+			return nil, nil, fmt.Errorf("decrypt passphrase-protected key: %w", err)
+		}
+		switch k := key.(type) {
+		case *rsa.PrivateKey:
+			keyPEM = pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(k)})
+		case *ecdsa.PrivateKey:
+			der, err := x509.MarshalECPrivateKey(k)
+			if err != nil {
+				return nil, nil, fmt.Errorf("marshal EC key: %w", err)
+			}
+			keyPEM = pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: der})
+		default:
+			return nil, nil, fmt.Errorf("unsupported key type for re-encoding")
 		}
 	}
 
@@ -151,7 +252,7 @@ func (s *CAService) DeleteCA(name string) error {
 	return os.RemoveAll(dir)
 }
 
-func (s *CAService) ImportCA(name, description string, certPEM, keyPEM []byte) (*models.CertificateAuthority, error) {
+func (s *CAService) ImportCA(name, description string, certPEM, keyPEM []byte, passphrase string) (*models.CertificateAuthority, error) {
 	certBlock, _ := pem.Decode(certPEM)
 	if certBlock == nil {
 		return nil, fmt.Errorf("failed to decode certificate PEM")
@@ -167,30 +268,29 @@ func (s *CAService) ImportCA(name, description string, certPEM, keyPEM []byte) (
 	}
 
 	if len(keyPEM) > 0 {
-		keyBlock, _ := pem.Decode(keyPEM)
-		if keyBlock == nil {
-			return nil, fmt.Errorf("failed to decode private key PEM")
+		privKey, err := parsePrivateKeyWithPassphrase(keyPEM, []byte(passphrase))
+		if err != nil {
+			return nil, fmt.Errorf("private key: %w", err)
 		}
 
-		switch keyBlock.Type {
-		case "RSA PRIVATE KEY":
-			key, err := x509.ParsePKCS1PrivateKey(keyBlock.Bytes)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse RSA private key: %w", err)
-			}
-			if cert.PublicKeyAlgorithm != x509.RSA {
+		if cert.PublicKeyAlgorithm == x509.RSA {
+			rsaKey, ok := privKey.(*rsa.PrivateKey)
+			if !ok {
 				return nil, fmt.Errorf("private key type does not match certificate")
 			}
 			pubKey, ok := cert.PublicKey.(*rsa.PublicKey)
-			if !ok || pubKey.N.Cmp(key.PublicKey.N) != 0 || pubKey.E != key.PublicKey.E {
+			if !ok || pubKey.N.Cmp(rsaKey.PublicKey.N) != 0 || pubKey.E != rsaKey.PublicKey.E {
 				return nil, fmt.Errorf("private key does not match certificate public key")
 			}
-		case "EC PRIVATE KEY":
-			if cert.PublicKeyAlgorithm != x509.ECDSA {
+		} else if cert.PublicKeyAlgorithm == x509.ECDSA {
+			ecKey, ok := privKey.(*ecdsa.PrivateKey)
+			if !ok {
 				return nil, fmt.Errorf("private key type does not match certificate")
 			}
-		default:
-			return nil, fmt.Errorf("unsupported private key type: %s", keyBlock.Type)
+			pubKey, ok := cert.PublicKey.(*ecdsa.PublicKey)
+			if !ok || pubKey.X.Cmp(ecKey.PublicKey.X) != 0 || pubKey.Y.Cmp(ecKey.PublicKey.Y) != 0 {
+				return nil, fmt.Errorf("private key does not match certificate public key")
+			}
 		}
 	}
 

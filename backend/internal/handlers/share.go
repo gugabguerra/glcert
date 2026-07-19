@@ -14,13 +14,14 @@ import (
 )
 
 type ShareHandler struct {
-	db   *sql.DB
-	cert *services.CertService
-	ca   *services.CAService
+	db     *sql.DB
+	cert   *services.CertService
+	ca     *services.CAService
+	crypto *services.CryptoService
 }
 
-func NewShareHandler(db *sql.DB, cert *services.CertService, ca *services.CAService) *ShareHandler {
-	return &ShareHandler{db: db, cert: cert, ca: ca}
+func NewShareHandler(db *sql.DB, cert *services.CertService, ca *services.CAService, crypto *services.CryptoService) *ShareHandler {
+	return &ShareHandler{db: db, cert: cert, ca: ca, crypto: crypto}
 }
 
 var validFileTypes = map[string]bool{
@@ -187,13 +188,25 @@ func (h *ShareHandler) serveCertFile(w http.ResponseWriter, r *http.Request, id 
 func (h *ShareHandler) serveCAFile(w http.ResponseWriter, r *http.Request, id string, fileType string) {
 	var name, description string
 	var version int
-	err := h.db.QueryRow("SELECT name, description, current_version FROM certificate_authorities WHERE id = ?", id).Scan(&name, &description, &version)
+	var encPassphrase []byte
+	err := h.db.QueryRow(`
+		SELECT name, description, current_version, COALESCE(key_encrypted_passphrase, X'')
+		FROM certificate_authorities WHERE id = ?
+	`, id).Scan(&name, &description, &version, &encPassphrase)
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
 
-	certPEM, keyPEM, err := h.ca.ReadCA(name, version)
+	var passphrase string
+	if len(encPassphrase) > 0 {
+		decrypted, err := h.crypto.Decrypt(encPassphrase)
+		if err == nil {
+			passphrase = string(decrypted)
+		}
+	}
+
+	certPEM, keyPEM, err := h.ca.ReadCA(name, version, passphrase)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

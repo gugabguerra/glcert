@@ -13,12 +13,26 @@ import (
 )
 
 type CAHandler struct {
-	db  *sql.DB
-	ca  *services.CAService
+	db    *sql.DB
+	ca    *services.CAService
+	crypto *services.CryptoService
 }
 
-func NewCAHandler(db *sql.DB, ca *services.CAService) *CAHandler {
-	return &CAHandler{db: db, ca: ca}
+func NewCAHandler(db *sql.DB, ca *services.CAService, crypto *services.CryptoService) *CAHandler {
+	return &CAHandler{db: db, ca: ca, crypto: crypto}
+}
+
+func (h *CAHandler) getPassphrase(caID string) string {
+	var encPassphrase []byte
+	err := h.db.QueryRow("SELECT key_encrypted_passphrase FROM certificate_authorities WHERE id = ?", caID).Scan(&encPassphrase)
+	if err != nil || len(encPassphrase) == 0 {
+		return ""
+	}
+	decrypted, err := h.crypto.Decrypt(encPassphrase)
+	if err != nil {
+		return ""
+	}
+	return string(decrypted)
 }
 
 type CreateCARequest struct {
@@ -33,6 +47,7 @@ type CreateCARequest struct {
 	KeyAlgorithm string `json:"keyAlgorithm"`
 	RSAKeySize   int    `json:"rsaKeySize"`
 	ValidityDays int    `json:"validityDays"`
+	Passphrase   string `json:"passphrase"`
 }
 
 type ImportCARequest struct {
@@ -40,11 +55,13 @@ type ImportCARequest struct {
 	Description string `json:"description"`
 	CertPEM     string `json:"certPem"`
 	KeyPEM      string `json:"keyPem"`
+	Passphrase  string `json:"passphrase"`
 }
 
 func (h *CAHandler) List(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.db.Query(`
-		SELECT id, name, description, subject, created_at, expires_at, current_version
+		SELECT id, name, description, subject, created_at, expires_at, current_version,
+			COALESCE(key_encrypted_passphrase, X''), COALESCE(imported, FALSE)
 		FROM certificate_authorities ORDER BY created_at DESC
 	`)
 	if err != nil {
@@ -53,18 +70,32 @@ func (h *CAHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
-	var cas []models.CertificateAuthority
+	type CAResponse struct {
+		ID             string `json:"id"`
+		Name           string `json:"name"`
+		Description    string `json:"description"`
+		Subject        string `json:"subject"`
+		CreatedAt      string `json:"createdAt"`
+		ExpiresAt      string `json:"expiresAt"`
+		CurrentVersion int    `json:"currentVersion"`
+		HasPassphrase  bool   `json:"hasPassphrase"`
+		Imported       bool   `json:"imported"`
+	}
+
+	var cas []CAResponse
 	for rows.Next() {
-		var ca models.CertificateAuthority
-		if err := rows.Scan(&ca.ID, &ca.Name, &ca.Description, &ca.Subject, &ca.CreatedAt, &ca.ExpiresAt, &ca.CurrentVersion); err != nil {
+		var ca CAResponse
+		var encPassphrase []byte
+		if err := rows.Scan(&ca.ID, &ca.Name, &ca.Description, &ca.Subject, &ca.CreatedAt, &ca.ExpiresAt, &ca.CurrentVersion, &encPassphrase, &ca.Imported); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		ca.HasPassphrase = len(encPassphrase) > 0
 		cas = append(cas, ca)
 	}
 
 	if cas == nil {
-		cas = []models.CertificateAuthority{}
+		cas = []CAResponse{}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -75,10 +106,13 @@ func (h *CAHandler) Get(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
 	var ca models.CertificateAuthority
+	var encPassphrase []byte
+	var imported bool
 	err := h.db.QueryRow(`
-		SELECT id, name, description, subject, created_at, expires_at, current_version
+		SELECT id, name, description, subject, created_at, expires_at, current_version,
+			COALESCE(key_encrypted_passphrase, X''), COALESCE(imported, FALSE)
 		FROM certificate_authorities WHERE id = ?
-	`, id).Scan(&ca.ID, &ca.Name, &ca.Description, &ca.Subject, &ca.CreatedAt, &ca.ExpiresAt, &ca.CurrentVersion)
+	`, id).Scan(&ca.ID, &ca.Name, &ca.Description, &ca.Subject, &ca.CreatedAt, &ca.ExpiresAt, &ca.CurrentVersion, &encPassphrase, &imported)
 	if err == sql.ErrNoRows {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
@@ -88,8 +122,30 @@ func (h *CAHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	type CAResponse struct {
+		ID               string `json:"id"`
+		Name             string `json:"name"`
+		Description      string `json:"description"`
+		Subject          string `json:"subject"`
+		CreatedAt        string `json:"createdAt"`
+		ExpiresAt        string `json:"expiresAt"`
+		CurrentVersion   int    `json:"currentVersion"`
+		HasPassphrase    bool   `json:"hasPassphrase"`
+		Imported         bool   `json:"imported"`
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(ca)
+	json.NewEncoder(w).Encode(CAResponse{
+		ID:             ca.ID,
+		Name:           ca.Name,
+		Description:    ca.Description,
+		Subject:        ca.Subject,
+		CreatedAt:      ca.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		ExpiresAt:      ca.ExpiresAt.Format("2006-01-02T15:04:05Z"),
+		CurrentVersion: ca.CurrentVersion,
+		HasPassphrase:  len(encPassphrase) > 0,
+		Imported:       imported,
+	})
 }
 
 func (h *CAHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -122,16 +178,35 @@ func (h *CAHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.Passphrase != "" {
+		keyPEM, err = services.EncryptPEMWithPassphrase(keyPEM, req.Passphrase)
+		if err != nil {
+			http.Error(w, "failed to encrypt key with passphrase: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
 	if err := h.ca.SaveCA(req.Name, 1, certPEM, keyPEM); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	id := uuid.New().String()
+
+	var encPassphrase interface{}
+	if req.Passphrase != "" {
+		encrypted, err := h.crypto.Encrypt([]byte(req.Passphrase))
+		if err != nil {
+			http.Error(w, "failed to encrypt passphrase", http.StatusInternalServerError)
+			return
+		}
+		encPassphrase = encrypted
+	}
+
 	_, err = h.db.Exec(`
-		INSERT INTO certificate_authorities (id, name, description, subject, expires_at, current_version)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, id, caModel.Name, caModel.Description, caModel.Subject, caModel.ExpiresAt, 1)
+		INSERT INTO certificate_authorities (id, name, description, subject, expires_at, current_version, key_encrypted_passphrase)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, id, caModel.Name, caModel.Description, caModel.Subject, caModel.ExpiresAt, 1, encPassphrase)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -179,7 +254,9 @@ func (h *CAHandler) DownloadCert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	certPEM, _, err := h.ca.ReadCA(name, version)
+	passphrase := h.getPassphrase(id)
+
+	certPEM, _, err := h.ca.ReadCA(name, version, passphrase)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -201,7 +278,9 @@ func (h *CAHandler) DownloadKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, keyPEM, err := h.ca.ReadCA(name, version)
+	passphrase := h.getPassphrase(id)
+
+	_, keyPEM, err := h.ca.ReadCA(name, version, passphrase)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -228,7 +307,9 @@ func (h *CAHandler) DownloadCABundle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	certPEM, keyPEM, err := h.ca.ReadCA(name, version)
+	passphrase := h.getPassphrase(id)
+
+	certPEM, keyPEM, err := h.ca.ReadCA(name, version, passphrase)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -267,7 +348,7 @@ func (h *CAHandler) Import(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	caModel, err := h.ca.ImportCA(req.Name, req.Description, []byte(req.CertPEM), []byte(req.KeyPEM))
+	caModel, err := h.ca.ImportCA(req.Name, req.Description, []byte(req.CertPEM), []byte(req.KeyPEM), req.Passphrase)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -279,10 +360,21 @@ func (h *CAHandler) Import(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := uuid.New().String()
+
+	var encPassphrase interface{}
+	if req.Passphrase != "" {
+		encrypted, err := h.crypto.Encrypt([]byte(req.Passphrase))
+		if err != nil {
+			http.Error(w, "failed to encrypt passphrase", http.StatusInternalServerError)
+			return
+		}
+		encPassphrase = encrypted
+	}
+
 	_, err = h.db.Exec(`
-		INSERT INTO certificate_authorities (id, name, description, subject, expires_at, current_version)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, id, caModel.Name, caModel.Description, caModel.Subject, caModel.ExpiresAt, 1)
+		INSERT INTO certificate_authorities (id, name, description, subject, expires_at, current_version, key_encrypted_passphrase, imported)
+		VALUES (?, ?, ?, ?, ?, ?, ?, TRUE)
+	`, id, caModel.Name, caModel.Description, caModel.Subject, caModel.ExpiresAt, 1, encPassphrase)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

@@ -27,13 +27,14 @@ type Settings struct {
 }
 
 type CertificateAuthority struct {
-	ID             string    `json:"id"`
-	Name           string    `json:"name"`
-	Description    string    `json:"description"`
-	Subject        string    `json:"subject"`
-	CreatedAt      time.Time `json:"createdAt"`
-	ExpiresAt      time.Time `json:"expiresAt"`
-	CurrentVersion int       `json:"currentVersion"`
+	ID                       string    `json:"id"`
+	Name                     string    `json:"name"`
+	Description              string    `json:"description"`
+	Subject                  string    `json:"subject"`
+	CreatedAt                time.Time `json:"createdAt"`
+	ExpiresAt                time.Time `json:"expiresAt"`
+	CurrentVersion           int       `json:"currentVersion"`
+	KeyEncryptedPassphrase   []byte    `json:"-"`
 }
 
 type Certificate struct {

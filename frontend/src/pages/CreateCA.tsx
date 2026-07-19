@@ -1,4 +1,4 @@
-import { Title, TextInput, Select, NumberInput, Button, Stack, Group, Textarea, Text } from '@mantine/core';
+import { Title, TextInput, Select, NumberInput, Button, Stack, Group, Textarea, Text, PasswordInput } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
@@ -37,6 +37,7 @@ function CreateCA() {
       keyAlgorithm: 'rsa',
       rsaKeySize: 2048,
       validityDays: 3650,
+      passphrase: '',
     },
   });
 
@@ -153,6 +154,15 @@ function CreateCA() {
             min={1}
             max={3650}
             {...form.getInputProps('validityDays')}
+          />
+
+          <PasswordInput
+            label="Key Passphrase (optional)"
+            placeholder="Encrypt the private key with a passphrase"
+            description="If set, the CA private key will be passphrase-protected (PKCS#8)"
+            value={form.values.passphrase}
+            onChange={(e) => form.setFieldValue('passphrase', e.currentTarget.value)}
+            autoComplete="new-password"
           />
 
           {mutation.isError && (

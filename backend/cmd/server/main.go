@@ -54,7 +54,7 @@ func main() {
 		caService := services.NewCAService(cfg.DataDir, crypto)
 		certService := services.NewCertService(cfg.DataDir, crypto)
 		notificationHandler := handlers.NewNotificationHandler(notificationService)
-		shareHandler := handlers.NewShareHandler(db, certService, caService)
+		shareHandler := handlers.NewShareHandler(db, certService, caService, crypto)
 
 		r.Get("/share/{token}", shareHandler.ServeLink)
 
@@ -87,7 +87,7 @@ func main() {
 				json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 			})
 
-			caHandler := handlers.NewCAHandler(db, caService)
+			caHandler := handlers.NewCAHandler(db, caService, crypto)
 
 		r.Route("/ca", func(r chi.Router) {
 			r.Get("/", caHandler.List)
@@ -100,7 +100,7 @@ func main() {
 			r.Get("/{id}/download/bundle", caHandler.DownloadCABundle)
 		})
 
-			certHandler := handlers.NewCertHandler(db, certService, caService)
+			certHandler := handlers.NewCertHandler(db, certService, caService, crypto)
 
 			r.Post("/share/{type}/{id}", shareHandler.GenerateLink)
 

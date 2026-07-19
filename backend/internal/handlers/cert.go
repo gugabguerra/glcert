@@ -18,13 +18,37 @@ import (
 )
 
 type CertHandler struct {
-	db   *sql.DB
-	cert *services.CertService
-	ca   *services.CAService
+	db     *sql.DB
+	cert   *services.CertService
+	ca     *services.CAService
+	crypto *services.CryptoService
 }
 
-func NewCertHandler(db *sql.DB, cert *services.CertService, ca *services.CAService) *CertHandler {
-	return &CertHandler{db: db, cert: cert, ca: ca}
+func NewCertHandler(db *sql.DB, cert *services.CertService, ca *services.CAService, crypto *services.CryptoService) *CertHandler {
+	return &CertHandler{db: db, cert: cert, ca: ca, crypto: crypto}
+}
+
+func (h *CertHandler) readCAWithPassphrase(caID string) ([]byte, []byte, error) {
+	var caName string
+	var caVersion int
+	var encPassphrase []byte
+	err := h.db.QueryRow(`
+		SELECT ca.name, ca.current_version, COALESCE(ca.key_encrypted_passphrase, X'')
+		FROM certificate_authorities ca WHERE ca.id = ?
+	`, caID).Scan(&caName, &caVersion, &encPassphrase)
+	if err != nil {
+		return nil, nil, fmt.Errorf("certificate authority not found: %w", err)
+	}
+
+	var passphrase string
+	if len(encPassphrase) > 0 {
+		decrypted, err := h.crypto.Decrypt(encPassphrase)
+		if err == nil {
+			passphrase = string(decrypted)
+		}
+	}
+
+	return h.ca.ReadCA(caName, caVersion, passphrase)
 }
 
 type CreateCertRequest struct {
@@ -202,20 +226,8 @@ func (h *CertHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	var caCertPEM, caKeyPEM []byte
 	if req.Type != "selfsigned" && req.CertificateAuthorityID != nil {
-		var caName string
-		var caVersion int
-		err := h.db.QueryRow("SELECT name, current_version FROM certificate_authorities WHERE id = ?",
-			*req.CertificateAuthorityID).Scan(&caName, &caVersion)
-		if err == sql.ErrNoRows {
-			http.Error(w, "certificate authority not found", http.StatusNotFound)
-			return
-		}
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		caCertPEM, caKeyPEM, err = h.ca.ReadCA(caName, caVersion)
+		var err error
+		caCertPEM, caKeyPEM, err = h.readCAWithPassphrase(*req.CertificateAuthorityID)
 		if err != nil {
 			log.Printf("create certificate error: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -487,14 +499,7 @@ func (h *CertHandler) Regenerate(w http.ResponseWriter, r *http.Request) {
 
 	var caCertPEM, caKeyPEM []byte
 	if certType != "selfsigned" && caID.Valid {
-		var caName string
-		var caVersion int
-		err = h.db.QueryRow("SELECT name, current_version FROM certificate_authorities WHERE id = ?", caID.String).Scan(&caName, &caVersion)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		caCertPEM, caKeyPEM, err = h.ca.ReadCA(caName, caVersion)
+		caCertPEM, caKeyPEM, err = h.readCAWithPassphrase(caID.String)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

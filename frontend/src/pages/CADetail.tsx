@@ -15,6 +15,8 @@ interface CertificateAuthority {
   createdAt: string;
   expiresAt: string;
   currentVersion: number;
+  hasPassphrase: boolean;
+  imported: boolean;
 }
 
 function CADetail() {
@@ -131,6 +133,12 @@ function CADetail() {
             <Badge color="yellow">Expiring Soon</Badge>
           ) : (
             <Badge color="green">Active</Badge>
+          )}
+          {ca.hasPassphrase && (
+            <Badge color="blue" variant="light">Passphrase-protected</Badge>
+          )}
+          {ca.imported && (
+            <Badge color="violet" variant="light">Imported</Badge>
           )}
         </Group>
       </Stack>
