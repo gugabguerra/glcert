@@ -11,10 +11,13 @@ import Dashboard from './pages/Dashboard';
 import Settings from './pages/Settings';
 import CertificateAuthorities from './pages/CertificateAuthorities';
 import CreateCA from './pages/CreateCA';
+import ImportCA from './pages/ImportCA';
 import CADetail from './pages/CADetail';
 import Certificates from './pages/Certificates';
 import CreateCertificate from './pages/CreateCertificate';
 import CertificateDetail from './pages/CertificateDetail';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 
 function AppRoutes() {
   const { isAuthenticated, isSetupComplete, logout } = useAuth();
@@ -94,11 +97,15 @@ function AppRoutes() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/ca" element={<CertificateAuthorities />} />
           <Route path="/ca/new" element={<CreateCA />} />
+          <Route path="/ca/import" element={<ImportCA />} />
           <Route path="/ca/:id" element={<CADetail />} />
           <Route path="/certificates" element={<Certificates />} />
           <Route path="/certificates/new" element={<CreateCertificate />} />
           <Route path="/certificates/:id" element={<CertificateDetail />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </AppShell.Main>

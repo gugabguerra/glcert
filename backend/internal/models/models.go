@@ -16,12 +16,18 @@ type Settings struct {
 	NotificationsEnabled      bool      `json:"notificationsEnabled"`
 	NotificationWebhookURL    string    `json:"notificationWebhookUrl"`
 	NotificationThresholdDays int       `json:"notificationThresholdDays"`
+	SMTPHost                  string    `json:"smtpHost"`
+	SMTPPort                  int       `json:"smtpPort"`
+	SMTPUsername              string    `json:"smtpUsername"`
+	SMTPFromEmail             string    `json:"smtpFromEmail"`
+	SMTPFromName              string    `json:"smtpFromName"`
+	EmailNotificationsEnabled bool      `json:"emailNotificationsEnabled"`
 	CreatedAt                time.Time `json:"createdAt"`
 	UpdatedAt                time.Time `json:"updatedAt"`
 }
 
 type CertificateAuthority struct {
-	ID             int64     `json:"id"`
+	ID             string    `json:"id"`
 	Name           string    `json:"name"`
 	Description    string    `json:"description"`
 	Subject        string    `json:"subject"`
@@ -31,19 +37,19 @@ type CertificateAuthority struct {
 }
 
 type Certificate struct {
-	ID                    int64     `json:"id"`
+	ID                    string    `json:"id"`
 	Name                  string    `json:"name"`
 	Description           string    `json:"description"`
 	Type                  string    `json:"type"` // server, client, selfsigned
-	CertificateAuthorityID *int64   `json:"certificateAuthorityId"`
+	CertificateAuthorityID *string  `json:"certificateAuthorityId"`
 	CurrentVersion        int       `json:"currentVersion"`
 	CreatedAt             time.Time `json:"createdAt"`
 	UpdatedAt             time.Time `json:"updatedAt"`
 }
 
 type CertificateVersion struct {
-	ID                 int64     `json:"id"`
-	CertificateID      int64     `json:"certificateId"`
+	ID                 string    `json:"id"`
+	CertificateID      string    `json:"certificateId"`
 	Version            int       `json:"version"`
 	StoragePath        string    `json:"storagePath"`
 	SerialNumber       string    `json:"serialNumber"`

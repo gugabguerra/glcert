@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { authFetchJson } from '../api';
 
 interface CA {
-  id: number;
+  id: string;
   name: string;
 }
 
@@ -39,7 +39,7 @@ function CreateCertificate() {
       description: '',
       commonName: '',
       type: 'server',
-      certificateAuthorityId: null as number | null,
+      certificateAuthorityId: null as string | null,
       dnsNames: [] as string[],
       ipAddresses: [] as string[],
       organization: '',
@@ -81,9 +81,7 @@ function CreateCertificate() {
     mutationFn: (values: typeof form.values) => {
       const payload = {
         ...values,
-        certificateAuthorityId: values.certificateAuthorityId
-          ? Number(values.certificateAuthorityId)
-          : null,
+        certificateAuthorityId: values.certificateAuthorityId || null,
       };
       return authFetchJson('/api/certificates', {
         method: 'POST',

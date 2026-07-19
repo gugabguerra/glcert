@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/glcert/glcert/internal/models"
 	"github.com/glcert/glcert/internal/services"
+	"github.com/google/uuid"
 )
 
 type CertHandler struct {
@@ -31,7 +32,7 @@ type CreateCertRequest struct {
 	Description           string   `json:"description"`
 	CommonName            string   `json:"commonName"`
 	Type                  string   `json:"type"`
-	CertificateAuthorityID *int64  `json:"certificateAuthorityId"`
+	CertificateAuthorityID *string `json:"certificateAuthorityId"`
 	DNSNames              []string `json:"dnsNames"`
 	IPAddresses           []string `json:"ipAddresses"`
 	Organization          string   `json:"organization"`
@@ -86,11 +87,7 @@ func (h *CertHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CertHandler) Get(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
-		return
-	}
+	id := chi.URLParam(r, "id")
 
 	type CertDetail struct {
 		models.Certificate
@@ -103,7 +100,7 @@ func (h *CertHandler) Get(w http.ResponseWriter, r *http.Request) {
 	var c CertDetail
 	var dnsNamesJSON, ipAddressesJSON sql.NullString
 	var commonName, organization, country, state, city string
-	err = h.db.QueryRow(`
+	err := h.db.QueryRow(`
 		SELECT c.id, c.name, c.description, c.type, c.certificate_authority_id,
 			c.current_version, c.created_at, c.updated_at,
 			COALESCE(ca.name, '') as ca_name,
@@ -145,11 +142,7 @@ func (h *CertHandler) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CertHandler) GetVersions(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
-		return
-	}
+	id := chi.URLParam(r, "id")
 
 	rows, err := h.db.Query(`
 		SELECT id, certificate_id, version, storage_path, serial_number,
@@ -262,11 +255,12 @@ func (h *CertHandler) Create(w http.ResponseWriter, r *http.Request) {
 	// Insert certificate
 	dnsNamesBytes, _ := json.Marshal(req.DNSNames)
 	ipAddressesBytes, _ := json.Marshal(req.IPAddresses)
-	certResult, err := h.db.Exec(`
-		INSERT INTO certificates (name, description, type, certificate_authority_id, current_version,
+	certID := uuid.New().String()
+	_, err = h.db.Exec(`
+		INSERT INTO certificates (id, name, description, type, certificate_authority_id, current_version,
 			common_name, organization, country, state, city, dns_names, ip_addresses)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, req.Name, req.Description, req.Type, req.CertificateAuthorityID, 1,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, certID, req.Name, req.Description, req.Type, req.CertificateAuthorityID, 1,
 		req.CommonName, req.Organization, req.Country, req.State, req.City,
 		string(dnsNamesBytes), string(ipAddressesBytes))
 	if err != nil {
@@ -275,7 +269,6 @@ func (h *CertHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	certID, _ := certResult.LastInsertId()
 	result.Cert.ID = certID
 
 	// Parse cert to get metadata
@@ -312,14 +305,10 @@ func (h *CertHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CertHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
-		return
-	}
+	id := chi.URLParam(r, "id")
 
 	var name, certType string
-	err = h.db.QueryRow("SELECT name, type FROM certificates WHERE id = ?", id).Scan(&name, &certType)
+	err := h.db.QueryRow("SELECT name, type FROM certificates WHERE id = ?", id).Scan(&name, &certType)
 	if err == sql.ErrNoRows {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
@@ -345,15 +334,11 @@ func (h *CertHandler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CertHandler) DownloadCert(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
-		return
-	}
+	id := chi.URLParam(r, "id")
 
 	var name, certType string
 	var version int
-	err = h.db.QueryRow("SELECT name, type, current_version FROM certificates WHERE id = ?", id).Scan(&name, &certType, &version)
+	err := h.db.QueryRow("SELECT name, type, current_version FROM certificates WHERE id = ?", id).Scan(&name, &certType, &version)
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
@@ -371,15 +356,11 @@ func (h *CertHandler) DownloadCert(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CertHandler) DownloadKey(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
-		return
-	}
+	id := chi.URLParam(r, "id")
 
 	var name, certType string
 	var version int
-	err = h.db.QueryRow("SELECT name, type, current_version FROM certificates WHERE id = ?", id).Scan(&name, &certType, &version)
+	err := h.db.QueryRow("SELECT name, type, current_version FROM certificates WHERE id = ?", id).Scan(&name, &certType, &version)
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
@@ -397,15 +378,11 @@ func (h *CertHandler) DownloadKey(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CertHandler) DownloadCA(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
-		return
-	}
+	id := chi.URLParam(r, "id")
 
 	var name, certType string
 	var version int
-	err = h.db.QueryRow("SELECT name, type, current_version FROM certificates WHERE id = ?", id).Scan(&name, &certType, &version)
+	err := h.db.QueryRow("SELECT name, type, current_version FROM certificates WHERE id = ?", id).Scan(&name, &certType, &version)
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
@@ -428,11 +405,7 @@ func (h *CertHandler) DownloadCA(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CertHandler) DownloadBundle(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
-		return
-	}
+	id := chi.URLParam(r, "id")
 
 	format := r.URL.Query().Get("format")
 	if format != "tgz" {
@@ -441,7 +414,7 @@ func (h *CertHandler) DownloadBundle(w http.ResponseWriter, r *http.Request) {
 
 	var name, certType, description string
 	var version int
-	err = h.db.QueryRow("SELECT name, type, description, current_version FROM certificates WHERE id = ?", id).Scan(&name, &certType, &description, &version)
+	err := h.db.QueryRow("SELECT name, type, description, current_version FROM certificates WHERE id = ?", id).Scan(&name, &certType, &description, &version)
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
@@ -480,19 +453,15 @@ func (h *CertHandler) DownloadBundle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CertHandler) Regenerate(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
-		return
-	}
+	id := chi.URLParam(r, "id")
 
 	// Get existing certificate info
 	var name, certType, description, commonName, org, country, state, city string
-	var caID sql.NullInt64
+	var caID sql.NullString
 	var currentVersion int
 	var dnsNamesJSON, ipAddressesJSON sql.NullString
 
-	err = h.db.QueryRow(`
+	err := h.db.QueryRow(`
 		SELECT name, type, description, common_name, organization, country, state, city,
 			certificate_authority_id, current_version, dns_names, ip_addresses
 		FROM certificates WHERE id = ?
@@ -520,7 +489,7 @@ func (h *CertHandler) Regenerate(w http.ResponseWriter, r *http.Request) {
 	if certType != "selfsigned" && caID.Valid {
 		var caName string
 		var caVersion int
-		err = h.db.QueryRow("SELECT name, current_version FROM certificate_authorities WHERE id = ?", caID.Int64).Scan(&caName, &caVersion)
+		err = h.db.QueryRow("SELECT name, current_version FROM certificate_authorities WHERE id = ?", caID.String).Scan(&caName, &caVersion)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -547,7 +516,7 @@ func (h *CertHandler) Regenerate(w http.ResponseWriter, r *http.Request) {
 		Description:       description,
 		CommonName:        commonName,
 		Type:              certType,
-		CertificateAuthID: func() *int64 { if caID.Valid { return &caID.Int64 }; return nil }(),
+		CertificateAuthID: func() *string { if caID.Valid { return &caID.String }; return nil }(),
 		DNSNames:          dnsNames,
 		IPAddresses:       ipAddresses,
 		Organization:      org,
@@ -605,11 +574,7 @@ func (h *CertHandler) Regenerate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CertHandler) RestoreVersion(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
-		return
-	}
+	id := chi.URLParam(r, "id")
 
 	version, err := strconv.Atoi(chi.URLParam(r, "version"))
 	if err != nil {
@@ -634,11 +599,7 @@ func (h *CertHandler) RestoreVersion(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CertHandler) DeleteVersion(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
-		return
-	}
+	id := chi.URLParam(r, "id")
 
 	version, err := strconv.Atoi(chi.URLParam(r, "version"))
 	if err != nil {

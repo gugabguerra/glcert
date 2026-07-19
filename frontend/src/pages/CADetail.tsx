@@ -8,7 +8,7 @@ import { authFetch, authFetchJson, downloadFile } from '../api';
 import { copyToClipboard, sanitizeFilename } from '../utils/clipboard';
 
 interface CertificateAuthority {
-  id: number;
+  id: string;
   name: string;
   description: string;
   subject: string;

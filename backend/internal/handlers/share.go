@@ -90,7 +90,7 @@ func (h *ShareHandler) ServeLink(w http.ResponseWriter, r *http.Request) {
 	token := chi.URLParam(r, "token")
 
 	var entityType string
-	var entityID int
+	var entityID string
 	var fileType string
 	var expiresAt time.Time
 
@@ -113,15 +113,15 @@ func (h *ShareHandler) ServeLink(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if entityType == "certificate" {
-		h.serveCertFile(w, r, int64(entityID), fileType)
+		h.serveCertFile(w, r, entityID, fileType)
 	} else {
-		h.serveCAFile(w, r, int64(entityID), fileType)
+		h.serveCAFile(w, r, entityID, fileType)
 	}
 
 	go h.db.Exec("DELETE FROM share_links WHERE token = ?", token)
 }
 
-func (h *ShareHandler) serveCertFile(w http.ResponseWriter, r *http.Request, id int64, fileType string) {
+func (h *ShareHandler) serveCertFile(w http.ResponseWriter, r *http.Request, id string, fileType string) {
 	var name, certType, description string
 	var version int
 	err := h.db.QueryRow("SELECT name, type, description, current_version FROM certificates WHERE id = ?", id).Scan(&name, &certType, &description, &version)
@@ -184,7 +184,7 @@ func (h *ShareHandler) serveCertFile(w http.ResponseWriter, r *http.Request, id 
 	}
 }
 
-func (h *ShareHandler) serveCAFile(w http.ResponseWriter, r *http.Request, id int64, fileType string) {
+func (h *ShareHandler) serveCAFile(w http.ResponseWriter, r *http.Request, id string, fileType string) {
 	var name, description string
 	var version int
 	err := h.db.QueryRow("SELECT name, description, current_version FROM certificate_authorities WHERE id = ?", id).Scan(&name, &description, &version)

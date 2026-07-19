@@ -30,7 +30,7 @@ type CreateCertInput struct {
 	Description       string   `json:"description"`
 	CommonName        string   `json:"commonName"`
 	Type              string   `json:"type"` // server, client, selfsigned
-	CertificateAuthID *int64   `json:"certificateAuthorityId"`
+	CertificateAuthID *string  `json:"certificateAuthorityId"`
 	DNSNames          []string `json:"dnsNames"`
 	IPAddresses       []string `json:"ipAddresses"`
 	Organization      string   `json:"organization"`

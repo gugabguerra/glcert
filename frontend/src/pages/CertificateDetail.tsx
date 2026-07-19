@@ -8,11 +8,11 @@ import { authFetch, authFetchJson, downloadFile } from '../api';
 import { copyToClipboard, sanitizeFilename } from '../utils/clipboard';
 
 interface Certificate {
-  id: number;
+  id: string;
   name: string;
   description: string;
   type: string;
-  certificateAuthorityId: number | null;
+  certificateAuthorityId: string | null;
   currentVersion: number;
   createdAt: string;
   updatedAt: string;
@@ -23,8 +23,8 @@ interface Certificate {
 }
 
 interface CertificateVersion {
-  id: number;
-  certificateId: number;
+  id: string;
+  certificateId: string;
   version: number;
   storagePath: string;
   serialNumber: string;

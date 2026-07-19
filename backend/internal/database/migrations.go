@@ -1,12 +1,26 @@
 package database
 
-import "database/sql"
+import (
+	"database/sql"
+	"log"
+)
 
 func migrate(db *sql.DB) error {
+	// Detect old schema (integer PKs) and drop for clean break
+	var idType string
+	err := db.QueryRow("SELECT type FROM pragma_table_info('certificate_authorities') WHERE name = 'id'").Scan(&idType)
+	if err == nil && idType == "INTEGER" {
+		log.Println("[migration] detected old integer PK schema — dropping tables for UUID migration")
+		dropTables := []string{"certificate_versions", "certificates", "certificate_authorities", "share_links"}
+		for _, t := range dropTables {
+			db.Exec("DROP TABLE IF EXISTS " + t)
+		}
+	}
+
 	queries := []string{
 		`CREATE TABLE IF NOT EXISTS admin (
 			id INTEGER PRIMARY KEY DEFAULT 1,
-			username TEXT NOT NULL,
+			email TEXT NOT NULL,
 			password_hash TEXT NOT NULL,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
@@ -26,7 +40,7 @@ func migrate(db *sql.DB) error {
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
 		`CREATE TABLE IF NOT EXISTS certificate_authorities (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			id TEXT PRIMARY KEY,
 			name TEXT NOT NULL,
 			description TEXT DEFAULT '',
 			subject TEXT NOT NULL,
@@ -35,11 +49,11 @@ func migrate(db *sql.DB) error {
 			current_version INTEGER DEFAULT 1
 		)`,
 		`CREATE TABLE IF NOT EXISTS certificates (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			id TEXT PRIMARY KEY,
 			name TEXT NOT NULL,
 			description TEXT DEFAULT '',
 			type TEXT NOT NULL CHECK(type IN ('server', 'client', 'selfsigned')),
-			certificate_authority_id INTEGER,
+			certificate_authority_id TEXT,
 			current_version INTEGER DEFAULT 1,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -47,7 +61,7 @@ func migrate(db *sql.DB) error {
 		)`,
 		`CREATE TABLE IF NOT EXISTS certificate_versions (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			certificate_id INTEGER NOT NULL,
+			certificate_id TEXT NOT NULL,
 			version INTEGER NOT NULL,
 			storage_path TEXT NOT NULL,
 			serial_number TEXT NOT NULL,
@@ -67,12 +81,12 @@ func migrate(db *sql.DB) error {
 		}
 	}
 
-	_, err := db.Exec(`
+	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS share_links (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			token TEXT UNIQUE NOT NULL,
 			entity_type TEXT NOT NULL CHECK (entity_type IN ('certificate', 'ca')),
-			entity_id INTEGER NOT NULL,
+			entity_id TEXT NOT NULL,
 			expires_at DATETIME NOT NULL,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)
@@ -119,6 +133,22 @@ func migrate(db *sql.DB) error {
 	}
 
 	for _, q := range shareAlterQueries {
+		db.Exec(q)
+	}
+
+	smtpAlterQueries := []string{
+		`ALTER TABLE settings ADD COLUMN smtp_host TEXT DEFAULT ''`,
+		`ALTER TABLE settings ADD COLUMN smtp_port INTEGER DEFAULT 587`,
+		`ALTER TABLE settings ADD COLUMN smtp_username TEXT DEFAULT ''`,
+		`ALTER TABLE settings ADD COLUMN smtp_password TEXT DEFAULT ''`,
+		`ALTER TABLE settings ADD COLUMN smtp_from_email TEXT DEFAULT ''`,
+		`ALTER TABLE settings ADD COLUMN smtp_from_name TEXT DEFAULT 'GLCert'`,
+		`ALTER TABLE settings ADD COLUMN email_notifications_enabled BOOLEAN DEFAULT 0`,
+		`ALTER TABLE settings ADD COLUMN reset_token TEXT DEFAULT ''`,
+		`ALTER TABLE settings ADD COLUMN reset_token_expires_at DATETIME`,
+	}
+
+	for _, q := range smtpAlterQueries {
 		db.Exec(q)
 	}
 

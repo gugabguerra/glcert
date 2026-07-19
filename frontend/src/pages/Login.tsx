@@ -1,13 +1,13 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Title, Text, TextInput, PasswordInput, Button, Stack, Paper, ThemeIcon, Group } from '@mantine/core';
+import { useNavigate, Link } from 'react-router-dom';
+import { Title, Text, TextInput, PasswordInput, Button, Stack, Paper, ThemeIcon, Group, Anchor } from '@mantine/core';
 import { IconShieldLock } from '@tabler/icons-react';
 import { useAuth } from '../auth';
 
 function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -21,7 +21,7 @@ function Login() {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ email, password }),
       });
 
       if (!res.ok) {
@@ -52,11 +52,12 @@ function Login() {
       <form onSubmit={handleSubmit}>
         <Stack gap="md">
           <TextInput
-            label="Username"
-            placeholder="admin"
-            value={username}
-            onChange={e => setUsername(e.currentTarget.value)}
-            autoComplete="username"
+            label="Email"
+            placeholder="admin@example.com"
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.currentTarget.value)}
+            autoComplete="email"
             required
           />
           <PasswordInput
@@ -67,6 +68,9 @@ function Login() {
             autoComplete="current-password"
             required
           />
+          <Anchor component={Link} to="/forgot-password" size="sm">
+            Forgot Password?
+          </Anchor>
           {error && <Text c="red" size="sm">{error}</Text>}
           <Button type="submit" fullWidth loading={loading}>
             Sign In

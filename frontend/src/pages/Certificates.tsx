@@ -6,11 +6,11 @@ import { IconTrash, IconPlus } from '@tabler/icons-react';
 import { authFetch, authFetchJson } from '../api';
 
 interface Certificate {
-  id: number;
+  id: string;
   name: string;
   description: string;
   type: string;
-  certificateAuthorityId: number | null;
+  certificateAuthorityId: string | null;
   currentVersion: number;
   createdAt: string;
   updatedAt: string;
@@ -20,7 +20,7 @@ interface Certificate {
 
 function Certificates() {
   const queryClient = useQueryClient();
-  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
 
   const { data: certs = [], isLoading } = useQuery<Certificate[]>({
@@ -29,7 +29,7 @@ function Certificates() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => authFetch(`/api/certificates/${id}`, { method: 'DELETE' }),
+    mutationFn: (id: string) => authFetch(`/api/certificates/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['certificates'] });
       setDeleteId(null);

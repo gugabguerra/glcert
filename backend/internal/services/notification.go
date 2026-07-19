@@ -10,7 +10,8 @@ import (
 )
 
 type NotificationService struct {
-	db *sql.DB
+	db    *sql.DB
+	email *EmailService
 }
 
 type expiringItem struct {
@@ -20,8 +21,8 @@ type expiringItem struct {
 	DaysLeft  int
 }
 
-func NewNotificationService(db *sql.DB) *NotificationService {
-	return &NotificationService{db: db}
+func NewNotificationService(db *sql.DB, email *EmailService) *NotificationService {
+	return &NotificationService{db: db, email: email}
 }
 
 func (s *NotificationService) CheckAndNotify() {
@@ -114,11 +115,30 @@ func (s *NotificationService) CheckAndNotify() {
 	}
 
 	log.Printf("[notifications] sent alert: %d certificates, %d CAs expiring", len(certs), len(cas))
+
+	// Send email notifications if enabled
+	var emailEnabled bool
+	var adminEmail string
+	s.db.QueryRow("SELECT email_notifications_enabled FROM settings WHERE id = 1").Scan(&emailEnabled)
+	if emailEnabled && s.email != nil {
+		emailErr := s.db.QueryRow("SELECT email FROM admin WHERE id = 1").Scan(&adminEmail)
+		if emailErr == nil && adminEmail != "" {
+			if err := s.email.SendExpirationAlertEmail(adminEmail, certs, cas); err != nil {
+				log.Printf("[notifications] email error: %v", err)
+			} else {
+				log.Printf("[notifications] sent email alert to %s", adminEmail)
+			}
+		}
+	}
 }
 
 func (s *NotificationService) SendTestNotification(webhookURL string) error {
 	msg := "GLCert Test Notification\n\nThis is a test message from your GLCert instance. If you see this, your webhook is configured correctly."
 	return shoutrrr.Send(webhookURL, msg)
+}
+
+func (s *NotificationService) SendTestEmail(email string) error {
+	return s.email.SendTestEmail(email)
 }
 
 func (s *NotificationService) buildMessage(certs, cas []expiringItem) string {

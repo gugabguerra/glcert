@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -28,13 +29,14 @@ func main() {
 
 	crypto := services.NewCryptoService(cfg.DataDir)
 	auth := services.NewAuthService(db)
-	notificationService := services.NewNotificationService(db)
+	emailService := services.NewEmailService(db, crypto)
+	notificationService := services.NewNotificationService(db, emailService)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
-	authHandler := handlers.NewAuthHandler(auth, crypto)
+	authHandler := handlers.NewAuthHandler(auth, crypto, emailService)
 	authMiddleware := handlers.NewAuthMiddleware(auth)
 
 	r.Route("/api", func(r chi.Router) {
@@ -46,6 +48,8 @@ func main() {
 		r.Get("/auth/status", authHandler.GetStatus)
 		r.Post("/auth/setup", authHandler.Setup)
 		r.Post("/auth/login", authHandler.Login)
+		r.Post("/auth/forgot-password", authHandler.ForgotPassword)
+		r.Post("/auth/reset-password", authHandler.ResetPassword)
 
 		caService := services.NewCAService(cfg.DataDir, crypto)
 		certService := services.NewCertService(cfg.DataDir, crypto)
@@ -62,23 +66,39 @@ func main() {
 			adminHandler := handlers.NewAdminHandler(db, cfg.DataDir, crypto)
 			r.Post("/admin/factory-reset", adminHandler.FactoryReset)
 
-			h := handlers.New(db)
+			h := handlers.New(db, crypto)
 			r.Get("/dashboard", h.GetDashboardStats)
 			r.Get("/settings", h.GetSettings)
 			r.Put("/settings", h.UpdateSettings)
 			r.Post("/notifications/test", notificationHandler.TestNotification)
+			r.Post("/notifications/test-email", func(w http.ResponseWriter, r *http.Request) {
+				var req struct {
+					Email string `json:"email"`
+				}
+				if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Email == "" {
+					http.Error(w, "email is required", http.StatusBadRequest)
+					return
+				}
+				if err := emailService.SendTestEmail(req.Email); err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+			})
 
 			caHandler := handlers.NewCAHandler(db, caService)
 
-			r.Route("/ca", func(r chi.Router) {
-				r.Get("/", caHandler.List)
-				r.Post("/", caHandler.Create)
-				r.Get("/{id}", caHandler.Get)
-				r.Delete("/{id}", caHandler.Delete)
-				r.Get("/{id}/download/cert", caHandler.DownloadCert)
-				r.Get("/{id}/download/key", caHandler.DownloadKey)
-				r.Get("/{id}/download/bundle", caHandler.DownloadCABundle)
-			})
+		r.Route("/ca", func(r chi.Router) {
+			r.Get("/", caHandler.List)
+			r.Post("/", caHandler.Create)
+			r.Post("/import", caHandler.Import)
+			r.Get("/{id}", caHandler.Get)
+			r.Delete("/{id}", caHandler.Delete)
+			r.Get("/{id}/download/cert", caHandler.DownloadCert)
+			r.Get("/{id}/download/key", caHandler.DownloadKey)
+			r.Get("/{id}/download/bundle", caHandler.DownloadCABundle)
+		})
 
 			certHandler := handlers.NewCertHandler(db, certService, caService)
 

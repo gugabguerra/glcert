@@ -6,14 +6,16 @@ For technical details (database schema, API reference, project structure), see [
 
 ## Features
 
-- **CA Management** -- Create certificate authorities with RSA, ECDSA, or Ed25519 keys. Download CA certificates and private keys individually or as ZIP bundles.
+- **CA Management** -- Create or import certificate authorities with RSA, ECDSA, or Ed25519 keys. Download CA certificates and private keys individually or as ZIP bundles.
 - **Certificate Management** -- Generate server, client, or self-signed certificates. Regenerate with custom validity periods. Full version history with restore capability.
-- **Download Bundles** -- Download certificates, private keys, CA certs, or complete ZIP bundles with a single click.
-- **Temporary Share Links** -- Generate time-limited, single-use URLs for downloading certificate bundles to target machines via wget/curl. No authentication required for the download link.
-- **Expiration Notifications** -- Get notified via Discord, Slack, Telegram, email, or 20+ other services when certificates or CAs are close to expiration. Configurable threshold and webhook URL.
+- **Download Bundles** -- Download certificates, private keys, CA certs, or complete ZIP/TGZ bundles with a single click.
+- **Temporary Share Links** -- Generate time-limited, single-use URLs for sharing certificates, keys, or bundles via wget/curl. No authentication required for the download link.
+- **Email Integration** -- SMTP support for password reset and expiration alerts. Configure in Settings with a test button.
+- **Expiration Notifications** -- Get notified via Discord, Slack, Telegram, email (SMTP), or 20+ other services when certificates or CAs are close to expiration. Configurable threshold and webhook URL.
 - **Dashboard** -- Overview of all CAs, certificates, expiring soon, and expired counts.
 - **Dark / Light / System Theme** -- Full theme support with instant switching.
 - **Responsive Design** -- Mobile-friendly with hamburger menu on small screens.
+- **Password Reset** -- Forgot your password? Reset via email link (requires SMTP configured).
 - **Setup Wizard** -- Guided initial setup for admin credentials.
 - **Factory Reset** -- Complete data wipe with confirmation dialog.
 
@@ -93,6 +95,8 @@ GLCert can notify you when certificates or CAs are close to expiration via webho
 | Slack | `slack://token-a/token-b/token-c` |
 | Telegram | `telegram://token@telegram?chats=@channel` |
 | Email | `smtp://user:pass@host:port/?from=addr&to=recipient` |
+
+Alternatively, configure built-in SMTP in Settings for password reset and email alerts without a webhook URL.
 | Gotify | `gotify://host/token` |
 
 See the full list at [shoutrrr.nickfedor.com](https://shoutrrr.nickfedor.com/services/overview/).

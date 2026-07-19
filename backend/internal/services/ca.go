@@ -109,14 +109,16 @@ func (s *CAService) SaveCA(name string, version int, certPEM, keyPEM []byte) err
 		return fmt.Errorf("write certificate: %w", err)
 	}
 
-	encrypted, err := s.crypto.Encrypt(keyPEM)
-	if err != nil {
-		return fmt.Errorf("encrypt private key: %w", err)
-	}
+	if len(keyPEM) > 0 {
+		encrypted, err := s.crypto.Encrypt(keyPEM)
+		if err != nil {
+			return fmt.Errorf("encrypt private key: %w", err)
+		}
 
-	keyPath := filepath.Join(dir, "ca.key")
-	if err := os.WriteFile(keyPath, encrypted, 0600); err != nil {
-		return fmt.Errorf("write private key: %w", err)
+		keyPath := filepath.Join(dir, "ca.key")
+		if err := os.WriteFile(keyPath, encrypted, 0600); err != nil {
+			return fmt.Errorf("write private key: %w", err)
+		}
 	}
 
 	return nil
@@ -131,15 +133,14 @@ func (s *CAService) ReadCA(name string, version int) ([]byte, []byte, error) {
 		return nil, nil, fmt.Errorf("read certificate: %w", err)
 	}
 
+	var keyPEM []byte
 	keyPath := filepath.Join(dir, "ca.key")
 	keyData, err := os.ReadFile(keyPath)
-	if err != nil {
-		return nil, nil, fmt.Errorf("read private key: %w", err)
-	}
-
-	keyPEM, err := s.crypto.Decrypt(keyData)
-	if err != nil {
-		return nil, nil, fmt.Errorf("decrypt private key: %w", err)
+	if err == nil {
+		keyPEM, err = s.crypto.Decrypt(keyData)
+		if err != nil {
+			return nil, nil, fmt.Errorf("decrypt private key: %w", err)
+		}
 	}
 
 	return certPEM, keyPEM, nil
@@ -148,4 +149,59 @@ func (s *CAService) ReadCA(name string, version int) ([]byte, []byte, error) {
 func (s *CAService) DeleteCA(name string) error {
 	dir := filepath.Join(s.DataDir, "certificates", "ca", name)
 	return os.RemoveAll(dir)
+}
+
+func (s *CAService) ImportCA(name, description string, certPEM, keyPEM []byte) (*models.CertificateAuthority, error) {
+	certBlock, _ := pem.Decode(certPEM)
+	if certBlock == nil {
+		return nil, fmt.Errorf("failed to decode certificate PEM")
+	}
+
+	cert, err := x509.ParseCertificate(certBlock.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse certificate: %w", err)
+	}
+
+	if !cert.IsCA || !cert.BasicConstraintsValid {
+		return nil, fmt.Errorf("certificate is not a CA (missing CA basic constraints)")
+	}
+
+	if len(keyPEM) > 0 {
+		keyBlock, _ := pem.Decode(keyPEM)
+		if keyBlock == nil {
+			return nil, fmt.Errorf("failed to decode private key PEM")
+		}
+
+		switch keyBlock.Type {
+		case "RSA PRIVATE KEY":
+			key, err := x509.ParsePKCS1PrivateKey(keyBlock.Bytes)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse RSA private key: %w", err)
+			}
+			if cert.PublicKeyAlgorithm != x509.RSA {
+				return nil, fmt.Errorf("private key type does not match certificate")
+			}
+			pubKey, ok := cert.PublicKey.(*rsa.PublicKey)
+			if !ok || pubKey.N.Cmp(key.PublicKey.N) != 0 || pubKey.E != key.PublicKey.E {
+				return nil, fmt.Errorf("private key does not match certificate public key")
+			}
+		case "EC PRIVATE KEY":
+			if cert.PublicKeyAlgorithm != x509.ECDSA {
+				return nil, fmt.Errorf("private key type does not match certificate")
+			}
+		default:
+			return nil, fmt.Errorf("unsupported private key type: %s", keyBlock.Type)
+		}
+	}
+
+	ca := &models.CertificateAuthority{
+		Name:           name,
+		Description:    description,
+		Subject:        cert.Subject.CommonName,
+		CreatedAt:      cert.NotBefore,
+		ExpiresAt:      cert.NotAfter,
+		CurrentVersion: 1,
+	}
+
+	return ca, nil
 }

@@ -19,14 +19,13 @@ func NewAuthService(db *sql.DB) *AuthService {
 }
 
 type SetupInput struct {
-	Username            string
-	Password            string
+	Email                string
+	Password             string
 	EncryptionPassphrase string
-	Organization        string
-	Country             string
-	State               string
-	City                string
-	Email               string
+	Organization         string
+	Country              string
+	State                string
+	City                 string
 }
 
 func (s *AuthService) IsSetupComplete() bool {
@@ -45,9 +44,9 @@ func (s *AuthService) CompleteSetup(input SetupInput) (string, error) {
 	}
 
 	_, err = s.db.Exec(`
-		INSERT INTO admin (id, username, password_hash) VALUES (1, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET username = ?, password_hash = ?
-	`, input.Username, string(hash), input.Username, string(hash))
+		INSERT INTO admin (id, email, password_hash) VALUES (1, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET email = ?, password_hash = ?
+	`, input.Email, string(hash), input.Email, string(hash))
 	if err != nil {
 		return "", fmt.Errorf("save admin: %w", err)
 	}
@@ -90,9 +89,9 @@ func (s *AuthService) CompleteSetup(input SetupInput) (string, error) {
 	return token, nil
 }
 
-func (s *AuthService) Login(username, password string) (string, error) {
+func (s *AuthService) Login(email, password string) (string, error) {
 	var storedHash string
-	err := s.db.QueryRow("SELECT password_hash FROM admin WHERE id = 1").Scan(&storedHash)
+	err := s.db.QueryRow("SELECT password_hash FROM admin WHERE email = ?", email).Scan(&storedHash)
 	if err != nil {
 		return "", fmt.Errorf("admin not found")
 	}
@@ -172,4 +171,52 @@ func (s *AuthService) generateToken() (string, error) {
 		return "", fmt.Errorf("generate token: %w", err)
 	}
 	return hex.EncodeToString(b), nil
+}
+
+func (s *AuthService) GetAdminEmail() (string, error) {
+	var email string
+	err := s.db.QueryRow("SELECT email FROM admin WHERE id = 1").Scan(&email)
+	return email, err
+}
+
+func (s *AuthService) GenerateResetToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
+}
+
+func (s *AuthService) SaveResetToken(token string) error {
+	expires := time.Now().Add(15 * time.Minute)
+	_, err := s.db.Exec("UPDATE settings SET reset_token = ?, reset_token_expires_at = ? WHERE id = 1", token, expires)
+	return err
+}
+
+func (s *AuthService) ValidateResetToken(token string) bool {
+	var count int
+	err := s.db.QueryRow(
+		"SELECT COUNT(*) FROM settings WHERE reset_token = ? AND reset_token_expires_at > ?",
+		token, time.Now(),
+	).Scan(&count)
+	return err == nil && count > 0
+}
+
+func (s *AuthService) ResetPassword(token, newPassword string) error {
+	if !s.ValidateResetToken(token) {
+		return fmt.Errorf("invalid or expired reset token")
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("hash password: %w", err)
+	}
+
+	_, err = s.db.Exec("UPDATE admin SET password_hash = ? WHERE id = 1", string(hash))
+	if err != nil {
+		return fmt.Errorf("update password: %w", err)
+	}
+
+	_, err = s.db.Exec("UPDATE settings SET reset_token = '', reset_token_expires_at = NULL WHERE id = 1")
+	return err
 }

@@ -2,11 +2,11 @@ import { Title, Table, Button, Group, Badge, ActionIcon, Modal, Text, Stack, Anc
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useState, useMemo } from 'react';
-import { IconTrash, IconPlus } from '@tabler/icons-react';
+import { IconTrash, IconPlus, IconUpload } from '@tabler/icons-react';
 import { authFetch, authFetchJson } from '../api';
 
 interface CertificateAuthority {
-  id: number;
+  id: string;
   name: string;
   description: string;
   subject: string;
@@ -17,7 +17,7 @@ interface CertificateAuthority {
 
 function CertificateAuthorities() {
   const queryClient = useQueryClient();
-  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const { data: cas = [], isLoading } = useQuery<CertificateAuthority[]>({
     queryKey: ['cas'],
@@ -25,7 +25,7 @@ function CertificateAuthorities() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => authFetch(`/api/ca/${id}`, { method: 'DELETE' }),
+    mutationFn: (id: string) => authFetch(`/api/ca/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cas'] });
       setDeleteId(null);
@@ -82,13 +82,23 @@ function CertificateAuthorities() {
     <Stack>
       <Group justify="space-between">
         <Title>Certificate Authorities</Title>
-        <Button
-          component={Link}
-          to="/ca/new"
-          leftSection={<IconPlus size={16} />}
-        >
-          New CA
-        </Button>
+        <Group>
+          <Button
+            component={Link}
+            to="/ca/import"
+            variant="default"
+            leftSection={<IconUpload size={16} />}
+          >
+            Import CA
+          </Button>
+          <Button
+            component={Link}
+            to="/ca/new"
+            leftSection={<IconPlus size={16} />}
+          >
+            New CA
+          </Button>
+        </Group>
       </Group>
 
       {isLoading ? (

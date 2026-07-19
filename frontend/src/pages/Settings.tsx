@@ -36,6 +36,12 @@ interface Settings {
   notificationsEnabled: boolean;
   notificationWebhookUrl: string;
   notificationThresholdDays: number;
+  smtpHost: string;
+  smtpPort: number;
+  smtpUsername: string;
+  smtpFromEmail: string;
+  smtpFromName: string;
+  emailNotificationsEnabled: boolean;
 }
 
 function SettingsPage() {
@@ -67,6 +73,12 @@ function SettingsPage() {
       setNotificationsEnabled(settingsData.notificationsEnabled ?? false);
       setWebhookUrl(settingsData.notificationWebhookUrl ?? '');
       setThresholdDays(settingsData.notificationThresholdDays ?? 30);
+      setSmtpHost(settingsData.smtpHost ?? '');
+      setSmtpPort(settingsData.smtpPort ?? 587);
+      setSmtpUsername(settingsData.smtpUsername ?? '');
+      setSmtpFromEmail(settingsData.smtpFromEmail ?? '');
+      setSmtpFromName(settingsData.smtpFromName ?? 'GLCert');
+      setEmailNotificationsEnabled(settingsData.emailNotificationsEnabled ?? false);
     }
   }, [settingsData]);
 
@@ -91,6 +103,14 @@ function SettingsPage() {
   const [webhookUrl, setWebhookUrl] = useState('');
   const [thresholdDays, setThresholdDays] = useState(30);
   const [testStatus, setTestStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [smtpHost, setSmtpHost] = useState('');
+  const [smtpPort, setSmtpPort] = useState(587);
+  const [smtpUsername, setSmtpUsername] = useState('');
+  const [smtpPassword, setSmtpPassword] = useState('');
+  const [smtpFromEmail, setSmtpFromEmail] = useState('');
+  const [smtpFromName, setSmtpFromName] = useState('GLCert');
+  const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState(false);
+  const [testEmailStatus, setTestEmailStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
 
   const passwordMutation = useMutation({
     mutationFn: (values: { currentPassword: string; newPassword: string }) =>
@@ -338,6 +358,50 @@ function SettingsPage() {
                 >
                   Save Notification Settings
                 </Button>
+              </Group>
+            </Stack>
+          </Paper>
+
+          <Paper withBorder p='md'>
+            <Title order={5} mb='md'>Email</Title>
+            <Stack gap='md'>
+              <TextInput label="SMTP Host" placeholder="smtp.gmail.com" value={smtpHost} onChange={e => setSmtpHost(e.currentTarget.value)} autoComplete="off" />
+              <NumberInput label="SMTP Port" min={1} max={65535} value={smtpPort} onChange={v => setSmtpPort(Number(v) || 587)} />
+              <TextInput label="SMTP Username" placeholder="your@email.com" value={smtpUsername} onChange={e => setSmtpUsername(e.currentTarget.value)} autoComplete="off" />
+              <PasswordInput label="SMTP Password" value={smtpPassword} onChange={e => setSmtpPassword(e.currentTarget.value)} autoComplete="off" placeholder="Leave empty to keep current" />
+              <TextInput label="From Email" placeholder="noreply@homelab.local" value={smtpFromEmail} onChange={e => setSmtpFromEmail(e.currentTarget.value)} autoComplete="off" />
+              <TextInput label="From Name" placeholder="GLCert" value={smtpFromName} onChange={e => setSmtpFromName(e.currentTarget.value)} autoComplete="off" />
+              <Switch label="Send expiration alerts via email" checked={emailNotificationsEnabled} onChange={e => setEmailNotificationsEnabled(e.currentTarget.checked)} />
+              <Group justify="space-between">
+                <Button variant="light" loading={testEmailStatus === 'loading'} disabled={!smtpHost || !smtpFromEmail} onClick={() => {
+                  setTestEmailStatus('loading');
+                  authFetchJson('/api/notifications/test-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: smtpFromEmail }),
+                  }).then(() => setTestEmailStatus('success')).catch(() => setTestEmailStatus('error'));
+                }}>Send Test Email</Button>
+                {testEmailStatus === 'success' && <Text c="green" size="sm">Test email sent</Text>}
+                {testEmailStatus === 'error' && <Text c="red" size="sm">Failed to send test email</Text>}
+              </Group>
+              <Group justify="flex-end">
+                <Button loading={notificationMutation.isPending} onClick={() => {
+                  authFetchJson('/api/settings', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      ...form.values,
+                      notificationsEnabled,
+                      notificationWebhookUrl: webhookUrl,
+                      notificationThresholdDays: thresholdDays,
+                      smtpHost, smtpPort, smtpUsername, smtpPassword: smtpPassword || '',
+                      smtpFromEmail, smtpFromName, emailNotificationsEnabled,
+                    }),
+                  }).then(() => {
+                    queryClient.invalidateQueries({ queryKey: ['settings'] });
+                    setSmtpPassword('');
+                  });
+                }}>Save Email Settings</Button>
               </Group>
             </Stack>
           </Paper>

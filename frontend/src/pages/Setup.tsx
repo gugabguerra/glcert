@@ -14,7 +14,7 @@ function Setup() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const [username, setUsername] = useState('admin');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [encryptionPassphrase, setEncryptionPassphrase] = useState('');
@@ -23,10 +23,9 @@ function Setup() {
   const [country, setCountry] = useState('');
   const [state, setState] = useState('');
   const [city, setCity] = useState('');
-  const [email, setEmail] = useState('');
 
   const validateStep0 = () => {
-    if (!username.trim()) return setError('Username is required');
+    if (!email.trim() || !email.includes('@')) return setError('Valid email is required');
     if (password.length < 6) return setError('Password must be at least 6 characters');
     if (password !== confirmPassword) return setError('Passwords do not match');
     setError('');
@@ -49,14 +48,13 @@ function Setup() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          username,
+          email,
           password,
           encryptionPassphrase,
           organization,
           country,
           state,
           city,
-          email,
         }),
       });
 
@@ -96,10 +94,12 @@ function Setup() {
       {step === 0 && (
         <Stack gap="md">
           <TextInput
-            label="Username"
-            value={username}
-            onChange={e => setUsername(e.currentTarget.value)}
-            autoComplete="username"
+            label="Email"
+            placeholder="admin@example.com"
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.currentTarget.value)}
+            autoComplete="email"
             required
           />
           <PasswordInput
@@ -186,13 +186,6 @@ function Setup() {
             value={city}
             onChange={e => setCity(e.currentTarget.value)}
             autoComplete="address-level2"
-          />
-          <TextInput
-            label="Email"
-            placeholder="admin@example.com"
-            value={email}
-            onChange={e => setEmail(e.currentTarget.value)}
-            autoComplete="email"
           />
           {error && <Text c="red" size="sm">{error}</Text>}
           <Group justify="space-between">

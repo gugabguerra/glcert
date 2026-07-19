@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/glcert/glcert/internal/models"
 	"github.com/glcert/glcert/internal/services"
+	"github.com/google/uuid"
 )
 
 type CAHandler struct {
@@ -33,6 +33,13 @@ type CreateCARequest struct {
 	KeyAlgorithm string `json:"keyAlgorithm"`
 	RSAKeySize   int    `json:"rsaKeySize"`
 	ValidityDays int    `json:"validityDays"`
+}
+
+type ImportCARequest struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	CertPEM     string `json:"certPem"`
+	KeyPEM      string `json:"keyPem"`
 }
 
 func (h *CAHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -65,14 +72,10 @@ func (h *CAHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CAHandler) Get(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
-		return
-	}
+	id := chi.URLParam(r, "id")
 
 	var ca models.CertificateAuthority
-	err = h.db.QueryRow(`
+	err := h.db.QueryRow(`
 		SELECT id, name, description, subject, created_at, expires_at, current_version
 		FROM certificate_authorities WHERE id = ?
 	`, id).Scan(&ca.ID, &ca.Name, &ca.Description, &ca.Subject, &ca.CreatedAt, &ca.ExpiresAt, &ca.CurrentVersion)
@@ -124,16 +127,16 @@ func (h *CAHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.db.Exec(`
-		INSERT INTO certificate_authorities (name, description, subject, expires_at, current_version)
-		VALUES (?, ?, ?, ?, ?)
-	`, caModel.Name, caModel.Description, caModel.Subject, caModel.ExpiresAt, 1)
+	id := uuid.New().String()
+	_, err = h.db.Exec(`
+		INSERT INTO certificate_authorities (id, name, description, subject, expires_at, current_version)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, id, caModel.Name, caModel.Description, caModel.Subject, caModel.ExpiresAt, 1)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	id, _ := result.LastInsertId()
 	caModel.ID = id
 
 	w.Header().Set("Content-Type", "application/json")
@@ -142,14 +145,10 @@ func (h *CAHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CAHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
-		return
-	}
+	id := chi.URLParam(r, "id")
 
 	var name string
-	err = h.db.QueryRow("SELECT name FROM certificate_authorities WHERE id = ?", id).Scan(&name)
+	err := h.db.QueryRow("SELECT name FROM certificate_authorities WHERE id = ?", id).Scan(&name)
 	if err == sql.ErrNoRows {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
@@ -170,15 +169,11 @@ func (h *CAHandler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CAHandler) DownloadCert(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
-		return
-	}
+	id := chi.URLParam(r, "id")
 
 	var name string
 	var version int
-	err = h.db.QueryRow("SELECT name, current_version FROM certificate_authorities WHERE id = ?", id).Scan(&name, &version)
+	err := h.db.QueryRow("SELECT name, current_version FROM certificate_authorities WHERE id = ?", id).Scan(&name, &version)
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
@@ -196,15 +191,11 @@ func (h *CAHandler) DownloadCert(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CAHandler) DownloadKey(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
-		return
-	}
+	id := chi.URLParam(r, "id")
 
 	var name string
 	var version int
-	err = h.db.QueryRow("SELECT name, current_version FROM certificate_authorities WHERE id = ?", id).Scan(&name, &version)
+	err := h.db.QueryRow("SELECT name, current_version FROM certificate_authorities WHERE id = ?", id).Scan(&name, &version)
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
@@ -222,11 +213,7 @@ func (h *CAHandler) DownloadKey(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CAHandler) DownloadCABundle(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
-		return
-	}
+	id := chi.URLParam(r, "id")
 
 	format := r.URL.Query().Get("format")
 	if format != "tgz" {
@@ -235,7 +222,7 @@ func (h *CAHandler) DownloadCABundle(w http.ResponseWriter, r *http.Request) {
 
 	var name, description string
 	var version int
-	err = h.db.QueryRow("SELECT name, description, current_version FROM certificate_authorities WHERE id = ?", id).Scan(&name, &description, &version)
+	err := h.db.QueryRow("SELECT name, description, current_version FROM certificate_authorities WHERE id = ?", id).Scan(&name, &description, &version)
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
@@ -266,4 +253,44 @@ func (h *CAHandler) DownloadCABundle(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", BundleContentType(format))
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s%s\"", name, BundleExtension(format)))
 	WriteBundle(w, files, format)
+}
+
+func (h *CAHandler) Import(w http.ResponseWriter, r *http.Request) {
+	var req ImportCARequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if req.Name == "" || req.CertPEM == "" {
+		http.Error(w, "name and certPem are required", http.StatusBadRequest)
+		return
+	}
+
+	caModel, err := h.ca.ImportCA(req.Name, req.Description, []byte(req.CertPEM), []byte(req.KeyPEM))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := h.ca.SaveCA(req.Name, 1, []byte(req.CertPEM), []byte(req.KeyPEM)); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	id := uuid.New().String()
+	_, err = h.db.Exec(`
+		INSERT INTO certificate_authorities (id, name, description, subject, expires_at, current_version)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, id, caModel.Name, caModel.Description, caModel.Subject, caModel.ExpiresAt, 1)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	caModel.ID = id
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(caModel)
 }
