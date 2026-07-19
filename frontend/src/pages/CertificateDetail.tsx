@@ -168,13 +168,20 @@ function CertificateDetail() {
     selfsigned: 'orange',
   };
 
+  const typeLabels: Record<string, string> = {
+    server: 'Server',
+    client: 'Client',
+    serverclient: 'Server + Client',
+    selfsigned: 'Self-Signed',
+  };
+
   return (
     <Stack>
       <Group justify="space-between">
         <div>
           <Group>
             <Title>{cert.name}</Title>
-            <Badge color={typeColors[cert.type] || 'gray'}>{cert.type}</Badge>
+            <Badge color={typeColors[cert.type] || 'gray'}>{typeLabels[cert.type] || cert.type}</Badge>
           </Group>
           <Text c="dimmed">{cert.description}</Text>
         </div>

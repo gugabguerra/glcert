@@ -129,6 +129,13 @@ function Certificates() {
     selfsigned: 'orange',
   };
 
+  const typeLabels: Record<string, string> = {
+    server: 'Server',
+    client: 'Client',
+    serverclient: 'Server + Client',
+    selfsigned: 'Self-Signed',
+  };
+
   return (
     <Stack>
       <Group justify='space-between'>
@@ -193,7 +200,7 @@ function Certificates() {
                   </Anchor>
                 </Table.Td>
                 <Table.Td>
-                  <Badge color={typeColors[cert.type] || 'gray'}>{cert.type}</Badge>
+                  <Badge color={typeColors[cert.type] || 'gray'}>{typeLabels[cert.type] || cert.type}</Badge>
                 </Table.Td>
                 <Table.Td>
                   {cert.caName || cert.caSubject ? (
