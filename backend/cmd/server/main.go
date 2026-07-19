@@ -54,7 +54,7 @@ func main() {
 		caService := services.NewCAService(cfg.DataDir, crypto)
 		certService := services.NewCertService(cfg.DataDir, crypto)
 		notificationHandler := handlers.NewNotificationHandler(notificationService)
-		shareHandler := handlers.NewShareHandler(db, certService, caService, crypto)
+		shareHandler := handlers.NewShareHandler(db, certService, caService, crypto, emailService)
 
 		r.Get("/share/{token}", shareHandler.ServeLink)
 
@@ -103,6 +103,7 @@ func main() {
 			certHandler := handlers.NewCertHandler(db, certService, caService, crypto)
 
 			r.Post("/share/{type}/{id}", shareHandler.GenerateLink)
+			r.Post("/share/send-email", shareHandler.SendShareEmail)
 
 			r.Route("/certificates", func(r chi.Router) {
 				r.Get("/", certHandler.List)

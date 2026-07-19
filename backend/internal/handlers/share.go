@@ -18,10 +18,11 @@ type ShareHandler struct {
 	cert   *services.CertService
 	ca     *services.CAService
 	crypto *services.CryptoService
+	email  *services.EmailService
 }
 
-func NewShareHandler(db *sql.DB, cert *services.CertService, ca *services.CAService, crypto *services.CryptoService) *ShareHandler {
-	return &ShareHandler{db: db, cert: cert, ca: ca, crypto: crypto}
+func NewShareHandler(db *sql.DB, cert *services.CertService, ca *services.CAService, crypto *services.CryptoService, email *services.EmailService) *ShareHandler {
+	return &ShareHandler{db: db, cert: cert, ca: ca, crypto: crypto, email: email}
 }
 
 var validFileTypes = map[string]bool{
@@ -254,4 +255,43 @@ func generateToken() (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(b), nil
+}
+
+func (h *ShareHandler) SendShareEmail(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Email    string `json:"email"`
+		URL      string `json:"url"`
+		FileName string `json:"fileName"`
+		FileType string `json:"fileType"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Email == "" || req.URL == "" || req.FileName == "" {
+		http.Error(w, "email, url, and fileName are required", http.StatusBadRequest)
+		return
+	}
+
+	dlName := req.FileName
+	subject := fmt.Sprintf("GLCert Share Link — %s", req.FileName)
+	htmlBody := fmt.Sprintf(`<h2>GLCert Share Link</h2>
+<p>A temporary share link has been generated for <strong>%s</strong>.</p>
+<p>This link expires in <strong>15 minutes</strong> and can only be used once.</p>
+<h3>Download</h3>
+<p><a href="%s">%s</a></p>
+<h3>wget</h3>
+<pre>wget -O %s "%s"</pre>
+<h3>curl</h3>
+<pre>curl -L -o %s "%s"</pre>`,
+		req.FileName, req.URL, req.URL, dlName, req.URL, dlName, req.URL)
+
+	if err := h.email.SendEmail(req.Email, subject, htmlBody); err != nil {
+		http.Error(w, "failed to send email: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
