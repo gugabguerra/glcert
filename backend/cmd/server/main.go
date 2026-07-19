@@ -23,6 +23,9 @@ func main() {
 	}
 	defer db.Close()
 
+	db.Exec("DELETE FROM sessions")
+	log.Printf("Sessions cleared — re-login required after restart")
+
 	crypto := services.NewCryptoService(cfg.DataDir)
 	auth := services.NewAuthService(db)
 	notificationService := services.NewNotificationService(db)
