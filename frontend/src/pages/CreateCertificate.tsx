@@ -71,6 +71,7 @@ function CreateCertificate() {
     ? [
         { value: 'server', label: 'Server' },
         { value: 'client', label: 'Client' },
+        { value: 'serverclient', label: 'Server + Client' },
         { value: 'selfsigned', label: 'Self-Signed' },
       ]
     : [

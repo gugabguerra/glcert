@@ -67,7 +67,7 @@ Singleton table storing application configuration.
 | id                       | TEXT PK       | UUID v4                                     |
 | name                     | TEXT NOT NULL |                                             |
 | description              | TEXT          | DEFAULT ''                                  |
-| type                     | TEXT NOT NULL | CHECK: 'server', 'client', 'selfsigned'     |
+| type                     | TEXT NOT NULL | CHECK: 'server', 'client', 'serverclient', 'selfsigned' |
 | certificate_authority_id | TEXT          | FK -> certificate_authorities(id), nullable |
 | current_version          | INTEGER       | DEFAULT 1                                   |
 | common_name              | TEXT          | DEFAULT ''                                  |

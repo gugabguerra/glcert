@@ -164,6 +164,7 @@ function CertificateDetail() {
   const typeColors: Record<string, string> = {
     server: 'blue',
     client: 'green',
+    serverclient: 'purple',
     selfsigned: 'orange',
   };
 

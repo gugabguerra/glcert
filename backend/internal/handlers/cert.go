@@ -216,8 +216,8 @@ func (h *CertHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Type != "server" && req.Type != "client" && req.Type != "selfsigned" {
-		http.Error(w, "type must be server, client, or selfsigned", http.StatusBadRequest)
+	if req.Type != "server" && req.Type != "client" && req.Type != "serverclient" && req.Type != "selfsigned" {
+		http.Error(w, "type must be server, client, serverclient, or selfsigned", http.StatusBadRequest)
 		return
 	}
 

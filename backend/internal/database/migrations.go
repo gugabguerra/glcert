@@ -52,7 +52,7 @@ func migrate(db *sql.DB) error {
 			id TEXT PRIMARY KEY,
 			name TEXT NOT NULL,
 			description TEXT DEFAULT '',
-			type TEXT NOT NULL CHECK(type IN ('server', 'client', 'selfsigned')),
+			type TEXT NOT NULL CHECK(type IN ('server', 'client', 'serverclient', 'selfsigned')),
 			certificate_authority_id TEXT,
 			current_version INTEGER DEFAULT 1,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -162,6 +162,52 @@ func migrate(db *sql.DB) error {
 		db.Exec(q)
 	}
 
+	// Migrate certificates table CHECK constraint to include 'serverclient'
+	var createSQL string
+	err = db.QueryRow("SELECT sql FROM sqlite_master WHERE type='table' AND name='certificates'").Scan(&createSQL)
+	if err == nil && createSQL != "" && !containsString(createSQL, "'serverclient'") {
+		log.Println("[migration] migrating certificates table to add 'serverclient' type")
+		tx, txErr := db.Begin()
+		if txErr != nil {
+			return txErr
+		}
+		migrateQueries := []string{
+			`CREATE TABLE certificates_new (
+				id TEXT PRIMARY KEY,
+				name TEXT NOT NULL,
+				description TEXT DEFAULT '',
+				type TEXT NOT NULL CHECK(type IN ('server', 'client', 'serverclient', 'selfsigned')),
+				certificate_authority_id TEXT,
+				current_version INTEGER DEFAULT 1,
+				created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+				updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+				common_name TEXT DEFAULT '',
+				organization TEXT DEFAULT '',
+				country TEXT DEFAULT '',
+				state TEXT DEFAULT '',
+				city TEXT DEFAULT '',
+				dns_names TEXT DEFAULT '[]',
+				ip_addresses TEXT DEFAULT '[]',
+				last_notified_at DATETIME,
+				ca_subject TEXT DEFAULT '',
+				FOREIGN KEY (certificate_authority_id) REFERENCES certificate_authorities(id)
+			)`,
+			`INSERT INTO certificates_new (id, name, description, type, certificate_authority_id, current_version, created_at, updated_at, common_name, organization, country, state, city, dns_names, ip_addresses, last_notified_at, ca_subject)
+			 SELECT id, name, description, type, certificate_authority_id, current_version, created_at, updated_at, COALESCE(common_name, ''), COALESCE(organization, ''), COALESCE(country, ''), COALESCE(state, ''), COALESCE(city, ''), COALESCE(dns_names, '[]'), COALESCE(ip_addresses, '[]'), last_notified_at, COALESCE(ca_subject, '') FROM certificates`,
+			`DROP TABLE certificates`,
+			`ALTER TABLE certificates_new RENAME TO certificates`,
+		}
+		for _, q := range migrateQueries {
+			if _, txErr = tx.Exec(q); txErr != nil {
+				tx.Rollback()
+				return txErr
+			}
+		}
+		if txErr = tx.Commit(); txErr != nil {
+			return txErr
+		}
+	}
+
 	// Insert default settings if not exists
 	var count int
 	err = db.QueryRow("SELECT COUNT(*) FROM settings").Scan(&count)
@@ -177,4 +223,17 @@ func migrate(db *sql.DB) error {
 	}
 
 	return nil
+}
+
+func containsString(s, substr string) bool {
+	return len(s) >= len(substr) && searchString(s, substr)
+}
+
+func searchString(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }
