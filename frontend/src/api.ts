@@ -17,7 +17,8 @@ export async function authFetchJson<T>(url: string, options: RequestInit = {}): 
       window.location.href = '/';
       throw new Error('Session expired');
     }
-    throw new Error(`Request failed: ${res.status}`);
+    const text = await res.text();
+    throw new Error(text || `Request failed: ${res.status}`);
   }
   return res.json();
 }

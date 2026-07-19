@@ -45,8 +45,8 @@ function ImportCA() {
       queryClient.invalidateQueries({ queryKey: ['cas'] });
       navigate(`/ca/${data.id}`);
     },
-    onError: () => {
-      setError('Import failed. Check that the certificate is a valid CA.');
+    onError: (err: Error) => {
+      setError(err.message || 'Import failed. Check that the certificate is a valid CA.');
     },
   });
 
