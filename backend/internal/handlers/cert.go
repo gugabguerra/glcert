@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"archive/zip"
 	"crypto/x509"
 	"database/sql"
 	"encoding/json"
@@ -367,7 +366,7 @@ func (h *CertHandler) DownloadCert(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/x-pem-file")
-	w.Header().Set("Content-Disposition", "attachment; filename=\"cert.pem\"")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s-cert.pem\"", name))
 	w.Write(certPEM)
 }
 
@@ -393,7 +392,7 @@ func (h *CertHandler) DownloadKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/x-pem-file")
-	w.Header().Set("Content-Disposition", "attachment; filename=\"key.pem\"")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s-key.pem\"", name))
 	w.Write(keyPEM)
 }
 
@@ -424,7 +423,7 @@ func (h *CertHandler) DownloadCA(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/x-pem-file")
-	w.Header().Set("Content-Disposition", "attachment; filename=\"ca.pem\"")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s-ca.pem\"", name))
 	w.Write(caPEM)
 }
 
@@ -433,6 +432,11 @@ func (h *CertHandler) DownloadBundle(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "invalid id", http.StatusBadRequest)
 		return
+	}
+
+	format := r.URL.Query().Get("format")
+	if format != "tgz" {
+		format = "zip"
 	}
 
 	var name, certType, description string
@@ -449,21 +453,12 @@ func (h *CertHandler) DownloadBundle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.zip\"", name))
-
-	zipWriter := zip.NewWriter(w)
-	defer zipWriter.Close()
-
-	fw, _ := zipWriter.Create("cert.pem")
-	fw.Write(certPEM)
-
-	fw, _ = zipWriter.Create("key.pem")
-	fw.Write(keyPEM)
-
+	files := []BundleFile{
+		{Name: "cert.pem", Content: certPEM},
+		{Name: "key.pem", Content: keyPEM},
+	}
 	if caPEM != nil {
-		fw, _ = zipWriter.Create("ca.pem")
-		fw.Write(caPEM)
+		files = append(files, BundleFile{Name: "ca.pem", Content: caPEM})
 	}
 
 	readmeContent := fmt.Sprintf("GLCert Certificate Bundle\n"+
@@ -477,54 +472,11 @@ func (h *CertHandler) DownloadBundle(w http.ResponseWriter, r *http.Request) {
 		"  key.pem   - Private Key\n"+
 		"  ca.pem    - CA Certificate (if applicable)\n",
 		name, certType, description, version)
-	fw, _ = zipWriter.Create("README.txt")
-	fw.Write([]byte(readmeContent))
-}
+	files = append(files, BundleFile{Name: "README.txt", Content: []byte(readmeContent)})
 
-func (h *CertHandler) DownloadCABundle(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
-		return
-	}
-
-	var name, description string
-	var version int
-	err = h.db.QueryRow("SELECT name, description, current_version FROM certificate_authorities WHERE id = ?", id).Scan(&name, &description, &version)
-	if err != nil {
-		http.Error(w, "not found", http.StatusNotFound)
-		return
-	}
-
-	certPEM, keyPEM, err := h.ca.ReadCA(name, version)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.zip\"", name))
-
-	zipWriter := zip.NewWriter(w)
-	defer zipWriter.Close()
-
-	fw, _ := zipWriter.Create("ca.crt")
-	fw.Write(certPEM)
-
-	fw, _ = zipWriter.Create("ca.key")
-	fw.Write(keyPEM)
-
-	readmeContent := fmt.Sprintf("GLCert CA Bundle\n"+
-		"================\n\n"+
-		"Name: %s\n"+
-		"Description: %s\n"+
-		"Version: %d\n\n"+
-		"Files:\n"+
-		"  ca.crt - CA Certificate\n"+
-		"  ca.key - CA Private Key\n",
-		name, description, version)
-	fw, _ = zipWriter.Create("README.txt")
-	fw.Write([]byte(readmeContent))
+	w.Header().Set("Content-Type", BundleContentType(format))
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s%s\"", name, BundleExtension(format)))
+	WriteBundle(w, files, format)
 }
 
 func (h *CertHandler) Regenerate(w http.ResponseWriter, r *http.Request) {

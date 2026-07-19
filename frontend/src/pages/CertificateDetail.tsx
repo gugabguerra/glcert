@@ -1,9 +1,11 @@
-import { Title, Text, Button, Group, Stack, Badge, Divider, ActionIcon, Table, Modal, Center, Loader, SimpleGrid, Paper, Tooltip, TextInput, NumberInput } from '@mantine/core';
+import { Title, Text, Button, Group, Stack, Badge, Divider, ActionIcon, Table, Modal, Center, Loader, SimpleGrid, Paper, Tooltip, TextInput, NumberInput, Radio, Menu, Code, Box } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
-import { IconDownload, IconTrash, IconRefresh, IconHistory, IconEye, IconLink } from '@tabler/icons-react';
+import { IconDownload, IconTrash, IconRefresh, IconHistory, IconEye, IconLink, IconClipboard } from '@tabler/icons-react';
 import { useState, useMemo } from 'react';
+import { notifications } from '@mantine/notifications';
 import { authFetch, authFetchJson, downloadFile } from '../api';
+import { copyToClipboard, sanitizeFilename } from '../utils/clipboard';
 
 interface Certificate {
   id: number;
@@ -43,7 +45,10 @@ function CertificateDetail() {
   const [detailVersion, setDetailVersion] = useState<CertificateVersion | null>(null);
   const [sortKey, setSortKey] = useState<string>('version');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
-  const [shareLinkUrl, setShareLinkUrl] = useState<string | null>(null);
+  const [showShareDialog, setShowShareDialog] = useState(false);
+  const [shareFileType, setShareFileType] = useState<string>('bundle_zip');
+  const [showShareResult, setShowShareResult] = useState(false);
+  const [shareResult, setShareResult] = useState<{ url: string; fileType: string } | null>(null);
   const [showRegenerate, setShowRegenerate] = useState(false);
   const [regenerateValidity, setRegenerateValidity] = useState(365);
 
@@ -100,11 +105,16 @@ function CertificateDetail() {
   });
 
   const shareMutation = useMutation({
-    mutationFn: () =>
-      authFetchJson<{ token: string; expires_at: string }>(`/api/share/certificate/${id}`, { method: 'POST' }),
+    mutationFn: (fileType: string) =>
+      authFetchJson<{ token: string; expires_at: string; file_type: string }>(`/api/share/certificate/${id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileType }),
+      }),
     onSuccess: (data) => {
       const url = `${window.location.origin}/api/share/${data.token}`;
-      setShareLinkUrl(url);
+      setShareResult({ url, fileType: data.file_type });
+      setShowShareResult(true);
     },
   });
 
@@ -148,6 +158,8 @@ function CertificateDetail() {
   if (isLoading) return <Center py={80}><Loader /></Center>;
   if (!cert) return <Text>Certificate not found</Text>;
 
+  const safeName = sanitizeFilename(cert.name);
+
   const typeColors: Record<string, string> = {
     server: 'blue',
     client: 'green',
@@ -166,18 +178,18 @@ function CertificateDetail() {
         </div>
         <Group>
           <Tooltip label="Download certificate">
-            <ActionIcon variant="subtle" onClick={() => downloadFile(`/api/certificates/${id}/download/cert`, `cert-${id}-cert.pem`)}>
+            <ActionIcon variant="subtle" onClick={() => downloadFile(`/api/certificates/${id}/download/cert`, `${safeName}-cert.pem`)}>
               <IconDownload size={20} />
             </ActionIcon>
           </Tooltip>
           <Tooltip label="Download private key">
-            <ActionIcon variant="subtle" onClick={() => downloadFile(`/api/certificates/${id}/download/key`, `cert-${id}-key.pem`)}>
+            <ActionIcon variant="subtle" onClick={() => downloadFile(`/api/certificates/${id}/download/key`, `${safeName}-key.pem`)}>
               <IconDownload size={20} />
             </ActionIcon>
           </Tooltip>
           {cert.caName && (
             <Tooltip label="Download CA certificate">
-              <ActionIcon variant="subtle" onClick={() => downloadFile(`/api/certificates/${id}/download/ca`, `cert-${id}-ca.pem`)}>
+              <ActionIcon variant="subtle" onClick={() => downloadFile(`/api/certificates/${id}/download/ca`, `${safeName}-ca.pem`)}>
                 <IconDownload size={20} />
               </ActionIcon>
             </Tooltip>
@@ -188,7 +200,7 @@ function CertificateDetail() {
             </ActionIcon>
           </Tooltip>
           <Tooltip label="Temporary share link">
-            <ActionIcon variant="subtle" onClick={() => shareMutation.mutate()}>
+            <ActionIcon variant="subtle" onClick={() => setShowShareDialog(true)}>
               <IconLink size={20} />
             </ActionIcon>
           </Tooltip>
@@ -360,21 +372,33 @@ function CertificateDetail() {
       <Divider />
 
       <Group>
-        <Button variant="default" onClick={() => downloadFile(`/api/certificates/${id}/download/cert`, `cert-${id}-cert.pem`)}>
+        <Button variant="default" onClick={() => downloadFile(`/api/certificates/${id}/download/cert`, `${safeName}-cert.pem`)}>
           Download Certificate (cert.pem)
         </Button>
-        <Button variant="default" onClick={() => downloadFile(`/api/certificates/${id}/download/key`, `cert-${id}-key.pem`)}>
+        <Button variant="default" onClick={() => downloadFile(`/api/certificates/${id}/download/key`, `${safeName}-key.pem`)}>
           Download Private Key (key.pem)
         </Button>
         {cert.caName && (
-          <Button variant="default" onClick={() => downloadFile(`/api/certificates/${id}/download/ca`, `cert-${id}-ca.pem`)}>
+          <Button variant="default" onClick={() => downloadFile(`/api/certificates/${id}/download/ca`, `${safeName}-ca.pem`)}>
             Download CA (ca.pem)
           </Button>
         )}
-        <Button variant="filled" onClick={() => downloadFile(`/api/certificates/${id}/download/bundle`, `cert-${id}-bundle.zip`)}>
-          Download Bundle (ZIP)
-        </Button>
-        <Button variant="light" leftSection={<IconLink size={16} />} onClick={() => shareMutation.mutate()}>
+        <Menu shadow="md" width={200}>
+          <Menu.Target>
+            <Button variant="filled" leftSection={<IconDownload size={16} />}>
+              Download Bundle
+            </Button>
+          </Menu.Target>
+          <Menu.Dropdown>
+            <Menu.Item onClick={() => downloadFile(`/api/certificates/${id}/download/bundle?format=zip`, `${safeName}-bundle.zip`)}>
+              ZIP (.zip)
+            </Menu.Item>
+            <Menu.Item onClick={() => downloadFile(`/api/certificates/${id}/download/bundle?format=tgz`, `${safeName}-bundle.tar.gz`)}>
+              Tarball (.tar.gz)
+            </Menu.Item>
+          </Menu.Dropdown>
+        </Menu>
+        <Button variant="light" leftSection={<IconLink size={16} />} onClick={() => setShowShareDialog(true)}>
           Temporary Link
         </Button>
       </Group>
@@ -512,25 +536,85 @@ function CertificateDetail() {
         )}
       </Modal>
 
-      <Modal opened={shareLinkUrl !== null} onClose={() => setShareLinkUrl(null)} title="Temporary Share Link">
+      <Modal opened={showShareDialog} onClose={() => setShowShareDialog(false)} title="Create Share Link">
         <Stack gap="sm">
-          <Text size="sm">This link expires in 15 minutes, can only be used once, and requires no authentication.</Text>
-          <TextInput
-            value={shareLinkUrl || ''}
-            readOnly
-            onClick={(e) => (e.target as HTMLInputElement).select()}
-          />
+          <Text size="sm" c="dimmed">Select what to share. The link expires in 15 minutes and can only be used once.</Text>
+          <Radio.Group value={shareFileType} onChange={setShareFileType}>
+            <Stack gap="xs" mt="xs">
+              <Radio value="certificate" label="Certificate (cert.pem)" />
+              <Radio value="key" label="Private Key (key.pem)" />
+              {cert.caName && <Radio value="ca" label="CA Certificate (ca.pem)" />}
+              <Radio value="bundle_zip" label="Bundle (ZIP)" />
+              <Radio value="bundle_tgz" label="Bundle (Tarball)" />
+            </Stack>
+          </Radio.Group>
           <Group justify="flex-end">
-            <Button
-              variant="light"
-              onClick={() => {
-                if (shareLinkUrl) navigator.clipboard.writeText(shareLinkUrl);
-              }}
-            >
-              Copy Link
+            <Button variant="default" onClick={() => setShowShareDialog(false)}>Cancel</Button>
+            <Button loading={shareMutation.isPending} onClick={() => shareMutation.mutate(shareFileType)}>
+              Generate Link
             </Button>
           </Group>
         </Stack>
+      </Modal>
+
+      <Modal opened={showShareResult} onClose={() => { setShowShareResult(false); setShareResult(null); }} title="Share Link Ready" size="lg">
+        {shareResult && (() => {
+          const dlName = shareResult.fileType.includes('bundle')
+            ? (shareResult.fileType.includes('tgz') ? `${safeName}-bundle.tar.gz` : `${safeName}-bundle.zip`)
+            : shareResult.fileType === 'ca' ? `${safeName}-ca.pem` : `${safeName}-${shareResult.fileType}.pem`;
+          const closeAll = () => { setShowShareResult(false); setShareResult(null); setShowShareDialog(false); };
+          return (
+            <Stack gap="md">
+              <TextInput
+                value={shareResult.url}
+                readOnly
+                onClick={(e) => (e.target as HTMLInputElement).select()}
+                rightSection={
+                  <ActionIcon variant="subtle" color="teal" onClick={async () => {
+                    const ok = await copyToClipboard(shareResult.url);
+                    notifications.show({ message: ok ? 'URL copied!' : 'Failed to copy', color: ok ? 'teal' : 'red' });
+                    if (ok) closeAll();
+                  }}>
+                    <IconClipboard size={16} />
+                  </ActionIcon>
+                }
+              />
+              <Box>
+                <Text size="xs" c="dimmed" mb={4}>wget command</Text>
+                <Group gap="xs">
+                  <Code flex={1} p="xs" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                    {`wget -O ${dlName} "${shareResult.url}"`}
+                  </Code>
+                  <ActionIcon variant="subtle" color="teal" onClick={async () => {
+                    const cmd = `wget -O ${dlName} "${shareResult.url}"`;
+                    const ok = await copyToClipboard(cmd);
+                    notifications.show({ message: ok ? 'wget command copied!' : 'Failed to copy', color: ok ? 'teal' : 'red' });
+                    if (ok) closeAll();
+                  }}>
+                    <IconClipboard size={16} />
+                  </ActionIcon>
+                </Group>
+              </Box>
+              <Box>
+                <Text size="xs" c="dimmed" mb={4}>curl command</Text>
+                <Group gap="xs">
+                  <Code flex={1} p="xs" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                    {`curl -L -o ${dlName} "${shareResult.url}"`}
+                  </Code>
+                  <ActionIcon variant="subtle" color="teal" onClick={async () => {
+                    const cmd = `curl -L -o ${dlName} "${shareResult.url}"`;
+                    const ok = await copyToClipboard(cmd);
+                    notifications.show({ message: ok ? 'curl command copied!' : 'Failed to copy', color: ok ? 'teal' : 'red' });
+                    if (ok) closeAll();
+                  }}>
+                    <IconClipboard size={16} />
+                  </ActionIcon>
+                </Group>
+              </Box>
+              <Text size="xs" c="dimmed">This link expires in 15 minutes, can only be used once, and requires no authentication.</Text>
+            </Stack>
+          );
+        })()}
       </Modal>
     </Stack>
   );

@@ -114,6 +114,14 @@ func migrate(db *sql.DB) error {
 		db.Exec(q)
 	}
 
+	shareAlterQueries := []string{
+		`ALTER TABLE share_links ADD COLUMN file_type TEXT NOT NULL DEFAULT 'bundle_zip'`,
+	}
+
+	for _, q := range shareAlterQueries {
+		db.Exec(q)
+	}
+
 	// Insert default settings if not exists
 	var count int
 	err = db.QueryRow("SELECT COUNT(*) FROM settings").Scan(&count)

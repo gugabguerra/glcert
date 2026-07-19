@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"archive/zip"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -192,7 +191,7 @@ func (h *CAHandler) DownloadCert(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/x-pem-file")
-	w.Header().Set("Content-Disposition", "attachment; filename=\"ca.crt\"")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s-ca.crt\"", name))
 	w.Write(certPEM)
 }
 
@@ -218,7 +217,7 @@ func (h *CAHandler) DownloadKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/x-pem-file")
-	w.Header().Set("Content-Disposition", "attachment; filename=\"ca.key\"")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s-ca.key\"", name))
 	w.Write(keyPEM)
 }
 
@@ -227,6 +226,11 @@ func (h *CAHandler) DownloadCABundle(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "invalid id", http.StatusBadRequest)
 		return
+	}
+
+	format := r.URL.Query().Get("format")
+	if format != "tgz" {
+		format = "zip"
 	}
 
 	var name, description string
@@ -243,17 +247,10 @@ func (h *CAHandler) DownloadCABundle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.zip\"", name))
-
-	zipWriter := zip.NewWriter(w)
-	defer zipWriter.Close()
-
-	fw, _ := zipWriter.Create("ca.crt")
-	fw.Write(certPEM)
-
-	fw, _ = zipWriter.Create("ca.key")
-	fw.Write(keyPEM)
+	files := []BundleFile{
+		{Name: "ca.crt", Content: certPEM},
+		{Name: "ca.key", Content: keyPEM},
+	}
 
 	readmeContent := fmt.Sprintf("GLCert CA Bundle\n"+
 		"================\n\n"+
@@ -264,6 +261,9 @@ func (h *CAHandler) DownloadCABundle(w http.ResponseWriter, r *http.Request) {
 		"  ca.crt - CA Certificate\n"+
 		"  ca.key - CA Private Key\n",
 		name, description, version)
-	fw, _ = zipWriter.Create("README.txt")
-	fw.Write([]byte(readmeContent))
+	files = append(files, BundleFile{Name: "README.txt", Content: []byte(readmeContent)})
+
+	w.Header().Set("Content-Type", BundleContentType(format))
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s%s\"", name, BundleExtension(format)))
+	WriteBundle(w, files, format)
 }
