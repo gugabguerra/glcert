@@ -17,6 +17,7 @@ interface Certificate {
   createdAt: string;
   updatedAt: string;
   caName: string;
+  caSubject: string;
   commonName: string;
   dnsNames: string[];
   ipAddresses: string[];
@@ -216,7 +217,10 @@ function CertificateDetail() {
         </Group>
         <Group>
           <Text fw={500}>Issuer:</Text>
-          <Text>{cert.caName || 'Self-Signed'}</Text>
+          {cert.caName || cert.caSubject
+            ? <Group gap={4}>{cert.caName || cert.caSubject}{!cert.caName && cert.caSubject && <Badge size="xs" color="gray" variant="light">External</Badge>}</Group>
+            : <Text>Self-Signed</Text>
+          }
         </Group>
         <Group>
           <Text fw={500}>Created:</Text>
@@ -487,7 +491,10 @@ function CertificateDetail() {
               </Paper>
               <Paper p="sm" withBorder>
                 <Text size="xs" c="dimmed">Issuer</Text>
-                <Text fw={500}>{cert.caName || 'Self-Signed'}</Text>
+                {cert.caName || cert.caSubject
+                  ? <Group gap={4}><Text fw={500}>{cert.caName || cert.caSubject}</Text>{!cert.caName && cert.caSubject && <Badge size="xs" color="gray" variant="light">External</Badge>}</Group>
+                  : <Text fw={500}>Self-Signed</Text>
+                }
               </Paper>
               <Paper p="sm" withBorder>
                 <Text size="xs" c="dimmed">Common Name</Text>

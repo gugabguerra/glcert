@@ -73,6 +73,7 @@ func (h *CertHandler) List(w http.ResponseWriter, r *http.Request) {
 		SELECT c.id, c.name, c.description, c.type, c.certificate_authority_id,
 			c.current_version, c.created_at, c.updated_at,
 			COALESCE(ca.name, '') as ca_name,
+			COALESCE(c.ca_subject, ''),
 			cv.expires_at
 		FROM certificates c
 		LEFT JOIN certificate_authorities ca ON c.certificate_authority_id = ca.id
@@ -87,7 +88,7 @@ func (h *CertHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	type CertWithCA struct {
 		models.Certificate
-		CAName   string     `json:"caName"`
+		CAName    string     `json:"caName"`
 		ExpiresAt *time.Time `json:"expiresAt"`
 	}
 
@@ -95,7 +96,7 @@ func (h *CertHandler) List(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var c CertWithCA
 		if err := rows.Scan(&c.ID, &c.Name, &c.Description, &c.Type, &c.CertificateAuthorityID,
-			&c.CurrentVersion, &c.CreatedAt, &c.UpdatedAt, &c.CAName, &c.ExpiresAt); err != nil {
+			&c.CurrentVersion, &c.CreatedAt, &c.UpdatedAt, &c.CAName, &c.CASubject, &c.ExpiresAt); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -128,6 +129,7 @@ func (h *CertHandler) Get(w http.ResponseWriter, r *http.Request) {
 		SELECT c.id, c.name, c.description, c.type, c.certificate_authority_id,
 			c.current_version, c.created_at, c.updated_at,
 			COALESCE(ca.name, '') as ca_name,
+			COALESCE(c.ca_subject, ''),
 			COALESCE(c.common_name, ''), COALESCE(c.organization, ''),
 			COALESCE(c.country, ''), COALESCE(c.state, ''), COALESCE(c.city, ''),
 			c.dns_names, c.ip_addresses
@@ -135,7 +137,7 @@ func (h *CertHandler) Get(w http.ResponseWriter, r *http.Request) {
 		LEFT JOIN certificate_authorities ca ON c.certificate_authority_id = ca.id
 		WHERE c.id = ?
 	`, id).Scan(&c.ID, &c.Name, &c.Description, &c.Type, &c.CertificateAuthorityID,
-		&c.CurrentVersion, &c.CreatedAt, &c.UpdatedAt, &c.CAName,
+		&c.CurrentVersion, &c.CreatedAt, &c.UpdatedAt, &c.CAName, &c.CASubject,
 		&commonName, &organization, &country, &state, &city,
 		&dnsNamesJSON, &ipAddressesJSON)
 	if err == sql.ErrNoRows {
@@ -225,6 +227,7 @@ func (h *CertHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var caCertPEM, caKeyPEM []byte
+	var caSubject string
 	if req.Type != "selfsigned" && req.CertificateAuthorityID != nil {
 		var err error
 		caCertPEM, caKeyPEM, err = h.readCAWithPassphrase(*req.CertificateAuthorityID)
@@ -233,6 +236,7 @@ func (h *CertHandler) Create(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		h.db.QueryRow("SELECT subject FROM certificate_authorities WHERE id = ?", *req.CertificateAuthorityID).Scan(&caSubject)
 	}
 
 	result, err := h.cert.GenerateCert(services.CreateCertInput{
@@ -270,11 +274,11 @@ func (h *CertHandler) Create(w http.ResponseWriter, r *http.Request) {
 	certID := uuid.New().String()
 	_, err = h.db.Exec(`
 		INSERT INTO certificates (id, name, description, type, certificate_authority_id, current_version,
-			common_name, organization, country, state, city, dns_names, ip_addresses)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			common_name, organization, country, state, city, dns_names, ip_addresses, ca_subject)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, certID, req.Name, req.Description, req.Type, req.CertificateAuthorityID, 1,
 		req.CommonName, req.Organization, req.Country, req.State, req.City,
-		string(dnsNamesBytes), string(ipAddressesBytes))
+		string(dnsNamesBytes), string(ipAddressesBytes), caSubject)
 	if err != nil {
 		log.Printf("create certificate error: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -498,12 +502,14 @@ func (h *CertHandler) Regenerate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var caCertPEM, caKeyPEM []byte
+	var caSubject string
 	if certType != "selfsigned" && caID.Valid {
 		caCertPEM, caKeyPEM, err = h.readCAWithPassphrase(caID.String)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		h.db.QueryRow("SELECT subject FROM certificate_authorities WHERE id = ?", caID.String).Scan(&caSubject)
 	}
 
 	var req struct {

@@ -15,6 +15,7 @@ interface Certificate {
   createdAt: string;
   updatedAt: string;
   caName: string;
+  caSubject: string;
   expiresAt: string | null;
 }
 
@@ -74,7 +75,7 @@ function Certificates() {
       switch (sortKey) {
         case 'name': aVal = a.name; bVal = b.name; break;
         case 'type': aVal = a.type; bVal = b.type; break;
-        case 'issuer': aVal = a.caName || 'Self-Signed'; bVal = b.caName || 'Self-Signed'; break;
+        case 'issuer': aVal = a.caName || a.caSubject || 'Self-Signed'; bVal = b.caName || b.caSubject || 'Self-Signed'; break;
         case 'version': aVal = a.currentVersion; bVal = b.currentVersion; break;
         case 'expires': aVal = a.expiresAt ? new Date(a.expiresAt).getTime() : 0; bVal = b.expiresAt ? new Date(b.expiresAt).getTime() : 0; break;
         case 'status': aVal = getStatusPriority(a.expiresAt); bVal = getStatusPriority(b.expiresAt); break;
@@ -162,7 +163,12 @@ function Certificates() {
                     {cert.type}
                   </Badge>
                 </Table.Td>
-                <Table.Td>{cert.caName || 'Self-Signed'}</Table.Td>
+                <Table.Td>
+                  {cert.caName || cert.caSubject
+                    ? <Group gap={4}>{cert.caName || cert.caSubject}{!cert.caName && cert.caSubject && <Badge size="xs" color="gray" variant="light">External</Badge>}</Group>
+                    : 'Self-Signed'
+                  }
+                </Table.Td>
                 <Table.Td>v{cert.currentVersion}</Table.Td>
                 <Table.Td>{cert.expiresAt ? new Date(cert.expiresAt).toLocaleDateString() : '—'}</Table.Td>
                 <Table.Td>

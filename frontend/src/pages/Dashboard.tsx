@@ -16,6 +16,7 @@ interface Certificate {
   name: string;
   type: string;
   caName: string;
+  caSubject: string;
   currentVersion: number;
 }
 
@@ -112,7 +113,12 @@ function Dashboard() {
                   <Table.Td>
                     <Badge color={typeColors[cert.type] || 'gray'}>{cert.type}</Badge>
                   </Table.Td>
-                  <Table.Td>{cert.caName || 'Self-Signed'}</Table.Td>
+                  <Table.Td>
+                    {cert.caName || cert.caSubject
+                      ? <Group gap={4}>{cert.caName || cert.caSubject}{!cert.caName && cert.caSubject && <Badge size="xs" color="gray" variant="light">External</Badge>}</Group>
+                      : 'Self-Signed'
+                    }
+                  </Table.Td>
                   <Table.Td>v{cert.currentVersion}</Table.Td>
                 </Table.Tr>
               ))}

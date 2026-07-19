@@ -47,16 +47,18 @@ Singleton table storing application configuration.
 
 ### certificate_authorities
 
-| Column           | Type              | Notes         |
-| ---------------- | ----------------- | ------------- |
-| id               | TEXT PK           | UUID v4       |
-| name             | TEXT NOT NULL     |               |
-| description      | TEXT              | DEFAULT ''    |
-| subject          | TEXT NOT NULL     | X.509 subject |
-| created_at       | DATETIME          |               |
-| expires_at       | DATETIME NOT NULL |               |
-| current_version  | INTEGER           | DEFAULT 1     |
-| last_notified_at | DATETIME          | nullable      |
+| Column                     | Type              | Notes                     |
+| -------------------------- | ----------------- | ------------------------- |
+| id                         | TEXT PK           | UUID v4                   |
+| name                       | TEXT NOT NULL     |                           |
+| description                | TEXT              | DEFAULT ''                |
+| subject                    | TEXT NOT NULL     | X.509 subject             |
+| created_at                 | DATETIME          |                           |
+| expires_at                 | DATETIME NOT NULL |                           |
+| current_version            | INTEGER           | DEFAULT 1                 |
+| last_notified_at           | DATETIME          | nullable                  |
+| key_encrypted_passphrase   | BLOB              | AES-GCM encrypted, nullable |
+| imported                   | BOOLEAN           | DEFAULT FALSE             |
 
 ### certificates
 
@@ -75,6 +77,7 @@ Singleton table storing application configuration.
 | city                     | TEXT          | DEFAULT ''                                  |
 | dns_names                | TEXT          | JSON array, DEFAULT '[]'                    |
 | ip_addresses             | TEXT          | JSON array, DEFAULT '[]'                    |
+| ca_subject               | TEXT          | Snapshot of CA subject at creation, DEFAULT '' |
 | created_at               | DATETIME      |                                             |
 | updated_at               | DATETIME      |                                             |
 | last_notified_at         | DATETIME      | nullable                                    |
@@ -179,6 +182,7 @@ glcert/
         migrations.go           Schema creation and migrations
       handlers/
         auth.go                 Login, setup, logout, password, forgot/reset
+        bundle.go               Shared ZIP/TGZ bundle writer
         ca.go                   CA CRUD, downloads, and import
         cert.go                 Certificate CRUD, versions, downloads
         handlers.go             Settings and dashboard

@@ -6,7 +6,7 @@ For technical details (database schema, API reference, project structure), see [
 
 ## Features
 
-- **CA Management** -- Create or import certificate authorities with RSA, ECDSA, or Ed25519 keys. Download CA certificates and private keys individually or as ZIP bundles.
+- **CA Management** -- Create or import certificate authorities with RSA, ECDSA, or Ed25519 keys. Support for passphrase-protected private keys (PKCS#8 and legacy PEM). Download CA certificates and private keys individually or as ZIP bundles.
 - **Certificate Management** -- Generate server, client, or self-signed certificates. Regenerate with custom validity periods. Full version history with restore capability.
 - **Download Bundles** -- Download certificates, private keys, CA certs, or complete ZIP/TGZ bundles with a single click.
 - **Temporary Share Links** -- Generate time-limited, single-use URLs for sharing certificates, keys, or bundles via wget/curl. No authentication required for the download link.
@@ -97,6 +97,7 @@ GLCert can notify you when certificates or CAs are close to expiration via webho
 | Email | `smtp://user:pass@host:port/?from=addr&to=recipient` |
 
 Alternatively, configure built-in SMTP in Settings for password reset and email alerts without a webhook URL.
+
 | Gotify | `gotify://host/token` |
 
 See the full list at [shoutrrr.nickfedor.com](https://shoutrrr.nickfedor.com/services/overview/).
