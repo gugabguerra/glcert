@@ -1,6 +1,7 @@
 import {
   Title,
   TextInput,
+  PasswordInput,
   Select,
   NumberInput,
   Button,
@@ -297,6 +298,7 @@ function SettingsPage() {
                 value={webhookUrl}
                 onChange={(e) => setWebhookUrl(e.currentTarget.value)}
                 disabled={!notificationsEnabled}
+                autoComplete="off"
               />
               <NumberInput
                 label='Warning threshold (days)'
@@ -345,23 +347,23 @@ function SettingsPage() {
               Security
             </Title>
             <Stack gap='md'>
-              <TextInput
+              <PasswordInput
                 label='Current Password'
-                type='password'
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.currentTarget.value)}
+                autoComplete="current-password"
               />
-              <TextInput
+              <PasswordInput
                 label='New Password'
-                type='password'
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.currentTarget.value)}
+                autoComplete="new-password"
               />
-              <TextInput
+              <PasswordInput
                 label='Confirm New Password'
-                type='password'
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.currentTarget.value)}
+                autoComplete="new-password"
               />
               {passwordError && (
                 <Text c='red' size='sm'>
@@ -426,6 +428,7 @@ function SettingsPage() {
             placeholder='RESET'
             value={resetConfirmText}
             onChange={(e) => setResetConfirmText(e.currentTarget.value)}
+            autoComplete="off"
           />
           <Group justify='flex-end'>
             <Button variant='default' onClick={() => setShowResetModal(false)}>

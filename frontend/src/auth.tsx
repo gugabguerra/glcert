@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+
+const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 
 interface AuthContextType {
   token: string | null;
@@ -15,6 +17,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('auth_token'));
   const [isSetupComplete, setSetupComplete] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const logoutRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     fetch('/api/auth/status')
@@ -26,12 +31,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .catch(() => setLoading(false));
   }, []);
 
-  const login = useCallback((newToken: string) => {
-    localStorage.setItem('auth_token', newToken);
-    setToken(newToken);
-  }, []);
-
   const logout = useCallback(() => {
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = null;
+    }
     if (token) {
       fetch('/api/auth/logout', {
         method: 'POST',
@@ -41,6 +45,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('auth_token');
     setToken(null);
   }, [token]);
+
+  logoutRef.current = logout;
+
+  const resetIdleTimer = useCallback(() => {
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    idleTimerRef.current = setTimeout(() => {
+      logoutRef.current();
+    }, IDLE_TIMEOUT_MS);
+  }, []);
+
+  useEffect(() => {
+    if (!token) return;
+
+    const events = ['mousedown', 'keydown', 'touchstart', 'scroll'];
+    events.forEach(e => document.addEventListener(e, resetIdleTimer, { passive: true }));
+    resetIdleTimer();
+
+    return () => {
+      events.forEach(e => document.removeEventListener(e, resetIdleTimer));
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    };
+  }, [token, resetIdleTimer]);
+
+  const login = useCallback((newToken: string) => {
+    localStorage.setItem('auth_token', newToken);
+    setToken(newToken);
+  }, []);
 
   const value = {
     token,

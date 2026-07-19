@@ -56,6 +56,7 @@ function Login() {
             placeholder="admin"
             value={username}
             onChange={e => setUsername(e.currentTarget.value)}
+            autoComplete="username"
             required
           />
           <PasswordInput
@@ -63,6 +64,7 @@ function Login() {
             placeholder="Your password"
             value={password}
             onChange={e => setPassword(e.currentTarget.value)}
+            autoComplete="current-password"
             required
           />
           {error && <Text c="red" size="sm">{error}</Text>}
