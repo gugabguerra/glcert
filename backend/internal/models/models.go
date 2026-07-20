@@ -45,6 +45,7 @@ type Certificate struct {
 	Type                  string    `json:"type"` // server, client, selfsigned
 	CertificateAuthorityID *string  `json:"certificateAuthorityId"`
 	CASubject             string    `json:"caSubject"`
+	GroupName             string    `json:"groupName"`
 	CurrentVersion        int       `json:"currentVersion"`
 	CreatedAt             time.Time `json:"createdAt"`
 	UpdatedAt             time.Time `json:"updatedAt"`

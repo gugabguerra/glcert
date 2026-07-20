@@ -66,20 +66,31 @@ type CreateCertRequest struct {
 	KeyAlgorithm          string   `json:"keyAlgorithm"`
 	RSAKeySize            int      `json:"rsaKeySize"`
 	ValidityDays          int      `json:"validityDays"`
+	GroupName             string   `json:"groupName"`
 }
 
 func (h *CertHandler) List(w http.ResponseWriter, r *http.Request) {
-	rows, err := h.db.Query(`
+	groupFilter := r.URL.Query().Get("group")
+
+	query := `
 		SELECT c.id, c.name, c.description, c.type, c.certificate_authority_id,
 			c.current_version, c.created_at, c.updated_at,
 			COALESCE(ca.name, '') as ca_name,
 			COALESCE(c.ca_subject, ''),
+			COALESCE(c.group_name, ''),
 			cv.expires_at
 		FROM certificates c
 		LEFT JOIN certificate_authorities ca ON c.certificate_authority_id = ca.id
 		LEFT JOIN certificate_versions cv ON cv.certificate_id = c.id AND cv.version = c.current_version
-		ORDER BY c.created_at DESC
-	`)
+	`
+	var args []interface{}
+	if groupFilter != "" {
+		query += " WHERE c.group_name = ?"
+		args = append(args, groupFilter)
+	}
+	query += " ORDER BY c.created_at DESC"
+
+	rows, err := h.db.Query(query, args...)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -96,7 +107,7 @@ func (h *CertHandler) List(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var c CertWithCA
 		if err := rows.Scan(&c.ID, &c.Name, &c.Description, &c.Type, &c.CertificateAuthorityID,
-			&c.CurrentVersion, &c.CreatedAt, &c.UpdatedAt, &c.CAName, &c.CASubject, &c.ExpiresAt); err != nil {
+			&c.CurrentVersion, &c.CreatedAt, &c.UpdatedAt, &c.CAName, &c.CASubject, &c.GroupName, &c.ExpiresAt); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -130,6 +141,7 @@ func (h *CertHandler) Get(w http.ResponseWriter, r *http.Request) {
 			c.current_version, c.created_at, c.updated_at,
 			COALESCE(ca.name, '') as ca_name,
 			COALESCE(c.ca_subject, ''),
+			COALESCE(c.group_name, ''),
 			COALESCE(c.common_name, ''), COALESCE(c.organization, ''),
 			COALESCE(c.country, ''), COALESCE(c.state, ''), COALESCE(c.city, ''),
 			c.dns_names, c.ip_addresses
@@ -137,7 +149,7 @@ func (h *CertHandler) Get(w http.ResponseWriter, r *http.Request) {
 		LEFT JOIN certificate_authorities ca ON c.certificate_authority_id = ca.id
 		WHERE c.id = ?
 	`, id).Scan(&c.ID, &c.Name, &c.Description, &c.Type, &c.CertificateAuthorityID,
-		&c.CurrentVersion, &c.CreatedAt, &c.UpdatedAt, &c.CAName, &c.CASubject,
+		&c.CurrentVersion, &c.CreatedAt, &c.UpdatedAt, &c.CAName, &c.CASubject, &c.GroupName,
 		&commonName, &organization, &country, &state, &city,
 		&dnsNamesJSON, &ipAddressesJSON)
 	if err == sql.ErrNoRows {
@@ -274,11 +286,11 @@ func (h *CertHandler) Create(w http.ResponseWriter, r *http.Request) {
 	certID := uuid.New().String()
 	_, err = h.db.Exec(`
 		INSERT INTO certificates (id, name, description, type, certificate_authority_id, current_version,
-			common_name, organization, country, state, city, dns_names, ip_addresses, ca_subject)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			common_name, organization, country, state, city, dns_names, ip_addresses, ca_subject, group_name)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, certID, req.Name, req.Description, req.Type, req.CertificateAuthorityID, 1,
 		req.CommonName, req.Organization, req.Country, req.State, req.City,
-		string(dnsNamesBytes), string(ipAddressesBytes), caSubject)
+		string(dnsNamesBytes), string(ipAddressesBytes), caSubject, req.GroupName)
 	if err != nil {
 		log.Printf("create certificate error: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -660,4 +672,125 @@ func parseCert(pemBytes []byte) (*x509.Certificate, error) {
 		return nil, fmt.Errorf("decode PEM")
 	}
 	return x509.ParseCertificate(block.Bytes)
+}
+
+func (h *CertHandler) ListGroups(w http.ResponseWriter, r *http.Request) {
+	rows, err := h.db.Query(`
+		SELECT DISTINCT group_name, COUNT(*) as cert_count
+		FROM certificates
+		WHERE group_name != ''
+		GROUP BY group_name
+		ORDER BY group_name
+	`)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	type Group struct {
+		Name   string `json:"name"`
+		Count  int    `json:"count"`
+	}
+	var groups []Group
+	for rows.Next() {
+		var g Group
+		if err := rows.Scan(&g.Name, &g.Count); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		groups = append(groups, g)
+	}
+
+	if groups == nil {
+		groups = []Group{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(groups)
+}
+
+func (h *CertHandler) DownloadGroup(w http.ResponseWriter, r *http.Request) {
+	groupName := r.URL.Query().Get("name")
+	if groupName == "" {
+		http.Error(w, "group name is required", http.StatusBadRequest)
+		return
+	}
+
+	format := r.URL.Query().Get("format")
+	if format != "tgz" {
+		format = "zip"
+	}
+
+	rows, err := h.db.Query(`
+		SELECT name, type, current_version FROM certificates
+		WHERE group_name = ?
+		ORDER BY name
+	`, groupName)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	type bundleCert struct {
+		Name    string
+		Type    string
+		Version int
+	}
+	var certs []bundleCert
+	for rows.Next() {
+		var c bundleCert
+		if err := rows.Scan(&c.Name, &c.Type, &c.Version); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		certs = append(certs, c)
+	}
+
+	if len(certs) == 0 {
+		http.Error(w, "no certificates in group", http.StatusNotFound)
+		return
+	}
+
+	var files []BundleFile
+	for _, c := range certs {
+		certPEM, keyPEM, caPEM, err := h.cert.ReadCert(c.Type, c.Name, c.Version)
+		if err != nil {
+			log.Printf("group bundle read error for %s: %v", c.Name, err)
+			continue
+		}
+
+		prefix := sanitizeFilename(c.Name)
+		files = append(files, BundleFile{Name: prefix + "-cert.pem", Content: certPEM})
+		files = append(files, BundleFile{Name: prefix + "-key.pem", Content: keyPEM})
+		if caPEM != nil {
+			files = append(files, BundleFile{Name: prefix + "-ca.pem", Content: caPEM})
+		}
+	}
+
+	if len(files) == 0 {
+		http.Error(w, "no certificate files found", http.StatusInternalServerError)
+		return
+	}
+
+	safeName := sanitizeFilename(groupName)
+	w.Header().Set("Content-Type", BundleContentType(format))
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s%s\"", safeName, BundleExtension(format)))
+	WriteBundle(w, files, format)
+}
+
+func sanitizeFilename(name string) string {
+	result := make([]rune, 0, len(name))
+	for _, r := range name {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' {
+			result = append(result, r)
+		} else if r == ' ' || r == '/' || r == '\\' {
+			result = append(result, '_')
+		}
+	}
+	if len(result) == 0 {
+		return "unnamed"
+	}
+	return string(result)
 }

@@ -21,6 +21,7 @@ interface Certificate {
   commonName: string;
   dnsNames: string[];
   ipAddresses: string[];
+  groupName: string;
 }
 
 interface CertificateVersion {
@@ -76,6 +77,7 @@ function CertificateDetail() {
     mutationFn: () => authFetch(`/api/certificates/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['certificates'] });
+      queryClient.invalidateQueries({ queryKey: ['certGroups'] });
       navigate('/certificates');
     },
   });
@@ -253,6 +255,12 @@ function CertificateDetail() {
           <Text fw={500}>Common Name:</Text>
           <Text>{cert.commonName || '—'}</Text>
         </Group>
+        {cert.groupName && (
+          <Group>
+            <Text fw={500}>Group:</Text>
+            <Badge variant='light'>{cert.groupName}</Badge>
+          </Group>
+        )}
         <Group>
           <Text fw={500}>Issuer:</Text>
           {cert.caName || cert.caSubject

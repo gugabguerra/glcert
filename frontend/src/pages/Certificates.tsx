@@ -17,8 +17,8 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useState, useMemo } from 'react';
-import { IconTrash, IconPlus } from '@tabler/icons-react';
-import { authFetch, authFetchJson } from '../api';
+import { IconTrash, IconPlus, IconDownload } from '@tabler/icons-react';
+import { authFetch, authFetchJson, downloadFile } from '../api';
 
 interface Certificate {
   id: string;
@@ -32,22 +32,38 @@ interface Certificate {
   caName: string;
   caSubject: string;
   expiresAt: string | null;
+  groupName: string;
+}
+
+interface CertGroup {
+  name: string;
+  count: number;
 }
 
 function Certificates() {
   const queryClient = useQueryClient();
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
+  const [groupFilter, setGroupFilter] = useState<string | null>(null);
+
+  const { data: groups = [] } = useQuery<CertGroup[]>({
+    queryKey: ['certGroups'],
+    queryFn: () => authFetchJson('/api/certificates/groups'),
+  });
 
   const { data: certs = [], isLoading } = useQuery<Certificate[]>({
-    queryKey: ['certificates'],
-    queryFn: () => authFetchJson('/api/certificates'),
+    queryKey: ['certificates', groupFilter],
+    queryFn: () => {
+      const url = groupFilter ? `/api/certificates?group=${encodeURIComponent(groupFilter)}` : '/api/certificates';
+      return authFetchJson(url);
+    },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => authFetch(`/api/certificates/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['certificates'] });
+      queryClient.invalidateQueries({ queryKey: ['certGroups'] });
       setDeleteId(null);
     },
   });
@@ -94,6 +110,10 @@ function Certificates() {
         case 'type':
           aVal = a.type;
           bVal = b.type;
+          break;
+        case 'group':
+          aVal = a.groupName || '';
+          bVal = b.groupName || '';
           break;
         case 'issuer':
           aVal = a.caName || a.caSubject || 'Self-Signed';
@@ -154,6 +174,26 @@ function Certificates() {
             clearable
             w={160}
           />
+          {groups.length > 0 && (
+            <Select
+              placeholder='Filter by group'
+              data={groups.map((g) => ({ value: g.name, label: `${g.name} (${g.count})` }))}
+              value={groupFilter}
+              onChange={setGroupFilter}
+              clearable
+              w={180}
+            />
+          )}
+          {groupFilter && (
+            <Tooltip label='Download all certificates in this group'>
+              <ActionIcon variant='light' color='teal' size='lg' onClick={() => {
+                const name = encodeURIComponent(groupFilter);
+                downloadFile(`/api/certificates/download/group?name=${name}&format=zip`, `${groupFilter}.zip`);
+              }}>
+                <IconDownload size={20} />
+              </ActionIcon>
+            </Tooltip>
+          )}
           <Button component={Link} to='/certificates/new' leftSection={<IconPlus size={16} />}>
             New Certificate
           </Button>
@@ -172,6 +212,9 @@ function Certificates() {
             <Table.Tr>
               <Table.Th style={{ cursor: 'pointer' }} onClick={() => toggleSort('name')}>
                 Name {sortKey === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
+              </Table.Th>
+              <Table.Th style={{ cursor: 'pointer' }} onClick={() => toggleSort('group')}>
+                Group {sortKey === 'group' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
               </Table.Th>
               <Table.Th style={{ cursor: 'pointer' }} onClick={() => toggleSort('type')}>
                 Type {sortKey === 'type' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
@@ -198,6 +241,9 @@ function Certificates() {
                   <Anchor component={Link} to={`/certificates/${cert.id}`}>
                     {cert.name}
                   </Anchor>
+                </Table.Td>
+                <Table.Td>
+                  {cert.groupName ? <Badge variant='light'>{cert.groupName}</Badge> : '—'}
                 </Table.Td>
                 <Table.Td>
                   <Badge color={typeColors[cert.type] || 'gray'}>{typeLabels[cert.type] || cert.type}</Badge>

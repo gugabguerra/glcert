@@ -1,4 +1,4 @@
-import { Title, TextInput, Select, NumberInput, Button, Stack, Group, Textarea, Text, TagsInput } from '@mantine/core';
+import { Title, TextInput, Select, NumberInput, Button, Stack, Group, Textarea, Text, TagsInput, Autocomplete } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
@@ -20,6 +20,11 @@ interface Settings {
   defaultValidityDays: number;
 }
 
+interface CertGroup {
+  name: string;
+  count: number;
+}
+
 function CreateCertificate() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -32,6 +37,11 @@ function CreateCertificate() {
   const { data: settings } = useQuery<Settings>({
     queryKey: ['settings'],
     queryFn: () => authFetchJson('/api/settings'),
+  });
+
+  const { data: groups = [] } = useQuery<CertGroup[]>({
+    queryKey: ['certGroups'],
+    queryFn: () => authFetchJson('/api/certificates/groups'),
   });
 
   const form = useForm({
@@ -50,6 +60,7 @@ function CreateCertificate() {
       keyAlgorithm: 'rsa',
       rsaKeySize: 2048,
       validityDays: 365,
+      groupName: '',
     },
   });
 
@@ -120,6 +131,7 @@ function CreateCertificate() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['certificates'] });
+      queryClient.invalidateQueries({ queryKey: ['certGroups'] });
       navigate('/certificates');
     },
   });
@@ -151,6 +163,15 @@ function CreateCertificate() {
             placeholder="Optional description"
            
             {...form.getInputProps('description')}
+          />
+          <Autocomplete
+            label="Group"
+            placeholder="e.g., web-servers, devops"
+            description="Optional group to organize certificates"
+            data={groups.map((g) => g.name)}
+            value={form.values.groupName}
+            onChange={(value) => form.setFieldValue('groupName', value)}
+            clearable
           />
           <TextInput
             label="Common Name"

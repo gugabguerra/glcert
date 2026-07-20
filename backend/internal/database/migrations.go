@@ -219,6 +219,14 @@ func migrate(db *sql.DB) error {
 		db.Exec(q)
 	}
 
+	groupAlterQueries := []string{
+		`ALTER TABLE certificates ADD COLUMN group_name TEXT DEFAULT ''`,
+	}
+
+	for _, q := range groupAlterQueries {
+		db.Exec(q)
+	}
+
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS pending_sessions (
 			token TEXT PRIMARY KEY,
