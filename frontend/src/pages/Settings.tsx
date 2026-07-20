@@ -638,7 +638,7 @@ function SettingsPage() {
               <Group justify='flex-end'>
                 <Button onClick={() => {
                   queryClient.invalidateQueries();
-                  setShowRestoreModal(false);
+                  window.location.href = '/';
                 }}>Close</Button>
               </Group>
             </>
