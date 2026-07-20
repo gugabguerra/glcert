@@ -1,8 +1,9 @@
-import { Title, TextInput, Select, NumberInput, Button, Stack, Group, Textarea, Text, PasswordInput, Radio } from '@mantine/core';
+import { Title, TextInput, Select, NumberInput, Button, Stack, Group, Textarea, Text, PasswordInput, Radio, Divider, ThemeIcon } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { authFetchJson } from '../api';
+import { IconShieldCheck } from '@tabler/icons-react';
 
 interface Settings {
   organization: string;
@@ -92,7 +93,12 @@ function CreateCA() {
 
   return (
     <Stack>
-      <Title>Create Certificate Authority</Title>
+      <Title>
+        <ThemeIcon size="lg" variant="light" color="teal" mr="md">
+          <IconShieldCheck size={24} /> 
+        </ThemeIcon>
+        Create Certificate Authority
+      </Title>
 
       <form onSubmit={form.onSubmit((values) => mutation.mutate(values))}>
         <Stack gap="md">
@@ -141,6 +147,9 @@ function CreateCA() {
            
             {...form.getInputProps('description')}
           />
+
+          <Divider variant="dashed" label="CA details" labelPosition="center" />
+
           <TextInput
             label="Common Name"
             placeholder="MyCompany"

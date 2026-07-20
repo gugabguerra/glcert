@@ -1,8 +1,10 @@
-import { Title, TextInput, Select, NumberInput, Button, Stack, Group, Textarea, Text, TagsInput, Autocomplete } from '@mantine/core';
+import { useCallback, useState, useEffect } from 'react';
+import { Title, TextInput, Select, NumberInput, Button, Stack, Group, Textarea, Text, TagsInput, Combobox, InputBase, useCombobox, CloseButton, Divider, ThemeIcon } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { authFetchJson } from '../api';
+import { IconCertificate } from '@tabler/icons-react';
 
 interface CA {
   id: string;
@@ -63,6 +65,27 @@ function CreateCertificate() {
       groupName: '',
     },
   });
+
+  const combobox = useCombobox({
+    onDropdownClose: () => combobox.resetSelectedOption(),
+  });
+
+  const [search, setSearch] = useState('');
+
+  const groupNames = groups.map((g) => g.name).filter((n) => n !== '');
+  const exactMatch = groupNames.some((name) => name === search);
+  const filteredGroups = exactMatch
+    ? groupNames
+    : groupNames.filter((name) => name.toLowerCase().includes(search.toLowerCase().trim()));
+
+  useEffect(() => {
+    setSearch(form.values.groupName);
+  }, [form.values.groupName]);
+
+  const clearGroup = useCallback(() => {
+    form.setFieldValue('groupName', '');
+    setSearch('');
+  }, [form]);
 
   if (settings && form.values.organization === '' && settings.organization !== '') {
     form.setValues({
@@ -140,19 +163,18 @@ function CreateCertificate() {
 
   return (
     <Stack>
-      <Title>Create Certificate</Title>
+      <Title>
+        <ThemeIcon size="lg" variant="light" color="blue" mr="md">
+          <IconCertificate size={24} />
+        </ThemeIcon>
+        Create Certificate Authority
+      </Title>
 
       <form onSubmit={form.onSubmit((values) => mutation.mutate(values))}>
         <Stack gap="md">
-          <Select
-            label="Type"
-            data={typeData}
-            description={!hasCA ? 'Create a CA first to issue Server or Client certificates' : undefined}
-            {...form.getInputProps('type')}
-          />
 
           <TextInput
-            label="Name"
+            label="Display Name"
             placeholder="docker-api-01"
             required
            
@@ -164,23 +186,67 @@ function CreateCertificate() {
            
             {...form.getInputProps('description')}
           />
-          <Autocomplete
-            label="Group"
-            placeholder="e.g., web-servers, devops"
-            description="Optional group to organize certificates"
-            data={groups.map((g) => g.name)}
-            value={form.values.groupName}
-            onChange={(value) => form.setFieldValue('groupName', value)}
-            clearable
-          />
-          <TextInput
-            label="Common Name"
-            placeholder="docker-api-01.mycompany.com"
-            required
-           
-            {...form.getInputProps('commonName')}
-          />
+          <Combobox
+            store={combobox}
+            withinPortal
+            onOptionSubmit={(val) => {
+              if (val === '$create') {
+                form.setFieldValue('groupName', search);
+              } else {
+                form.setFieldValue('groupName', val);
+                setSearch(val);
+              }
+              combobox.closeDropdown();
+            }}
+          >
+            <Combobox.Target>
+              <InputBase
+                label="Group"
+                placeholder="e.g., web-servers, devops"
+                description="Optional group to organize certificates"
+                rightSection={
+                  form.values.groupName ? (
+                    <CloseButton size="sm" onClick={clearGroup} />
+                  ) : (
+                    <Combobox.Chevron />
+                  )
+                }
+                rightSectionPointerEvents="none"
+                value={search}
+                onChange={(event) => {
+                  combobox.openDropdown();
+                  combobox.updateSelectedOptionIndex();
+                  setSearch(event.currentTarget.value);
+                }}
+                onClick={() => combobox.openDropdown()}
+                onBlur={() => {
+                  combobox.closeDropdown();
+                  setSearch(form.values.groupName || '');
+                }}
+              />
+            </Combobox.Target>
+            <Combobox.Dropdown>
+              <Combobox.Options>
+                {filteredGroups.map((name) => (
+                  <Combobox.Option value={name} key={name}>
+                    {name}
+                  </Combobox.Option>
+                ))}
+                {!exactMatch && search.trim().length > 0 && (
+                  <Combobox.Option value="$create">+ Create "{search}"</Combobox.Option>
+                )}
+              </Combobox.Options>
+            </Combobox.Dropdown>
+          </Combobox>
 
+          <Divider variant="dashed" label="Certificate details" labelPosition="center" />
+
+          <Select
+            label="Type"
+            data={typeData}
+            description={!hasCA ? 'Create a CA first to issue Server or Client certificates' : undefined}
+            {...form.getInputProps('type')}
+          />
           {!isSelfSigned && (
             <Select
               label="Certificate Authority"
@@ -191,6 +257,13 @@ function CreateCertificate() {
               {...form.getInputProps('certificateAuthorityId')}
             />
           )}
+          <TextInput
+            label="Common Name"
+            placeholder="docker-api-01.mycompany.com"
+            required
+           
+            {...form.getInputProps('commonName')}
+          />
 
           <TagsInput
             label="DNS Names"
