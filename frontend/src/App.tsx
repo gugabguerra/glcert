@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { AppShell, Title, Group, Box, NavLink, ActionIcon, useMantineColorScheme, Burger, Drawer, Divider, Stack, Space } from '@mantine/core';
+import { AppShell, Group, Box, NavLink, ActionIcon, useMantineColorScheme, useComputedColorScheme, Burger, Drawer, Divider, Stack, Space, Image } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { Link } from 'react-router-dom';
 import { IconShield, IconCertificate, IconSettings, IconSun, IconMoon, IconDeviceDesktop, IconLogout, IconUser } from '@tabler/icons-react';
@@ -28,6 +28,7 @@ function AppRoutes() {
   if (!isAuthenticated) return <Login />;
 
   const { setColorScheme, colorScheme } = useMantineColorScheme();
+  const computedColorScheme = useComputedColorScheme('light');
   const [drawerOpened, setDrawerOpened] = useState(false);
   const [profileOpened, setProfileOpened] = useState(false);
   const isMobile = useMediaQuery('(max-width: 768px)');
@@ -66,8 +67,11 @@ function AppRoutes() {
           <Burger opened={drawerOpened} onClick={() => setDrawerOpened(!drawerOpened)} display={isMobile ? 'block' : 'none'} />
           <Group gap="xs" style={{ cursor: 'pointer' }}>
             <Link to="/" style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <IconShield size={24} color="var(--mantine-color-teal-6)" />
-              <Title order={3}>GLCert</Title>
+              <Image
+                src={computedColorScheme === 'dark' ? '/glcert-logo-dark.png' : '/glcert-logo-light.png'}
+                h={32}
+                fit="contain"
+              />
             </Link>
           </Group>
           <Box component="nav" style={{ flex: 1, display: 'flex', gap: 4 }} display={isMobile ? 'none' : 'flex'}>
@@ -89,7 +93,15 @@ function AppRoutes() {
         </Group>
       </AppShell.Header>
 
-      <Drawer opened={drawerOpened} onClose={() => setDrawerOpened(false)} position="right" size="sm" title="GLCert">
+      <Drawer opened={drawerOpened} onClose={() => setDrawerOpened(false)} position="right" size="sm" title={
+        <Group gap="xs">
+          <Image
+            src={computedColorScheme === 'dark' ? '/glcert-logo-dark.png' : '/glcert-logo-light.png'}
+            h={24}
+            fit="contain"
+          />
+        </Group>
+      }>
         <Stack gap="xs">
           {navLinks}
           <Divider my="sm" />
