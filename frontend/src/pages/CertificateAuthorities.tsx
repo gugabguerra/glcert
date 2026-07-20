@@ -1,8 +1,8 @@
-import { Title, Table, Button, Group, Badge, ActionIcon, Modal, Text, Stack, Anchor, Center, Loader, Tooltip } from '@mantine/core';
+import { Title, Table, Button, Group, Badge, ActionIcon, Modal, Text, Stack, Box, Center, Loader, Tooltip } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useState, useMemo } from 'react';
-import { IconTrash, IconPlus, IconUpload } from '@tabler/icons-react';
+import { IconTrash, IconPlus, IconUpload, IconShieldCheck } from '@tabler/icons-react';
 import { authFetch, authFetchJson } from '../api';
 
 interface CertificateAuthority {
@@ -67,10 +67,11 @@ function TreeRow({ node, onDelete }: { node: TreeNode; onDelete: (id: string) =>
     <>
       <Table.Tr>
         <Table.Td>
-          <Anchor component={Link} to={`/ca/${node.ca.id}`}>
-            <span style={{ fontFamily: 'monospace', whiteSpace: 'pre' }}>{node.prefix}</span>
+          <span style={{ fontFamily: 'monospace', whiteSpace: 'pre', fontSize: '18px', paddingLeft:'4px' }}>{node.prefix}</span>
+          <Box component={Link} to={`/ca/${node.ca.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--mantine-color-teal-6)', textDecoration: 'none' }}>
+            <IconShieldCheck size={16} ml-xs />
             {node.ca.name}
-          </Anchor>
+          </Box>
           {node.depth > 0 && (
             <Badge color="violet" variant="light" size="xs" ml="xs">Intermediate</Badge>
           )}

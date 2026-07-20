@@ -8,17 +8,19 @@ import {
   Modal,
   Text,
   Stack,
-  Anchor,
+  Box,
   Select,
   Center,
   Loader,
   Tooltip,
+  Menu,
 } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useState, useMemo } from 'react';
-import { IconTrash, IconPlus, IconDownload } from '@tabler/icons-react';
+import { IconTrash, IconPlus, IconDownload, IconLink, IconCertificate } from '@tabler/icons-react';
 import { authFetch, authFetchJson, downloadFile } from '../api';
+import { sanitizeFilename } from '../utils/clipboard';
 
 interface Certificate {
   id: string;
@@ -42,9 +44,11 @@ interface CertGroup {
 
 function Certificates() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [groupFilter, setGroupFilter] = useState<string | null>(null);
+  const [bundleMenuId, setBundleMenuId] = useState<string | null>(null);
 
   const { data: groups = [] } = useQuery<CertGroup[]>({
     queryKey: ['certGroups'],
@@ -66,6 +70,19 @@ function Certificates() {
       queryClient.invalidateQueries({ queryKey: ['certGroups'] });
       setDeleteId(null);
     },
+  });
+
+  const bundleMutation = useMutation({
+    mutationFn: ({ id, format }: { id: string; format: string }) => {
+      const cert = certs.find((c) => c.id === id);
+      const safeName = sanitizeFilename(cert?.name || 'certificate');
+      const ext = format === 'tgz' ? 'tar.gz' : 'zip';
+      return downloadFile(
+        `/api/certificates/${id}/download/bundle?format=${format}`,
+        `${safeName}-bundle.${ext}`,
+      );
+    },
+    onSettled: () => setBundleMenuId(null),
   });
 
   const filteredCerts = typeFilter ? certs.filter((c) => c.type === typeFilter) : certs;
@@ -238,9 +255,10 @@ function Certificates() {
             {sortedData.map((cert) => (
               <Table.Tr key={cert.id}>
                 <Table.Td>
-                  <Anchor component={Link} to={`/certificates/${cert.id}`}>
-                    {cert.name}
-                  </Anchor>
+                  <Box component={Link} to={`/certificates/${cert.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--mantine-color-teal-6)', textDecoration: 'none' }}>
+                      <IconCertificate size={16} />
+                      {cert.name}
+                  </Box>
                 </Table.Td>
                 <Table.Td>
                   {cert.groupName ? <Badge variant='light'>{cert.groupName}</Badge> : '—'}
@@ -277,11 +295,35 @@ function Certificates() {
                     ))}
                 </Table.Td>
                 <Table.Td>
-                  <Tooltip label='Delete certificate'>
-                    <ActionIcon color='red' variant='subtle' onClick={() => setDeleteId(cert.id)}>
-                      <IconTrash size={16} />
-                    </ActionIcon>
-                  </Tooltip>
+                  <Group gap={4}>
+                    <Menu shadow="md" width={180} opened={bundleMenuId === cert.id} onChange={(open) => !open && setBundleMenuId(null)}>
+                      <Menu.Target>
+                        <Tooltip label='Download bundle'>
+                          <ActionIcon variant='subtle' onClick={() => setBundleMenuId(cert.id)}>
+                            <IconDownload size={16} />
+                          </ActionIcon>
+                        </Tooltip>
+                      </Menu.Target>
+                      <Menu.Dropdown>
+                        <Menu.Item onClick={() => bundleMutation.mutate({ id: cert.id, format: 'zip' })}>
+                          ZIP (.zip)
+                        </Menu.Item>
+                        <Menu.Item onClick={() => bundleMutation.mutate({ id: cert.id, format: 'tgz' })}>
+                          Tarball (.tar.gz)
+                        </Menu.Item>
+                      </Menu.Dropdown>
+                    </Menu>
+                    <Tooltip label='Temporary share link'>
+                      <ActionIcon variant='subtle' onClick={() => navigate(`/certificates/${cert.id}`)}>
+                        <IconLink size={16} />
+                      </ActionIcon>
+                    </Tooltip>
+                    <Tooltip label='Delete certificate'>
+                      <ActionIcon color='red' variant='subtle' onClick={() => setDeleteId(cert.id)}>
+                        <IconTrash size={16} />
+                      </ActionIcon>
+                    </Tooltip>
+                  </Group>
                 </Table.Td>
               </Table.Tr>
             ))}
