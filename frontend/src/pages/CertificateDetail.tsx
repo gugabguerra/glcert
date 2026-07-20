@@ -256,7 +256,7 @@ function CertificateDetail() {
         <Group>
           <Text fw={500}>Issuer:</Text>
           {cert.caName || cert.caSubject
-            ? <Group gap={4}>{cert.caName || cert.caSubject}{!cert.caName && cert.caSubject && <Badge size="xs" color="gray" variant="light">External</Badge>}</Group>
+            ? <Text>{cert.caName || cert.caSubject}</Text>
             : <Text>Self-Signed</Text>
           }
         </Group>
@@ -287,6 +287,7 @@ function CertificateDetail() {
                 ) : (
                   <Badge color="green">Active</Badge>
                 )}
+                {!cert.caName && cert.caSubject && <Badge color="gray" variant="light">Orphan</Badge>}
               </Group>
             </>
           );
@@ -317,6 +318,7 @@ function CertificateDetail() {
           leftSection={<IconRefresh size={16} />}
           variant="light"
           loading={regenerateMutation.isPending}
+          disabled={!cert.caName && !!cert.caSubject}
           onClick={() => setShowRegenerate(true)}
         >
           Regenerate

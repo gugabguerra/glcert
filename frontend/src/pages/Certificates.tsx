@@ -208,7 +208,7 @@ function Certificates() {
                       {cert.caName || cert.caSubject}
                       {!cert.caName && cert.caSubject && (
                         <Badge size='xs' color='gray' variant='light'>
-                          External
+                          Orphan
                         </Badge>
                       )}
                     </Group>

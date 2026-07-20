@@ -123,7 +123,7 @@ function Dashboard() {
                   </Table.Td>
                   <Table.Td>
                     {cert.caName || cert.caSubject
-                      ? <Group gap={4}>{cert.caName || cert.caSubject}{!cert.caName && cert.caSubject && <Badge size="xs" color="gray" variant="light">External</Badge>}</Group>
+                      ? <Group gap={4}>{cert.caName || cert.caSubject}{!cert.caName && cert.caSubject && <Badge size="xs" color="gray" variant="light">Orphan</Badge>}</Group>
                       : 'Self-Signed'
                     }
                   </Table.Td>
