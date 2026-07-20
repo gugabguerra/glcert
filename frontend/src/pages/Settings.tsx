@@ -579,7 +579,7 @@ function SettingsPage() {
           {restoreStatus !== 'success' ? (
             <>
               <Text size='sm' c='dimmed'>
-                Restore data from a GLCert backup file. The server will restart after restore.
+                Restore CAs, certificates, and settings from a backup. Your admin account and encryption keys are preserved.
               </Text>
               <FileInput
                 label='Backup File'
@@ -633,10 +633,13 @@ function SettingsPage() {
             <>
               <Text c='green' fw={500}>{restoreMessage}</Text>
               <Text size='sm' c='dimmed'>
-                The server is restarting. Wait a moment, then refresh the page to log in.
+                Data has been imported. The page will refresh to show the updated data.
               </Text>
               <Group justify='flex-end'>
-                <Button onClick={() => setShowRestoreModal(false)}>Close</Button>
+                <Button onClick={() => {
+                  queryClient.invalidateQueries();
+                  setShowRestoreModal(false);
+                }}>Close</Button>
               </Group>
             </>
           )}

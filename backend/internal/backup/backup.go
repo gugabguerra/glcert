@@ -2,7 +2,6 @@ package backup
 
 import (
 	"bytes"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,17 +12,11 @@ import (
 	"time"
 
 	zip "github.com/alexmullins/zip"
-	_ "modernc.org/sqlite"
 )
 
 type BackupMetadata struct {
 	Version   int       `json:"version"`
 	Timestamp time.Time `json:"timestamp"`
-}
-
-type RestoreResult struct {
-	Message       string `json:"message"`
-	HasPassphrase bool   `json:"hasPassphrase"`
 }
 
 func GenerateBackupName() string {
@@ -146,13 +139,13 @@ func ValidateBackup(backupData []byte, password string) (*BackupMetadata, error)
 	return nil, fmt.Errorf("backup.json not found in archive")
 }
 
-func RestoreBackup(dataDir string, backupData []byte, password string) (*RestoreResult, error) {
+func ExtractBackupFiles(backupData []byte, password string) (map[string][]byte, error) {
 	r, err := zip.NewReader(bytes.NewReader(backupData), int64(len(backupData)))
 	if err != nil {
 		return nil, fmt.Errorf("open backup zip: %w", err)
 	}
 
-	hasPassphrase := false
+	files := make(map[string][]byte)
 
 	for _, f := range r.File {
 		f.SetPassword(password)
@@ -168,75 +161,18 @@ func RestoreBackup(dataDir string, backupData []byte, password string) (*Restore
 			return nil, fmt.Errorf("read file %s: %w", f.Name, err)
 		}
 
-		switch f.Name {
-		case "backup.json":
-			var meta BackupMetadata
-			if err := json.Unmarshal(data, &meta); err != nil {
-				return nil, fmt.Errorf("parse backup metadata: %w", err)
-			}
-			if meta.Version != 1 {
-				return nil, fmt.Errorf("unsupported backup version: %d", meta.Version)
-			}
-
-		case "database.sqlite":
-			outPath := filepath.Join(dataDir, "database.sqlite.pending")
-			if err := os.WriteFile(outPath, data, 0644); err != nil {
-				return nil, fmt.Errorf("write database pending: %w", err)
-			}
-			pendingDB, err := sql.Open("sqlite", outPath)
-			if err == nil {
-				pendingDB.Exec("DELETE FROM admin")
-				pendingDB.Exec("DELETE FROM sessions")
-				pendingDB.Exec("UPDATE settings SET setup_complete = FALSE")
-				pendingDB.Close()
-			}
-
-		case "encryption.key":
-			outPath := filepath.Join(dataDir, "encryption.key.pending")
-			if err := os.WriteFile(outPath, data, 0600); err != nil {
-				return nil, fmt.Errorf("write encryption.key pending: %w", err)
-			}
-
-		case "passphrase.txt":
-			outPath := filepath.Join(dataDir, "passphrase.txt")
-			if err := os.WriteFile(outPath, data, 0600); err != nil {
-				return nil, fmt.Errorf("write passphrase.txt: %w", err)
-			}
-			hasPassphrase = true
-
-		default:
-			if strings.HasPrefix(f.Name, "certificates/") {
-				outPath := filepath.Join(dataDir, f.Name)
-				dir := filepath.Dir(outPath)
-				if err := os.MkdirAll(dir, 0755); err != nil {
-					return nil, fmt.Errorf("create directory %s: %w", dir, err)
-				}
-				if err := os.WriteFile(outPath, data, 0644); err != nil {
-					return nil, fmt.Errorf("write file %s: %w", f.Name, err)
-				}
-			}
-		}
+		files[f.Name] = data
 	}
 
-	return &RestoreResult{
-		Message:       "Backup restored. Server will restart to apply changes.",
-		HasPassphrase: hasPassphrase,
-	}, nil
+	return files, nil
 }
 
-func ApplyPendingRestore(dataDir string) bool {
-	dbPending := filepath.Join(dataDir, "database.sqlite.pending")
-	keyPending := filepath.Join(dataDir, "encryption.key.pending")
-
-	if _, err := os.Stat(dbPending); os.IsNotExist(err) {
-		return false
+func CertFilesFromBackup(files map[string][]byte) map[string][]byte {
+	certs := make(map[string][]byte)
+	for name, data := range files {
+		if strings.HasPrefix(name, "certificates/") {
+			certs[name] = data
+		}
 	}
-
-	log.Println("[startup] applying pending restore...")
-
-	os.Rename(dbPending, filepath.Join(dataDir, "database.sqlite"))
-	os.Rename(keyPending, filepath.Join(dataDir, "encryption.key"))
-
-	log.Println("[startup] restore applied successfully")
-	return true
+	return certs
 }

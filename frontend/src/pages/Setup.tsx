@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Title, Text, TextInput, PasswordInput, Button, Stack, Paper,
-  Stepper, Group, ThemeIcon, FileInput, Anchor
+  Stepper, Group, ThemeIcon
 } from '@mantine/core';
 import { IconShieldLock } from '@tabler/icons-react';
 import { useAuth } from '../auth';
@@ -23,11 +23,6 @@ function Setup() {
   const [country, setCountry] = useState('');
   const [state, setState] = useState('');
   const [city, setCity] = useState('');
-  const [showRestore, setShowRestore] = useState(false);
-  const [restoreFile, setRestoreFile] = useState<File | null>(null);
-  const [restorePassword, setRestorePassword] = useState('');
-  const [restoreStatus, setRestoreStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [restoreMessage, setRestoreMessage] = useState('');
 
   const validateStep0 = () => {
     if (!email.trim() || !email.includes('@')) return setError('Valid email is required');
@@ -90,13 +85,11 @@ function Setup() {
       <Title order={2} ta="center" mb="lg">Welcome to GLCert</Title>
       <Text c="dimmed" ta="center" mb="xl">Set up your PKI manager</Text>
 
-      {!showRestore ? (
-        <>
-          <Stepper active={step} mb="xl">
-            <Stepper.Step label="Admin Account" description="Login credentials" />
-            <Stepper.Step label="Encryption" description="Passphrase setup" />
-            <Stepper.Step label="Settings" description="Organization details" />
-          </Stepper>
+      <Stepper active={step} mb="xl">
+        <Stepper.Step label="Admin Account" description="Login credentials" />
+        <Stepper.Step label="Encryption" description="Passphrase setup" />
+        <Stepper.Step label="Settings" description="Organization details" />
+      </Stepper>
 
       {step === 0 && (
         <Stack gap="md">
@@ -200,78 +193,6 @@ function Setup() {
             <Button loading={loading} onClick={handleSubmit}>Complete Setup</Button>
           </Group>
         </Stack>
-      )}
-        </>
-      ) : (
-        <Stack gap="md">
-          {restoreStatus !== 'success' ? (
-            <>
-              <Text size="sm" c="dimmed">
-                Restore all your certificates, CAs, and settings from a backup file.
-              </Text>
-              <FileInput
-                label="Backup File"
-                placeholder="Select .zip backup file"
-                accept=".zip"
-                value={restoreFile}
-                onChange={setRestoreFile}
-              />
-              <PasswordInput
-                label="Backup Password"
-                placeholder="Enter backup password"
-                value={restorePassword}
-                onChange={e => setRestorePassword(e.currentTarget.value)}
-                autoComplete="off"
-              />
-              {restoreStatus === 'error' && <Text c="red" size="sm">{restoreMessage}</Text>}
-              <Group justify="space-between">
-                <Button variant="default" onClick={() => setShowRestore(false)}>Back</Button>
-                <Button
-                  color="orange"
-                  loading={restoreStatus === 'loading'}
-                  disabled={!restoreFile || !restorePassword}
-                  onClick={() => {
-                    setRestoreStatus('loading');
-                    const formData = new FormData();
-                    formData.append('backup', restoreFile!);
-                    formData.append('password', restorePassword);
-                    fetch('/api/backup/restore', { method: 'POST', body: formData })
-                      .then(async (res) => {
-                        if (!res.ok) {
-                          const text = await res.text();
-                          throw new Error(text);
-                        }
-                        return res.json();
-                      })
-                      .then((data) => {
-                        setRestoreStatus('success');
-                        setRestoreMessage(data.message);
-                      })
-                      .catch((err) => {
-                        setRestoreStatus('error');
-                        setRestoreMessage(err.message || 'Restore failed');
-                      });
-                  }}
-                >
-                  Restore
-                </Button>
-              </Group>
-            </>
-          ) : (
-            <>
-              <Text c="green" fw={500}>{restoreMessage}</Text>
-              <Text size="sm" c="dimmed">
-                The server is restarting. Wait a moment, then refresh the page to log in.
-              </Text>
-            </>
-          )}
-        </Stack>
-      )}
-
-      {!showRestore && (
-        <Text ta="center" mt="md" size="sm">
-          Have a backup? <Anchor component="button" size="sm" onClick={() => setShowRestore(true)}>Restore from backup</Anchor>
-        </Text>
       )}
     </Paper>
   );
