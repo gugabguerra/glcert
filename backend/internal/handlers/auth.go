@@ -13,10 +13,11 @@ type AuthHandler struct {
 	auth   *services.AuthService
 	crypto *services.CryptoService
 	email  *services.EmailService
+	totp   *services.TOTPService
 }
 
-func NewAuthHandler(auth *services.AuthService, crypto *services.CryptoService, email *services.EmailService) *AuthHandler {
-	return &AuthHandler{auth: auth, crypto: crypto, email: email}
+func NewAuthHandler(auth *services.AuthService, crypto *services.CryptoService, email *services.EmailService, totp *services.TOTPService) *AuthHandler {
+	return &AuthHandler{auth: auth, crypto: crypto, email: email, totp: totp}
 }
 
 type SetupRequest struct {
@@ -88,7 +89,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.auth.Login(req.Email, req.Password)
+	result, err := h.auth.Login(req.Email, req.Password)
 	if err != nil {
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
 		return
@@ -101,8 +102,16 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if result.TOTPEnabled {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"partialToken": result.Token,
+		})
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"token": token})
+	json.NewEncoder(w).Encode(map[string]string{"token": result.Token})
 }
 
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {

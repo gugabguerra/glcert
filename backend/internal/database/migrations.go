@@ -208,6 +208,38 @@ func migrate(db *sql.DB) error {
 		}
 	}
 
+	// TOTP columns for admin table
+	totpAlterQueries := []string{
+		`ALTER TABLE admin ADD COLUMN totp_secret BLOB`,
+		`ALTER TABLE admin ADD COLUMN totp_enabled BOOLEAN DEFAULT FALSE`,
+	}
+
+	for _, q := range totpAlterQueries {
+		db.Exec(q)
+	}
+
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS pending_sessions (
+			token TEXT PRIMARY KEY,
+			expires_at DATETIME NOT NULL
+		)
+	`)
+	if err != nil {
+		return err
+	}
+
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS backup_codes (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			code_hash TEXT NOT NULL,
+			used BOOLEAN DEFAULT FALSE,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)
+	`)
+	if err != nil {
+		return err
+	}
+
 	// Insert default settings if not exists
 	var count int
 	err = db.QueryRow("SELECT COUNT(*) FROM settings").Scan(&count)

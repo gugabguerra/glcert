@@ -25,10 +25,12 @@ func main() {
 	defer db.Close()
 
 	db.Exec("DELETE FROM sessions")
+	db.Exec("DELETE FROM pending_sessions")
 	log.Printf("Sessions cleared — re-login required after restart")
 
 	crypto := services.NewCryptoService(cfg.DataDir)
 	auth := services.NewAuthService(db)
+	totpService := services.NewTOTPService(db, crypto)
 	emailService := services.NewEmailService(db, crypto)
 	notificationService := services.NewNotificationService(db, emailService)
 
@@ -36,7 +38,7 @@ func main() {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
-	authHandler := handlers.NewAuthHandler(auth, crypto, emailService)
+	authHandler := handlers.NewAuthHandler(auth, crypto, emailService, totpService)
 	authMiddleware := handlers.NewAuthMiddleware(auth)
 
 	r.Route("/api", func(r chi.Router) {
@@ -54,6 +56,9 @@ func main() {
 		backupHandler := handlers.NewBackupHandler(db, cfg.DataDir)
 		r.Post("/backup/restore", backupHandler.RestoreBackup)
 
+		totpHandler := handlers.NewTOTPHandler(totpService, auth)
+		r.Post("/totp/verify", totpHandler.Verify)
+
 		caService := services.NewCAService(cfg.DataDir, crypto)
 		certService := services.NewCertService(cfg.DataDir, crypto)
 		notificationHandler := handlers.NewNotificationHandler(notificationService)
@@ -69,6 +74,11 @@ func main() {
 			adminHandler := handlers.NewAdminHandler(db, cfg.DataDir, crypto)
 			r.Post("/admin/factory-reset", adminHandler.FactoryReset)
 			r.Post("/backup/create", backupHandler.CreateBackup)
+
+			r.Get("/totp/status", totpHandler.GetStatus)
+			r.Get("/totp/setup", totpHandler.Setup)
+			r.Post("/totp/verify-setup", totpHandler.VerifySetup)
+			r.Post("/totp/disable", totpHandler.Disable)
 
 			h := handlers.New(db, crypto)
 			r.Get("/dashboard", h.GetDashboardStats)
@@ -136,6 +146,8 @@ func main() {
 		notificationService.CheckAndNotify()
 		for range ticker.C {
 			notificationService.CheckAndNotify()
+			auth.CleanupSessions()
+			totpService.CleanupPendingSessions()
 		}
 	}()
 

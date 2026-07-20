@@ -2,6 +2,7 @@ import {
   Title,
   TextInput,
   PasswordInput,
+  PinInput,
   Select,
   NumberInput,
   Button,
@@ -17,6 +18,9 @@ import {
   Divider,
   Switch,
   FileInput,
+  Image,
+  CopyButton,
+  Tooltip,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -83,6 +87,12 @@ function SettingsPage() {
     }
   }, [settingsData]);
 
+  useEffect(() => {
+    authFetchJson('/api/totp/status').then((data: any) => {
+      setTotpEnabled(data.enabled);
+    }).catch(() => {});
+  }, []);
+
   const mutation = useMutation({
     mutationFn: (values: Record<string, unknown>) =>
       authFetchJson('/api/settings', {
@@ -112,6 +122,16 @@ function SettingsPage() {
   const [smtpFromName, setSmtpFromName] = useState('GLCert');
   const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+
+  const [totpEnabled, setTotpEnabled] = useState(false);
+  const [showTOTPSetup, setShowTOTPSetup] = useState(false);
+  const [totpSetupData, setTotpSetupData] = useState<{ secret: string; imageData: string; codes: string[] } | null>(null);
+  const [totpVerifyCode, setTotpVerifyCode] = useState('');
+  const [totpStatus, setTotpStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [showDisableTOTP, setShowDisableTOTP] = useState(false);
+  const [disablePassword, setDisablePassword] = useState('');
+  const [disableCode, setDisableCode] = useState('');
+  const [disableStatus, setDisableStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
 
   const passwordMutation = useMutation({
     mutationFn: (values: { currentPassword: string; newPassword: string }) =>
@@ -458,6 +478,43 @@ function SettingsPage() {
                   Change Password
                 </Button>
               </Group>
+
+              <Divider my='md' />
+
+              <Group justify='space-between' align='center'>
+                <div>
+                  <Text fw={500}>Two-Factor Authentication</Text>
+                  <Text size='sm' c='dimmed'>
+                    {totpEnabled ? '2FA is enabled for your account' : 'Add an extra layer of security'}
+                  </Text>
+                </div>
+                <Group>
+                  {totpEnabled && (
+                    <Button variant='subtle' color='red' onClick={() => {
+                      setDisablePassword('');
+                      setDisableCode('');
+                      setDisableStatus('idle');
+                      setShowDisableTOTP(true);
+                    }}>
+                      Disable
+                    </Button>
+                  )}
+                    <Button
+                    variant={totpEnabled ? 'outline' : 'filled'}
+                    color={totpEnabled ? 'teal' : 'teal'}
+                    onClick={() => {
+                      setTotpVerifyCode('');
+                      setTotpStatus('idle');
+                      authFetchJson('/api/totp/setup').then((data: any) => {
+                        setTotpSetupData(data);
+                        setShowTOTPSetup(true);
+                      });
+                    }}
+                  >
+                    {totpEnabled ? 'Reconfigure' : 'Enable 2FA'}
+                  </Button>
+                </Group>
+              </Group>
             </Stack>
           </Paper>
         </Stack>
@@ -643,6 +700,166 @@ function SettingsPage() {
               </Group>
             </>
           )}
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={showTOTPSetup}
+        onClose={() => setShowTOTPSetup(false)}
+        title='Enable Two-Factor Authentication'
+        centered
+        size='md'
+      >
+        <Stack gap='md'>
+          {totpSetupData && (
+            <>
+              <Text size='sm' c='dimmed'>
+                Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)
+              </Text>
+              <Center>
+                <Image
+                  src={`data:image/png;base64,${totpSetupData.imageData}`}
+                  maw={200}
+                  alt='TOTP QR Code'
+                />
+              </Center>
+              <Text size='xs' c='dimmed' ta='center'>
+                Or enter this secret manually: {totpSetupData.secret}
+              </Text>
+
+              <Divider />
+
+              <Text size='sm' fw={500}>Backup Codes</Text>
+              <Text size='xs' c='dimmed'>
+                Save these codes somewhere safe. Each can be used once if you lose access to your authenticator.
+              </Text>
+              <Paper withBorder p='sm'>
+                <Group gap='xs' justify='center' wrap='wrap'>
+                  {totpSetupData.codes.map((code, i) => (
+                    <CopyButton key={i} value={code}>
+                      {({ copied, copy }) => (
+                        <Tooltip label={copied ? 'Copied!' : 'Click to copy'}>
+                          <Text
+                            size='sm'
+                            ff='monospace'
+                            style={{ cursor: 'pointer' }}
+                            c={copied ? 'teal' : undefined}
+                            onClick={copy}
+                          >
+                            {code}
+                          </Text>
+                        </Tooltip>
+                      )}
+                    </CopyButton>
+                  ))}
+                </Group>
+              </Paper>
+              <Button
+                variant='subtle'
+                size='xs'
+                onClick={() => {
+                  navigator.clipboard.writeText(totpSetupData.codes.join('\n'));
+                }}
+              >
+                Copy All Codes
+              </Button>
+
+              <Divider />
+
+              <Text size='sm' fw={500}>Verify Setup</Text>
+              <Text size='xs' c='dimmed'>
+                Enter the 6-digit code from your authenticator app to confirm setup.
+              </Text>
+              <Group justify='center'>
+                <PinInput
+                  length={6}
+                  value={totpVerifyCode}
+                  onChange={setTotpVerifyCode}
+                  size='lg'
+                />
+              </Group>
+              {totpStatus === 'error' && <Text c='red' size='sm' ta='center'>Invalid code. Try again.</Text>}
+              <Group justify='flex-end'>
+                <Button variant='default' onClick={() => setShowTOTPSetup(false)}>Cancel</Button>
+                <Button
+                  loading={totpStatus === 'loading'}
+                  disabled={totpVerifyCode.length !== 6}
+                  onClick={() => {
+                    setTotpStatus('loading');
+                    authFetchJson('/api/totp/verify-setup', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        secret: totpSetupData.secret,
+                        code: totpVerifyCode,
+                        codes: totpSetupData.codes,
+                      }),
+                    }).then(() => {
+                      setTotpStatus('success');
+                      setTotpEnabled(true);
+                      setShowTOTPSetup(false);
+                    }).catch(() => {
+                      setTotpStatus('error');
+                    });
+                  }}
+                >
+                  Verify & Enable
+                </Button>
+              </Group>
+            </>
+          )}
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={showDisableTOTP}
+        onClose={() => setShowDisableTOTP(false)}
+        title='Disable Two-Factor Authentication'
+        centered
+      >
+        <Stack gap='md'>
+          <Text size='sm' c='dimmed'>
+            Enter your password and a valid TOTP code to disable 2FA.
+          </Text>
+          <PasswordInput
+            label='Password'
+            value={disablePassword}
+            onChange={e => setDisablePassword(e.currentTarget.value)}
+            autoComplete='current-password'
+          />
+          <Group justify='center'>
+            <PinInput
+              length={6}
+              value={disableCode}
+              onChange={setDisableCode}
+              size='lg'
+            />
+          </Group>
+          {disableStatus === 'error' && <Text c='red' size='sm' ta='center'>Invalid password or code.</Text>}
+          <Group justify='flex-end'>
+            <Button variant='default' onClick={() => setShowDisableTOTP(false)}>Cancel</Button>
+            <Button
+              color='red'
+              loading={disableStatus === 'loading'}
+              disabled={!disablePassword || disableCode.length !== 6}
+              onClick={() => {
+                setDisableStatus('loading');
+                authFetchJson('/api/totp/disable', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ password: disablePassword, code: disableCode }),
+                }).then(() => {
+                  setDisableStatus('success');
+                  setTotpEnabled(false);
+                  setShowDisableTOTP(false);
+                }).catch(() => {
+                  setDisableStatus('error');
+                });
+              }}
+            >
+              Disable 2FA
+            </Button>
+          </Group>
         </Stack>
       </Modal>
     </Stack>
