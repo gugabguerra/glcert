@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { AppShell, Title, Group, Box, Button, NavLink, ActionIcon, Tooltip, useMantineColorScheme, Burger, Drawer, Divider, Stack } from '@mantine/core';
+import { AppShell, Title, Group, Box, Button, NavLink, ActionIcon, Tooltip, useMantineColorScheme, Burger, Drawer, Divider, Stack, Space } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { Link } from 'react-router-dom';
 import { IconShield, IconCertificate, IconSettings, IconSun, IconMoon, IconDeviceDesktop, IconLogout } from '@tabler/icons-react';
@@ -36,7 +36,7 @@ function AppRoutes() {
     localStorage.setItem('glcert-color-scheme', next);
   };
 
-  const ColorSchemeIcon = colorScheme === 'dark' ? IconSun : colorScheme === 'light' ? IconMoon : IconDeviceDesktop;
+  const ColorSchemeIcon = colorScheme === 'dark' ? IconMoon : colorScheme === 'light' ? IconSun : IconDeviceDesktop;
 
   const navLinks = (
     <>
@@ -61,15 +61,15 @@ function AppRoutes() {
           <Box component="nav" style={{ flex: 1, display: 'flex', gap: 4 }} display={isMobile ? 'none' : 'flex'}>
             {navLinks}
           </Box>
-          <Tooltip label={`Theme: ${colorScheme === 'dark' ? 'Light' : colorScheme === 'light' ? 'Dark' : 'Light'}`}>
-            <ActionIcon variant="subtle" size="lg" onClick={cycleColorScheme}>
-              <ColorSchemeIcon size={20} />
-            </ActionIcon>
-          </Tooltip>
           {!isMobile && (
-            <Button variant="subtle" size="sm" onClick={logout}>
-              Sign Out
-            </Button>
+            <Space>
+              <ActionIcon variant="subtle" size="lg" onClick={cycleColorScheme}>
+                <ColorSchemeIcon size={20} />
+              </ActionIcon>
+              <ActionIcon variant="subtle" size="lg" onClick={logout} ml="10">
+                <IconLogout size={20} />
+              </ActionIcon>
+            </Space>
           )}
         </Group>
       </AppShell.Header>
