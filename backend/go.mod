@@ -3,8 +3,11 @@ module github.com/glcert/glcert
 go 1.25.0
 
 require (
+	github.com/alexmullins/zip v0.0.0-20180717182244-4affb64b04d0
 	github.com/go-chi/chi/v5 v5.0.12
+	github.com/google/uuid v1.6.0
 	github.com/nicholas-fedor/shoutrrr v0.16.1
+	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78
 	golang.org/x/crypto v0.51.0
 	modernc.org/sqlite v1.29.5
 )
@@ -12,14 +15,12 @@ require (
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/eclipse/paho.golang v0.23.0 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/mattn/go-colorable v0.1.15 // indirect
 	github.com/mattn/go-isatty v0.0.22 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
 	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/sys v0.46.0 // indirect
 	golang.org/x/term v0.44.0 // indirect

@@ -16,11 +16,12 @@ import {
   Paper,
   Divider,
   Switch,
+  FileInput,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { authFetchJson } from '../api';
+import { authFetchJson, authFetchDownload } from '../api';
 
 interface Settings {
   id: number;
@@ -186,6 +187,14 @@ function SettingsPage() {
 
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetConfirmText, setResetConfirmText] = useState('');
+  const [showBackupModal, setShowBackupModal] = useState(false);
+  const [backupPassword, setBackupPassword] = useState('');
+  const [backupStatus, setBackupStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [showRestoreModal, setShowRestoreModal] = useState(false);
+  const [restoreFile, setRestoreFile] = useState<File | null>(null);
+  const [restorePassword, setRestorePassword] = useState('');
+  const [restoreStatus, setRestoreStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [restoreMessage, setRestoreMessage] = useState('');
 
   const resetMutation = useMutation({
     mutationFn: () =>
@@ -460,8 +469,20 @@ function SettingsPage() {
           Danger Zone
         </Title>
         <Stack gap='md'>
+          <Group>
+            <div>
+              <Button color='teal' variant='filled' onClick={() => { setBackupPassword(''); setBackupStatus('idle'); setShowBackupModal(true); }}>
+                Backup Data
+              </Button>
+            </div>
+            <div>
+              <Button color='orange' variant='filled' onClick={() => { setRestoreFile(null); setRestorePassword(''); setRestoreStatus('idle'); setRestoreMessage(''); setShowRestoreModal(true); }}>
+                Restore from Backup
+              </Button>
+            </div>
+          </Group>
           <Text size='sm' c='dimmed'>
-            This will permanently delete all certificate authorities, certificates, admin account,
+            Factory Reset will permanently delete all certificate authorities, certificates, admin account,
             and settings. You will need to go through setup again.
           </Text>
           <div>
@@ -507,6 +528,118 @@ function SettingsPage() {
               Factory Reset
             </Button>
           </Group>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={showBackupModal}
+        onClose={() => setShowBackupModal(false)}
+        title='Backup Data'
+        centered
+      >
+        <Stack gap='md'>
+          <Text size='sm' c='dimmed'>
+            Create an encrypted backup of all your data: certificates, CAs, settings, and encryption keys.
+          </Text>
+          <PasswordInput
+            label='Backup Password'
+            placeholder='Enter a strong password'
+            value={backupPassword}
+            onChange={(e) => setBackupPassword(e.currentTarget.value)}
+            autoComplete='off'
+          />
+          {backupStatus === 'success' && <Text c='green' size='sm'>Backup downloaded successfully</Text>}
+          {backupStatus === 'error' && <Text c='red' size='sm'>Failed to create backup</Text>}
+          <Group justify='flex-end'>
+            <Button variant='default' onClick={() => setShowBackupModal(false)}>Cancel</Button>
+            <Button
+              color='teal'
+              loading={backupStatus === 'loading'}
+              disabled={!backupPassword}
+              onClick={() => {
+                setBackupStatus('loading');
+                authFetchDownload('/api/backup/create', { password: backupPassword }, 'glcert-backup.zip')
+                  .then(() => setBackupStatus('success'))
+                  .catch(() => setBackupStatus('error'));
+              }}
+            >
+              Download Backup
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={showRestoreModal}
+        onClose={() => setShowRestoreModal(false)}
+        title='Restore from Backup'
+        centered
+      >
+        <Stack gap='md'>
+          {restoreStatus !== 'success' ? (
+            <>
+              <Text size='sm' c='dimmed'>
+                Restore data from a GLCert backup file. The server will restart after restore.
+              </Text>
+              <FileInput
+                label='Backup File'
+                placeholder='Select .zip backup file'
+                accept='.zip'
+                value={restoreFile}
+                onChange={setRestoreFile}
+              />
+              <PasswordInput
+                label='Backup Password'
+                placeholder='Enter backup password'
+                value={restorePassword}
+                onChange={(e) => setRestorePassword(e.currentTarget.value)}
+                autoComplete='off'
+              />
+              {restoreStatus === 'error' && <Text c='red' size='sm'>{restoreMessage}</Text>}
+              <Group justify='flex-end'>
+                <Button variant='default' onClick={() => setShowRestoreModal(false)}>Cancel</Button>
+                <Button
+                  color='orange'
+                  loading={restoreStatus === 'loading'}
+                  disabled={!restoreFile || !restorePassword}
+                  onClick={() => {
+                    setRestoreStatus('loading');
+                    const formData = new FormData();
+                    formData.append('backup', restoreFile!);
+                    formData.append('password', restorePassword);
+                    fetch('/api/backup/restore', { method: 'POST', body: formData })
+                      .then(async (res) => {
+                        if (!res.ok) {
+                          const text = await res.text();
+                          throw new Error(text);
+                        }
+                        return res.json();
+                      })
+                      .then((data) => {
+                        setRestoreStatus('success');
+                        setRestoreMessage(data.message);
+                      })
+                      .catch((err) => {
+                        setRestoreStatus('error');
+                        setRestoreMessage(err.message || 'Restore failed');
+                      });
+                  }}
+                >
+                  Restore
+                </Button>
+              </Group>
+            </>
+          ) : (
+            <>
+              <Text c='green' fw={500}>{restoreMessage}</Text>
+              <Text size='sm' c='dimmed'>
+                The server is restarting. Wait a moment, then refresh the page to log in.
+              </Text>
+              <Group justify='flex-end'>
+                <Button onClick={() => setShowRestoreModal(false)}>Close</Button>
+              </Group>
+            </>
+          )}
         </Stack>
       </Modal>
     </Stack>

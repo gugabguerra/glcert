@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/glcert/glcert/internal/backup"
 	"github.com/glcert/glcert/internal/config"
 	"github.com/glcert/glcert/internal/database"
 	"github.com/glcert/glcert/internal/handlers"
@@ -17,6 +18,8 @@ import (
 
 func main() {
 	cfg := config.Load()
+
+	backup.ApplyPendingRestore(cfg.DataDir)
 
 	db, err := database.New(cfg.DataDir)
 	if err != nil {
@@ -51,6 +54,9 @@ func main() {
 		r.Post("/auth/forgot-password", authHandler.ForgotPassword)
 		r.Post("/auth/reset-password", authHandler.ResetPassword)
 
+		backupHandler := handlers.NewBackupHandler(cfg.DataDir)
+		r.Post("/backup/restore", backupHandler.RestoreBackup)
+
 		caService := services.NewCAService(cfg.DataDir, crypto)
 		certService := services.NewCertService(cfg.DataDir, crypto)
 		notificationHandler := handlers.NewNotificationHandler(notificationService)
@@ -65,6 +71,7 @@ func main() {
 			r.Put("/auth/password", authHandler.ChangePassword)
 			adminHandler := handlers.NewAdminHandler(db, cfg.DataDir, crypto)
 			r.Post("/admin/factory-reset", adminHandler.FactoryReset)
+			r.Post("/backup/create", backupHandler.CreateBackup)
 
 			h := handlers.New(db, crypto)
 			r.Get("/dashboard", h.GetDashboardStats)

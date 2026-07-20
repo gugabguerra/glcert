@@ -34,3 +34,22 @@ export async function downloadFile(url: string, filename: string): Promise<void>
   a.click();
   URL.revokeObjectURL(href);
 }
+
+export async function authFetchDownload(url: string, body: Record<string, unknown>, filename: string): Promise<void> {
+  const res = await authFetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `Request failed: ${res.status}`);
+  }
+  const blob = await res.blob();
+  const href = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = href;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(href);
+}
