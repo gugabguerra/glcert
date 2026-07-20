@@ -75,14 +75,14 @@ function ImportCA() {
             required
             value={name}
             onChange={e => setName(e.currentTarget.value)}
-            autoComplete="off"
+           
           />
           <Textarea
             label="Description"
             placeholder="Optional description"
             value={description}
             onChange={e => setDescription(e.currentTarget.value)}
-            autoComplete="off"
+           
           />
           <FileInput
             label="CA Certificate (PEM)"
@@ -111,7 +111,7 @@ function ImportCA() {
               placeholder="If the key is encrypted, enter its passphrase"
               value={passphrase}
               onChange={e => setPassphrase(e.currentTarget.value)}
-              autoComplete="off"
+             
             />
           )}
           <Text size="xs" c="dimmed">

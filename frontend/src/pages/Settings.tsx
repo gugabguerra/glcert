@@ -2,7 +2,6 @@ import {
   Title,
   TextInput,
   PasswordInput,
-  PinInput,
   Select,
   NumberInput,
   Button,
@@ -12,15 +11,9 @@ import {
   Loader,
   Text,
   Modal,
-  useMantineColorScheme,
-  SimpleGrid,
   Paper,
-  Divider,
   Switch,
   FileInput,
-  Image,
-  CopyButton,
-  Tooltip,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -51,7 +44,6 @@ interface Settings {
 
 function SettingsPage() {
   const queryClient = useQueryClient();
-  const { setColorScheme, colorScheme } = useMantineColorScheme();
 
   const form = useForm({
     initialValues: {
@@ -87,12 +79,6 @@ function SettingsPage() {
     }
   }, [settingsData]);
 
-  useEffect(() => {
-    authFetchJson('/api/totp/status').then((data: any) => {
-      setTotpEnabled(data.enabled);
-    }).catch(() => {});
-  }, []);
-
   const mutation = useMutation({
     mutationFn: (values: Record<string, unknown>) =>
       authFetchJson('/api/settings', {
@@ -105,11 +91,6 @@ function SettingsPage() {
     },
   });
 
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [passwordError, setPasswordError] = useState('');
-  const [passwordSuccess, setPasswordSuccess] = useState('');
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [webhookUrl, setWebhookUrl] = useState('');
   const [thresholdDays, setThresholdDays] = useState(30);
@@ -122,36 +103,6 @@ function SettingsPage() {
   const [smtpFromName, setSmtpFromName] = useState('GLCert');
   const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-
-  const [totpEnabled, setTotpEnabled] = useState(false);
-  const [showTOTPSetup, setShowTOTPSetup] = useState(false);
-  const [totpSetupData, setTotpSetupData] = useState<{ secret: string; imageData: string; codes: string[] } | null>(null);
-  const [totpVerifyCode, setTotpVerifyCode] = useState('');
-  const [totpStatus, setTotpStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [showDisableTOTP, setShowDisableTOTP] = useState(false);
-  const [disablePassword, setDisablePassword] = useState('');
-  const [disableCode, setDisableCode] = useState('');
-  const [disableStatus, setDisableStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-
-  const passwordMutation = useMutation({
-    mutationFn: (values: { currentPassword: string; newPassword: string }) =>
-      authFetchJson('/api/auth/password', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values),
-      }),
-    onSuccess: () => {
-      setPasswordError('');
-      setPasswordSuccess('Password changed successfully');
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-    },
-    onError: () => {
-      setPasswordSuccess('');
-      setPasswordError('Invalid current password');
-    },
-  });
 
   const testNotificationMutation = useMutation({
     mutationFn: () =>
@@ -180,30 +131,6 @@ function SettingsPage() {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
     },
   });
-
-  const handlePasswordSubmit = () => {
-    setPasswordError('');
-    setPasswordSuccess('');
-
-    if (!currentPassword || !newPassword || !confirmPassword) {
-      setPasswordError('All fields are required');
-      return;
-    }
-    if (newPassword.length < 6) {
-      setPasswordError('New password must be at least 6 characters');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setPasswordError('New passwords do not match');
-      return;
-    }
-    if (currentPassword === newPassword) {
-      setPasswordError('New password must differ from current password');
-      return;
-    }
-
-    passwordMutation.mutate({ currentPassword, newPassword });
-  };
 
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetConfirmText, setResetConfirmText] = useState('');
@@ -240,14 +167,13 @@ function SettingsPage() {
     );
 
   return (
-    <Stack>
+    <Stack gap='xl' mx='auto'>
       <Title>Settings</Title>
 
-      <SimpleGrid cols={{ base: 1, md: 2 }} spacing='xl' verticalSpacing='xl'>
-        {/* Left Column */}
+      <Paper withBorder p='lg' style={{ borderLeft: '3px solid var(--mantine-color-teal-5)' }}>
+        <Title order={5} mb='md'>Certificate Defaults</Title>
         <form onSubmit={form.onSubmit((values) => mutation.mutate(values))}>
           <Stack gap='md'>
-            <Title order={4}>Certificate Defaults</Title>
             <TextInput
               label='Organization'
               placeholder='My Homelab'
@@ -307,250 +233,116 @@ function SettingsPage() {
             </Group>
           </Stack>
         </form>
+      </Paper>
 
-        {/* Right Column */}
-        <Stack gap='xl'>
-          <Paper withBorder p='md'>
-            <Title order={5} mb='md'>
-              Appearance
-            </Title>
-            <Select
-              label='Theme'
-              data={[
-                { value: 'light', label: 'Light' },
-                { value: 'dark', label: 'Dark' },
-                { value: 'auto', label: 'System' },
-              ]}
-              value={colorScheme}
-              onChange={(value) => {
-                if (value) {
-                  setColorScheme(value as 'light' | 'dark' | 'auto');
-                  localStorage.setItem('glcert-color-scheme', value);
-                }
+      <Paper withBorder p='lg' style={{ borderLeft: '3px solid var(--mantine-color-teal-5)' }}>
+        <Title order={5} mb='md'>Notifications</Title>
+        <Stack gap='md'>
+          <Switch
+            label='Enable expiration notifications'
+            checked={notificationsEnabled}
+            onChange={(event) => setNotificationsEnabled(event.currentTarget.checked)}
+          />
+          <TextInput
+            label='Webhook URL'
+            placeholder='discord://token@webhookid'
+            value={webhookUrl}
+            onChange={(e) => setWebhookUrl(e.currentTarget.value)}
+            disabled={!notificationsEnabled}
+           
+          />
+          <NumberInput
+            label='Warning threshold (days)'
+            min={1}
+            max={365}
+            value={thresholdDays}
+            onChange={(value) => setThresholdDays(Number(value) || 30)}
+            disabled={!notificationsEnabled}
+          />
+          <Group justify='space-between'>
+            <Button
+              variant='light'
+              loading={testNotificationMutation.isPending}
+              disabled={!notificationsEnabled || !webhookUrl}
+              onClick={() => {
+                setTestStatus('idle');
+                testNotificationMutation.mutate();
               }}
-            />
-          </Paper>
-
-          <Paper withBorder p='md'>
-            <Title order={5} mb='md'>
-              Notifications
-            </Title>
-            <Stack gap='md'>
-              <Switch
-                label='Enable expiration notifications'
-                checked={notificationsEnabled}
-                onChange={(event) => setNotificationsEnabled(event.currentTarget.checked)}
-              />
-              <TextInput
-                label='Webhook URL'
-                placeholder='discord://token@webhookid'
-                value={webhookUrl}
-                onChange={(e) => setWebhookUrl(e.currentTarget.value)}
-                disabled={!notificationsEnabled}
-                autoComplete="off"
-              />
-              <NumberInput
-                label='Warning threshold (days)'
-                min={1}
-                max={365}
-                value={thresholdDays}
-                onChange={(value) => setThresholdDays(Number(value) || 30)}
-                disabled={!notificationsEnabled}
-              />
-              <Group justify='space-between'>
-                <Button
-                  variant='light'
-                  loading={testNotificationMutation.isPending}
-                  disabled={!notificationsEnabled || !webhookUrl}
-                  onClick={() => {
-                    setTestStatus('idle');
-                    testNotificationMutation.mutate();
-                  }}
-                >
-                  Send Test Notification
-                </Button>
-                {testStatus === 'success' && (
-                  <Text c='green' size='sm'>
-                    Test sent successfully
-                  </Text>
-                )}
-                {testStatus === 'error' && (
-                  <Text c='red' size='sm'>
-                    Failed to send test
-                  </Text>
-                )}
-              </Group>
-              <Group justify='flex-end'>
-                <Button
-                  loading={notificationMutation.isPending}
-                  onClick={() => notificationMutation.mutate()}
-                >
-                  Save Notification Settings
-                </Button>
-              </Group>
-            </Stack>
-          </Paper>
-
-          <Paper withBorder p='md'>
-            <Title order={5} mb='md'>Email</Title>
-            <Stack gap='md'>
-              <TextInput label="SMTP Host" placeholder="smtp.gmail.com" value={smtpHost} onChange={e => setSmtpHost(e.currentTarget.value)} autoComplete="off" />
-              <NumberInput label="SMTP Port" min={1} max={65535} value={smtpPort} onChange={v => setSmtpPort(Number(v) || 587)} />
-              <TextInput label="SMTP Username" placeholder="your@email.com" value={smtpUsername} onChange={e => setSmtpUsername(e.currentTarget.value)} autoComplete="off" />
-              <PasswordInput label="SMTP Password" value={smtpPassword} onChange={e => setSmtpPassword(e.currentTarget.value)} autoComplete="off" placeholder="Leave empty to keep current" />
-              <TextInput label="From Email" placeholder="noreply@homelab.local" value={smtpFromEmail} onChange={e => setSmtpFromEmail(e.currentTarget.value)} autoComplete="off" />
-              <TextInput label="From Name" placeholder="GLCert" value={smtpFromName} onChange={e => setSmtpFromName(e.currentTarget.value)} autoComplete="off" />
-              <Switch label="Send expiration alerts via email" checked={emailNotificationsEnabled} onChange={e => setEmailNotificationsEnabled(e.currentTarget.checked)} />
-              <Group justify="space-between">
-                <Button variant="light" loading={testEmailStatus === 'loading'} disabled={!smtpHost || !smtpFromEmail} onClick={() => {
-                  setTestEmailStatus('loading');
-                  authFetchJson('/api/notifications/test-email', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: smtpFromEmail }),
-                  }).then(() => setTestEmailStatus('success')).catch(() => setTestEmailStatus('error'));
-                }}>Send Test Email</Button>
-                {testEmailStatus === 'success' && <Text c="green" size="sm">Test email sent</Text>}
-                {testEmailStatus === 'error' && <Text c="red" size="sm">Failed to send test email</Text>}
-              </Group>
-              <Group justify="flex-end">
-                <Button loading={notificationMutation.isPending} onClick={() => {
-                  authFetchJson('/api/settings', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      ...form.values,
-                      notificationsEnabled,
-                      notificationWebhookUrl: webhookUrl,
-                      notificationThresholdDays: thresholdDays,
-                      smtpHost, smtpPort, smtpUsername, smtpPassword: smtpPassword || '',
-                      smtpFromEmail, smtpFromName, emailNotificationsEnabled,
-                    }),
-                  }).then(() => {
-                    queryClient.invalidateQueries({ queryKey: ['settings'] });
-                    setSmtpPassword('');
-                  });
-                }}>Save Email Settings</Button>
-              </Group>
-            </Stack>
-          </Paper>
-
-          <Paper withBorder p='md'>
-            <Title order={5} mb='md'>
-              Security
-            </Title>
-            <Stack gap='md'>
-              <PasswordInput
-                label='Current Password'
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.currentTarget.value)}
-                autoComplete="current-password"
-              />
-              <PasswordInput
-                label='New Password'
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.currentTarget.value)}
-                autoComplete="new-password"
-              />
-              <PasswordInput
-                label='Confirm New Password'
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.currentTarget.value)}
-                autoComplete="new-password"
-              />
-              {passwordError && (
-                <Text c='red' size='sm'>
-                  {passwordError}
-                </Text>
-              )}
-              {passwordSuccess && (
-                <Text c='green' size='sm'>
-                  {passwordSuccess}
-                </Text>
-              )}
-              <Group justify='flex-end'>
-                <Button
-                  variant='filled'
-                  color='blue'
-                  loading={passwordMutation.isPending}
-                  onClick={handlePasswordSubmit}
-                >
-                  Change Password
-                </Button>
-              </Group>
-
-              <Divider my='md' />
-
-              <Group justify='space-between' align='center'>
-                <div>
-                  <Text fw={500}>Two-Factor Authentication</Text>
-                  <Text size='sm' c='dimmed'>
-                    {totpEnabled ? '2FA is enabled for your account' : 'Add an extra layer of security'}
-                  </Text>
-                </div>
-                <Group>
-                  {totpEnabled && (
-                    <Button variant='subtle' color='red' onClick={() => {
-                      setDisablePassword('');
-                      setDisableCode('');
-                      setDisableStatus('idle');
-                      setShowDisableTOTP(true);
-                    }}>
-                      Disable
-                    </Button>
-                  )}
-                    <Button
-                    variant={totpEnabled ? 'outline' : 'filled'}
-                    color={totpEnabled ? 'teal' : 'teal'}
-                    onClick={() => {
-                      setTotpVerifyCode('');
-                      setTotpStatus('idle');
-                      authFetchJson('/api/totp/setup').then((data: any) => {
-                        setTotpSetupData(data);
-                        setShowTOTPSetup(true);
-                      });
-                    }}
-                  >
-                    {totpEnabled ? 'Reconfigure' : 'Enable 2FA'}
-                  </Button>
-                </Group>
-              </Group>
-            </Stack>
-          </Paper>
+            >
+              Send Test Notification
+            </Button>
+            {testStatus === 'success' && <Text c='green' size='sm'>Test sent successfully</Text>}
+            {testStatus === 'error' && <Text c='red' size='sm'>Failed to send test</Text>}
+          </Group>
+          <Group justify='flex-end'>
+            <Button loading={notificationMutation.isPending} onClick={() => notificationMutation.mutate()}>
+              Save Notification Settings
+            </Button>
+          </Group>
         </Stack>
-      </SimpleGrid>
+      </Paper>
 
-      <Divider m='xl'></Divider>
-      <Paper withBorder p='md' style={{ borderColor: 'var(--mantine-color-red-5)' }}>
-        <Title order={5} c='red' mb='md'>
-          Danger Zone
-        </Title>
+      <Paper withBorder p='lg' style={{ borderLeft: '3px solid var(--mantine-color-teal-5)' }}>
+        <Title order={5} mb='md'>Email</Title>
+        <Stack gap='md'>
+          <TextInput label="SMTP Host" placeholder="smtp.gmail.com" value={smtpHost} onChange={e => setSmtpHost(e.currentTarget.value)} />
+          <NumberInput label="SMTP Port" min={1} max={65535} value={smtpPort} onChange={v => setSmtpPort(Number(v) || 587)} />
+          <TextInput label="SMTP Username" placeholder="your@email.com" value={smtpUsername} onChange={e => setSmtpUsername(e.currentTarget.value)} />
+          <PasswordInput label="SMTP Password" value={smtpPassword} onChange={e => setSmtpPassword(e.currentTarget.value)} placeholder="Leave empty to keep current" />
+          <TextInput label="From Email" placeholder="noreply@homelab.local" value={smtpFromEmail} onChange={e => setSmtpFromEmail(e.currentTarget.value)} />
+          <TextInput label="From Name" placeholder="GLCert" value={smtpFromName} onChange={e => setSmtpFromName(e.currentTarget.value)} />
+          <Switch label="Send expiration alerts via email" checked={emailNotificationsEnabled} onChange={e => setEmailNotificationsEnabled(e.currentTarget.checked)} />
+          <Group justify="space-between">
+            <Button variant="light" loading={testEmailStatus === 'loading'} disabled={!smtpHost || !smtpFromEmail} onClick={() => {
+              setTestEmailStatus('loading');
+              authFetchJson('/api/notifications/test-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: smtpFromEmail }),
+              }).then(() => setTestEmailStatus('success')).catch(() => setTestEmailStatus('error'));
+            }}>Send Test Email</Button>
+            {testEmailStatus === 'success' && <Text c="green" size="sm">Test email sent</Text>}
+            {testEmailStatus === 'error' && <Text c="red" size="sm">Failed to send test email</Text>}
+          </Group>
+          <Group justify="flex-end">
+            <Button loading={notificationMutation.isPending} onClick={() => {
+              authFetchJson('/api/settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  ...form.values,
+                  notificationsEnabled,
+                  notificationWebhookUrl: webhookUrl,
+                  notificationThresholdDays: thresholdDays,
+                  smtpHost, smtpPort, smtpUsername, smtpPassword: smtpPassword || '',
+                  smtpFromEmail, smtpFromName, emailNotificationsEnabled,
+                }),
+              }).then(() => {
+                queryClient.invalidateQueries({ queryKey: ['settings'] });
+                setSmtpPassword('');
+              });
+            }}>Save Email Settings</Button>
+          </Group>
+        </Stack>
+      </Paper>
+
+      <Paper withBorder p='lg' style={{ borderLeft: '3px solid var(--mantine-color-red-5)' }}>
+        <Title order={5} c='red' mb='md'>Danger Zone</Title>
         <Stack gap='md'>
           <Group>
-            <div>
-              <Button color='teal' variant='filled' onClick={() => { setBackupPassword(''); setBackupStatus('idle'); setShowBackupModal(true); }}>
-                Backup Data
-              </Button>
-            </div>
-            <div>
-              <Button color='orange' variant='filled' onClick={() => { setRestoreFile(null); setRestorePassword(''); setRestoreStatus('idle'); setRestoreMessage(''); setShowRestoreModal(true); }}>
-                Restore from Backup
-              </Button>
-            </div>
+            <Button color='teal' variant='filled' onClick={() => { setBackupPassword(''); setBackupStatus('idle'); setShowBackupModal(true); }}>
+              Backup Data
+            </Button>
+            <Button color='orange' variant='filled' onClick={() => { setRestoreFile(null); setRestorePassword(''); setRestoreStatus('idle'); setRestoreMessage(''); setShowRestoreModal(true); }}>
+              Restore from Backup
+            </Button>
           </Group>
           <Text size='sm' c='dimmed'>
             Factory Reset will permanently delete all certificate authorities, certificates, admin account,
             and settings. You will need to go through setup again.
           </Text>
           <div>
-            <Button
-              color='red'
-              variant='filled'
-              onClick={() => {
-                setResetConfirmText('');
-                setShowResetModal(true);
-              }}
-            >
+            <Button color='red' variant='filled' onClick={() => { setResetConfirmText(''); setShowResetModal(true); }}>
               Factory Reset
             </Button>
           </div>
@@ -570,7 +362,7 @@ function SettingsPage() {
             placeholder='RESET'
             value={resetConfirmText}
             onChange={(e) => setResetConfirmText(e.currentTarget.value)}
-            autoComplete="off"
+           
           />
           <Group justify='flex-end'>
             <Button variant='default' onClick={() => setShowResetModal(false)}>
@@ -603,7 +395,7 @@ function SettingsPage() {
             placeholder='Enter a strong password'
             value={backupPassword}
             onChange={(e) => setBackupPassword(e.currentTarget.value)}
-            autoComplete='off'
+           
           />
           {backupStatus === 'success' && <Text c='green' size='sm'>Backup downloaded successfully</Text>}
           {backupStatus === 'error' && <Text c='red' size='sm'>Failed to create backup</Text>}
@@ -650,7 +442,7 @@ function SettingsPage() {
                 placeholder='Enter backup password'
                 value={restorePassword}
                 onChange={(e) => setRestorePassword(e.currentTarget.value)}
-                autoComplete='off'
+               
               />
               {restoreStatus === 'error' && <Text c='red' size='sm'>{restoreMessage}</Text>}
               <Group justify='flex-end'>
@@ -700,166 +492,6 @@ function SettingsPage() {
               </Group>
             </>
           )}
-        </Stack>
-      </Modal>
-
-      <Modal
-        opened={showTOTPSetup}
-        onClose={() => setShowTOTPSetup(false)}
-        title='Enable Two-Factor Authentication'
-        centered
-        size='md'
-      >
-        <Stack gap='md'>
-          {totpSetupData && (
-            <>
-              <Text size='sm' c='dimmed'>
-                Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)
-              </Text>
-              <Center>
-                <Image
-                  src={`data:image/png;base64,${totpSetupData.imageData}`}
-                  maw={200}
-                  alt='TOTP QR Code'
-                />
-              </Center>
-              <Text size='xs' c='dimmed' ta='center'>
-                Or enter this secret manually: {totpSetupData.secret}
-              </Text>
-
-              <Divider />
-
-              <Text size='sm' fw={500}>Backup Codes</Text>
-              <Text size='xs' c='dimmed'>
-                Save these codes somewhere safe. Each can be used once if you lose access to your authenticator.
-              </Text>
-              <Paper withBorder p='sm'>
-                <Group gap='xs' justify='center' wrap='wrap'>
-                  {totpSetupData.codes.map((code, i) => (
-                    <CopyButton key={i} value={code}>
-                      {({ copied, copy }) => (
-                        <Tooltip label={copied ? 'Copied!' : 'Click to copy'}>
-                          <Text
-                            size='sm'
-                            ff='monospace'
-                            style={{ cursor: 'pointer' }}
-                            c={copied ? 'teal' : undefined}
-                            onClick={copy}
-                          >
-                            {code}
-                          </Text>
-                        </Tooltip>
-                      )}
-                    </CopyButton>
-                  ))}
-                </Group>
-              </Paper>
-              <Button
-                variant='subtle'
-                size='xs'
-                onClick={() => {
-                  navigator.clipboard.writeText(totpSetupData.codes.join('\n'));
-                }}
-              >
-                Copy All Codes
-              </Button>
-
-              <Divider />
-
-              <Text size='sm' fw={500}>Verify Setup</Text>
-              <Text size='xs' c='dimmed'>
-                Enter the 6-digit code from your authenticator app to confirm setup.
-              </Text>
-              <Group justify='center'>
-                <PinInput
-                  length={6}
-                  value={totpVerifyCode}
-                  onChange={setTotpVerifyCode}
-                  size='lg'
-                />
-              </Group>
-              {totpStatus === 'error' && <Text c='red' size='sm' ta='center'>Invalid code. Try again.</Text>}
-              <Group justify='flex-end'>
-                <Button variant='default' onClick={() => setShowTOTPSetup(false)}>Cancel</Button>
-                <Button
-                  loading={totpStatus === 'loading'}
-                  disabled={totpVerifyCode.length !== 6}
-                  onClick={() => {
-                    setTotpStatus('loading');
-                    authFetchJson('/api/totp/verify-setup', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        secret: totpSetupData.secret,
-                        code: totpVerifyCode,
-                        codes: totpSetupData.codes,
-                      }),
-                    }).then(() => {
-                      setTotpStatus('success');
-                      setTotpEnabled(true);
-                      setShowTOTPSetup(false);
-                    }).catch(() => {
-                      setTotpStatus('error');
-                    });
-                  }}
-                >
-                  Verify & Enable
-                </Button>
-              </Group>
-            </>
-          )}
-        </Stack>
-      </Modal>
-
-      <Modal
-        opened={showDisableTOTP}
-        onClose={() => setShowDisableTOTP(false)}
-        title='Disable Two-Factor Authentication'
-        centered
-      >
-        <Stack gap='md'>
-          <Text size='sm' c='dimmed'>
-            Enter your password and a valid TOTP code to disable 2FA.
-          </Text>
-          <PasswordInput
-            label='Password'
-            value={disablePassword}
-            onChange={e => setDisablePassword(e.currentTarget.value)}
-            autoComplete='current-password'
-          />
-          <Group justify='center'>
-            <PinInput
-              length={6}
-              value={disableCode}
-              onChange={setDisableCode}
-              size='lg'
-            />
-          </Group>
-          {disableStatus === 'error' && <Text c='red' size='sm' ta='center'>Invalid password or code.</Text>}
-          <Group justify='flex-end'>
-            <Button variant='default' onClick={() => setShowDisableTOTP(false)}>Cancel</Button>
-            <Button
-              color='red'
-              loading={disableStatus === 'loading'}
-              disabled={!disablePassword || disableCode.length !== 6}
-              onClick={() => {
-                setDisableStatus('loading');
-                authFetchJson('/api/totp/disable', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ password: disablePassword, code: disableCode }),
-                }).then(() => {
-                  setDisableStatus('success');
-                  setTotpEnabled(false);
-                  setShowDisableTOTP(false);
-                }).catch(() => {
-                  setDisableStatus('error');
-                });
-              }}
-            >
-              Disable 2FA
-            </Button>
-          </Group>
         </Stack>
       </Modal>
     </Stack>

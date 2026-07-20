@@ -115,20 +115,20 @@ function CreateCertificate() {
             label="Name"
             placeholder="docker-api-01"
             required
-            autoComplete="off"
+           
             {...form.getInputProps('name')}
           />
           <Textarea
             label="Description"
             placeholder="Optional description"
-            autoComplete="off"
+           
             {...form.getInputProps('description')}
           />
           <TextInput
             label="Common Name"
             placeholder="docker-api-01.homelab.local"
             required
-            autoComplete="off"
+           
             {...form.getInputProps('commonName')}
           />
 
@@ -160,13 +160,13 @@ function CreateCertificate() {
           <TextInput
             label="Organization"
             placeholder="My Homelab"
-            autoComplete="off"
+           
             {...form.getInputProps('organization')}
           />
           <Group grow>
-            <TextInput label="Country" placeholder="US" autoComplete="off" {...form.getInputProps('country')} />
-            <TextInput label="State" placeholder="California" autoComplete="off" {...form.getInputProps('state')} />
-            <TextInput label="City" placeholder="San Francisco" autoComplete="off" {...form.getInputProps('city')} />
+            <TextInput label="Country" placeholder="US" {...form.getInputProps('country')} />
+            <TextInput label="State" placeholder="California" {...form.getInputProps('state')} />
+            <TextInput label="City" placeholder="San Francisco" {...form.getInputProps('city')} />
           </Group>
 
           <Select

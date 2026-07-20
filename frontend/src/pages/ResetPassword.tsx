@@ -79,14 +79,14 @@ function ResetPassword() {
               placeholder="Minimum 6 characters"
               value={password}
               onChange={e => setPassword(e.currentTarget.value)}
-              autoComplete="new-password"
+             
               required
             />
             <PasswordInput
               label="Confirm Password"
               value={confirmPassword}
               onChange={e => setConfirmPassword(e.currentTarget.value)}
-              autoComplete="new-password"
+             
               required
             />
             {error && <Text c="red" size="sm">{error}</Text>}

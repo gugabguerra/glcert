@@ -317,7 +317,7 @@ function CADetail() {
             required
             value={emailAddress}
             onChange={(e) => setEmailAddress(e.currentTarget.value)}
-            autoComplete="off"
+           
           />
           <Group justify="flex-end">
             <Button variant="default" onClick={() => { setShowEmailDialog(false); setEmailAddress(''); }}>Cancel</Button>

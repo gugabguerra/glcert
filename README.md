@@ -7,9 +7,11 @@ For technical details (database schema, API reference, project structure), see [
 ## Features
 
 - **CA Management** -- Create or import certificate authorities with RSA, ECDSA, or Ed25519 keys. Support for passphrase-protected private keys (PKCS#8 and legacy PEM). Download CA certificates and private keys individually or as ZIP bundles.
-- **Certificate Management** -- Generate server, client, or self-signed certificates. Regenerate with custom validity periods. Full version history with restore capability.
+- **Certificate Management** -- Generate server, client, server+client, or self-signed certificates. Regenerate with custom validity periods. Full version history with restore capability.
 - **Download Bundles** -- Download certificates, private keys, CA certs, or complete ZIP/TGZ bundles with a single click.
-- **Temporary Share Links** -- Generate time-limited, single-use URLs for sharing certificates, keys, or bundles via wget/curl. No authentication required for the download link.
+- **Temporary Share Links** -- Generate time-limited, single-use URLs for sharing certificates, keys, or bundles via wget/curl. Send share links via email. No authentication required for the download link.
+- **MFA / TOTP** -- Two-factor authentication with QR code setup, 6-digit TOTP codes, and single-use backup codes. Encrypted secret storage at rest.
+- **Backup & Restore** -- Password-encrypted ZIP backup of all data. Restore merges into existing data without overwriting.
 - **Email Integration** -- SMTP support for password reset and expiration alerts. Configure in Settings with a test button.
 - **Expiration Notifications** -- Get notified via Discord, Slack, Telegram, email (SMTP), or 20+ other services when certificates or CAs are close to expiration. Configurable threshold and webhook URL.
 - **Dashboard** -- Overview of all CAs, certificates, expiring soon, and expired counts.
@@ -106,9 +108,11 @@ See the full list at [shoutrrr.nickfedor.com](https://shoutrrr.nickfedor.com/ser
 
 - **Encryption at rest** -- Private keys are encrypted using AES-256-GCM before being stored on disk
 - **Key derivation** -- The encryption passphrase is derived from the admin password using PBKDF2 with SHA-256
-- **Session management** -- Random hex tokens with 24-hour expiry
+- **Session management** -- Random hex tokens with 24-hour expiry and 30-minute idle timeout
+- **MFA / TOTP** -- Optional two-factor authentication with encrypted secret storage and single-use backup codes
 - **Share links** -- Single-use, 15-minute expiry, cryptographically random 32-char tokens
 - **Password hashing** -- bcrypt with automatic salting
+- **Password manager prevention** -- All form inputs configured to disable browser autofill
 
 ## License
 

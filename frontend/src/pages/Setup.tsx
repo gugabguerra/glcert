@@ -99,7 +99,7 @@ function Setup() {
             type="email"
             value={email}
             onChange={e => setEmail(e.currentTarget.value)}
-            autoComplete="email"
+           
             required
           />
           <PasswordInput
@@ -107,14 +107,14 @@ function Setup() {
             placeholder="Minimum 6 characters"
             value={password}
             onChange={e => setPassword(e.currentTarget.value)}
-            autoComplete="new-password"
+           
             required
           />
           <PasswordInput
             label="Confirm Password"
             value={confirmPassword}
             onChange={e => setConfirmPassword(e.currentTarget.value)}
-            autoComplete="new-password"
+           
             required
           />
           {error && <Text c="red" size="sm">{error}</Text>}
@@ -134,14 +134,14 @@ function Setup() {
             placeholder="Minimum 8 characters"
             value={encryptionPassphrase}
             onChange={e => setEncryptionPassphrase(e.currentTarget.value)}
-            autoComplete="off"
+           
             required
           />
           <PasswordInput
             label="Confirm Passphrase"
             value={confirmPassphrase}
             onChange={e => setConfirmPassphrase(e.currentTarget.value)}
-            autoComplete="off"
+           
             required
           />
           {error && <Text c="red" size="sm">{error}</Text>}
@@ -162,7 +162,7 @@ function Setup() {
             placeholder="My Company"
             value={organization}
             onChange={e => setOrganization(e.currentTarget.value)}
-            autoComplete="organization"
+           
           />
           <Group grow>
             <TextInput
@@ -170,14 +170,14 @@ function Setup() {
               placeholder="US"
               value={country}
               onChange={e => setCountry(e.currentTarget.value)}
-              autoComplete="country-name"
+             
             />
             <TextInput
               label="State"
               placeholder="California"
               value={state}
               onChange={e => setState(e.currentTarget.value)}
-              autoComplete="address-level1"
+             
             />
           </Group>
           <TextInput
@@ -185,7 +185,7 @@ function Setup() {
             placeholder="San Francisco"
             value={city}
             onChange={e => setCity(e.currentTarget.value)}
-            autoComplete="address-level2"
+           
           />
           {error && <Text c="red" size="sm">{error}</Text>}
           <Group justify="space-between">

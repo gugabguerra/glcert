@@ -52,7 +52,7 @@ function ForgotPassword() {
               type="email"
               value={email}
               onChange={e => setEmail(e.currentTarget.value)}
-              autoComplete="email"
+             
               required
             />
             <Button type="submit" fullWidth loading={loading}>

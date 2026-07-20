@@ -2,7 +2,7 @@
 
 ## Database Model
 
-GLCert uses SQLite with 7 tables:
+GLCert uses SQLite with 9 tables:
 
 ### admin
 
@@ -14,6 +14,8 @@ Singleton table storing the admin account.
 | email         | TEXT NOT NULL | Login ID |
 | password_hash | TEXT NOT NULL | bcrypt   |
 | created_at    | DATETIME      |          |
+| totp_secret   | BLOB          | AES-GCM encrypted, nullable |
+| totp_enabled  | BOOLEAN       | DEFAULT FALSE |
 
 ### settings
 
@@ -110,6 +112,26 @@ Singleton table storing application configuration.
 | expires_at  | DATETIME NOT NULL    | 15 minutes                                     |
 | created_at  | DATETIME             |                                                |
 
+### pending_sessions
+
+Used during two-factor authentication flow. Stores temporary tokens for users who have authenticated with password but need to complete TOTP verification.
+
+| Column     | Type     | Notes                          |
+| ---------- | -------- | ------------------------------ |
+| token      | TEXT PK  | Random hex token               |
+| expires_at | DATETIME | NOT NULL, 5-minute expiry      |
+
+### backup_codes
+
+Single-use backup codes for TOTP recovery. Stored as SHA-256 hashes.
+
+| Column     | Type           | Notes                      |
+| ---------- | -------------- | -------------------------- |
+| id         | INTEGER PK     | AUTOINCREMENT              |
+| code_hash  | TEXT NOT NULL  | SHA-256 hash of backup code |
+| used       | BOOLEAN        | DEFAULT FALSE              |
+| created_at | DATETIME       | DEFAULT CURRENT_TIMESTAMP  |
+
 ### Entity Relationships
 
 ```
@@ -120,6 +142,8 @@ certificate_authorities 1 --< certificates
 certificates 1 --< certificate_versions
 certificate_authorities 1 --< share_links (entity_type='ca')
 certificates 1 --< share_links (entity_type='certificate')
+admin 1 --< pending_sessions
+admin 1 --< backup_codes
 ```
 
 ## API Reference
@@ -134,6 +158,8 @@ certificates 1 --< share_links (entity_type='certificate')
 | POST   | /api/auth/login          | Login                          |
 | POST   | /api/auth/forgot-password | Request password reset email  |
 | POST   | /api/auth/reset-password | Reset password with token      |
+| POST   | /api/totp/verify         | Verify TOTP code (during login)|
+| POST   | /api/backup/restore      | Restore from encrypted backup  |
 | GET    | /api/share/{token}       | Download bundle via share link |
 
 ### Protected Routes (Bearer token required)
@@ -147,7 +173,14 @@ certificates 1 --< share_links (entity_type='certificate')
 | GET    | /api/settings                                     | Get settings           |
 | PUT    | /api/settings                                     | Update settings        |
 | POST   | /api/notifications/test                           | Send test notification |
+| POST   | /api/notifications/test-email                     | Send test email        |
 | POST   | /api/share/{type}/{id}                            | Generate share link    |
+| POST   | /api/share/send-email                             | Send share link via email |
+| POST   | /api/backup/create                                | Create backup          |
+| GET    | /api/totp/status                                  | Get TOTP status        |
+| GET    | /api/totp/setup                                   | Generate TOTP secret + QR |
+| POST   | /api/totp/verify-setup                            | Verify and enable TOTP |
+| POST   | /api/totp/disable                                 | Disable TOTP           |
 | GET    | /api/ca                                           | List CAs               |
 | POST   | /api/ca                                           | Create CA              |
 | POST   | /api/ca/import                                    | Import external CA     |
@@ -167,7 +200,7 @@ certificates 1 --< share_links (entity_type='certificate')
 | GET    | /api/certificates/{id}/download/cert              | Download cert PEM      |
 | GET    | /api/certificates/{id}/download/key               | Download key PEM       |
 | GET    | /api/certificates/{id}/download/ca                | Download CA PEM        |
-| GET    | /api/certificates/{id}/download/bundle            | Download ZIP bundle    |
+| GET    | /api/certificates/{id}/download/bundle            | Download bundle (ZIP/TGZ) |
 
 ## Project Structure
 
@@ -176,42 +209,50 @@ glcert/
   backend/
     cmd/server/main.go          Entry point, routes, scheduler
     internal/
-      config/config.go          Environment variable loading
+      backup/
+        backup.go               Backup/restore with encrypted ZIP
+      config/
+        config.go               Environment variable loading
       database/
         database.go             SQLite connection
         migrations.go           Schema creation and migrations
       handlers/
+        admin.go                Factory reset
         auth.go                 Login, setup, logout, password, forgot/reset
+        backup.go               Backup create/restore endpoints
         bundle.go               Shared ZIP/TGZ bundle writer
         ca.go                   CA CRUD, downloads, and import
         cert.go                 Certificate CRUD, versions, downloads
         handlers.go             Settings and dashboard
         middleware.go           Auth middleware (Bearer token)
         notification.go         Test notification endpoint
-        share.go                Temporary link generation and serving
+        share.go                Temporary link generation, serving, email
         static.go               SPA file server
+        totp.go                 TOTP setup, verify, disable endpoints
       models/models.go          Domain models
       services/
-        auth.go                 bcrypt, session management, reset tokens
+        auth.go                 bcrypt, session management, reset tokens, pending sessions
         ca.go                   CA creation, import, encryption, file I/O
         cert.go                 Certificate creation, encryption, file I/O
         crypto.go               AES-GCM encryption for keys at rest
         email.go                SMTP client for password reset and alerts
         notification.go         Shoutrrr integration, expiration checker
+        totp.go                 TOTP secret generation, validation, backup codes
     go.mod
   frontend/
     src/
       api.ts                    API utilities (authFetch, downloadFile)
-      auth.tsx                  Auth context and provider
-      App.tsx                   Routes, layout, mobile menu
+      auth.tsx                  Auth context and provider, 30-min idle timeout
+      App.tsx                   Routes, layout, mobile menu, profile drawer
       main.tsx                  Mantine provider, theme config
       pages/
-        Login.tsx               Login form (email-based)
+        Login.tsx               Two-step login (credentials + TOTP)
         ForgotPassword.tsx      Password reset request form
         ResetPassword.tsx       New password form (via token)
         Setup.tsx               3-step setup wizard
         Dashboard.tsx           Stats cards
-        Settings.tsx            Certificate defaults, appearance, notifications, email, security
+        Settings.tsx            Certificate defaults, notifications, email, danger zone
+        UserProfile.tsx         Appearance, security (password + TOTP), sign out
         CertificateAuthorities.tsx  CA list
         CreateCA.tsx            CA creation form
         ImportCA.tsx            Import external CA

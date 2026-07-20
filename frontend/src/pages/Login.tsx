@@ -128,7 +128,7 @@ function Login() {
             type="email"
             value={email}
             onChange={e => setEmail(e.currentTarget.value)}
-            autoComplete="email"
+           
             required
           />
           <PasswordInput
@@ -136,7 +136,7 @@ function Login() {
             placeholder="Your password"
             value={password}
             onChange={e => setPassword(e.currentTarget.value)}
-            autoComplete="current-password"
+           
             required
           />
           <Anchor component={Link} to="/forgot-password" size="sm">
