@@ -26,7 +26,7 @@ For technical details (database schema, API reference, project structure), see [
 | Layer | Technology |
 |---|---|
 | Backend | Go 1.24, Chi router, crypto/x509 |
-| Frontend | React 18, TypeScript, Mantine UI v7, Vite |
+| Frontend | React 19, TypeScript, Mantine UI v9, Vite |
 | Database | SQLite (pure-Go driver, no CGO required) |
 | Notifications | Shoutrrr (nicholas-fedor/shoutrrr v0.16.1) |
 | Deployment | Docker (multi-stage build), Docker Compose |
