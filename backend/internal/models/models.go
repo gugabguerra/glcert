@@ -35,6 +35,7 @@ type CertificateAuthority struct {
 	ExpiresAt                time.Time `json:"expiresAt"`
 	CurrentVersion           int       `json:"currentVersion"`
 	KeyEncryptedPassphrase   []byte    `json:"-"`
+	ParentCAID               *string   `json:"parentCaId"`
 }
 
 type Certificate struct {

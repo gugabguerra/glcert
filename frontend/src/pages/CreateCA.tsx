@@ -1,4 +1,4 @@
-import { Title, TextInput, Select, NumberInput, Button, Stack, Group, Textarea, Text, PasswordInput } from '@mantine/core';
+import { Title, TextInput, Select, NumberInput, Button, Stack, Group, Textarea, Text, PasswordInput, Radio } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
@@ -15,6 +15,12 @@ interface Settings {
   defaultValidityDays: number;
 }
 
+interface CA {
+  id: string;
+  name: string;
+  parentCaId?: string | null;
+}
+
 function CreateCA() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -24,8 +30,14 @@ function CreateCA() {
     queryFn: () => authFetchJson('/api/settings'),
   });
 
+  const { data: cas = [] } = useQuery<CA[]>({
+    queryKey: ['cas'],
+    queryFn: () => authFetchJson('/api/ca'),
+  });
+
   const form = useForm({
     initialValues: {
+      caType: 'root' as 'root' | 'intermediate',
       name: '',
       description: '',
       commonName: '',
@@ -38,6 +50,7 @@ function CreateCA() {
       rsaKeySize: 2048,
       validityDays: 3650,
       passphrase: '',
+      parentCaId: null as string | null,
     },
   });
 
@@ -55,17 +68,27 @@ function CreateCA() {
   }
 
   const mutation = useMutation({
-    mutationFn: (values: typeof form.values) =>
-      authFetchJson('/api/ca', {
+    mutationFn: (values: typeof form.values) => {
+      const payload = {
+        ...values,
+        parentCaId: values.caType === 'intermediate' ? values.parentCaId : null,
+      };
+      return authFetchJson('/api/ca', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values),
-      }),
+        body: JSON.stringify(payload),
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cas'] });
       navigate('/ca');
     },
   });
+
+  // Only root CAs (those without parentCaId) can be parents
+  const rootCAs = cas.filter(ca => !ca.parentCaId);
+  const caOptions = rootCAs.map(ca => ({ value: ca.id, label: ca.name }));
+  const isIntermediate = form.values.caType === 'intermediate';
 
   return (
     <Stack>
@@ -73,9 +96,35 @@ function CreateCA() {
 
       <form onSubmit={form.onSubmit((values) => mutation.mutate(values))}>
         <Stack gap="md">
+          <Radio.Group
+            label="Type"
+            value={form.values.caType}
+            onChange={(value) => {
+              form.setFieldValue('caType', value as 'root' | 'intermediate');
+              if (value === 'root') form.setFieldValue('parentCaId', null);
+            }}
+          >
+            <Group mt="xs">
+              <Radio value="root" label="Root CA" />
+              <Radio value="intermediate" label="Intermediate CA" />
+            </Group>
+          </Radio.Group>
+
+          {isIntermediate && (
+            <Select
+              label="Root CA"
+              placeholder="Select a root CA"
+              data={caOptions}
+              searchable
+              required
+              value={form.values.parentCaId}
+              onChange={(value) => form.setFieldValue('parentCaId', value)}
+            />
+          )}
+
           <TextInput
-            label="Name"
-            placeholder="HomeLab"
+            label="Display Name"
+            placeholder="MyCompany"
             description="A friendly name for this CA"
             required
            
@@ -89,7 +138,7 @@ function CreateCA() {
           />
           <TextInput
             label="Common Name"
-            placeholder="HomeLab CA"
+            placeholder="MyCompany"
             required
            
             {...form.getInputProps('commonName')}
@@ -97,7 +146,7 @@ function CreateCA() {
 
           <TextInput
             label="Organization"
-            placeholder="My Homelab"
+            placeholder="My Company Department"
            
             {...form.getInputProps('organization')}
           />
@@ -123,7 +172,7 @@ function CreateCA() {
           </Group>
           <TextInput
             label="Email"
-            placeholder="admin@homelab.local"
+            placeholder="admin@mycompany.com"
            
             {...form.getInputProps('email')}
           />
@@ -174,7 +223,7 @@ function CreateCA() {
               Cancel
             </Button>
             <Button type="submit" loading={mutation.isPending}>
-              Create CA
+              {isIntermediate ? 'Create Intermediate CA' : 'Create CA'}
             </Button>
           </Group>
         </Stack>

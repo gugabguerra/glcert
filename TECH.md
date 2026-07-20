@@ -61,6 +61,7 @@ Singleton table storing application configuration.
 | last_notified_at           | DATETIME          | nullable                  |
 | key_encrypted_passphrase   | BLOB              | AES-GCM encrypted, nullable |
 | imported                   | BOOLEAN           | DEFAULT FALSE             |
+| parent_ca_id               | TEXT              | FK -> certificate_authorities(id), nullable. NULL = Root CA |
 
 ### certificates
 
@@ -139,6 +140,7 @@ admin (singleton)
 settings (singleton)
 
 certificate_authorities 1 --< certificates
+certificate_authorities 1 --< certificate_authorities (parent_ca_id, for intermediate CAs)
 certificates 1 --< certificate_versions
 certificate_authorities 1 --< share_links (entity_type='ca')
 certificates 1 --< share_links (entity_type='certificate')

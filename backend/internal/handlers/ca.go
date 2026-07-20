@@ -36,32 +36,35 @@ func (h *CAHandler) getPassphrase(caID string) string {
 }
 
 type CreateCARequest struct {
-	Name         string `json:"name"`
-	Description  string `json:"description"`
-	CommonName   string `json:"commonName"`
-	Organization string `json:"organization"`
-	Country      string `json:"country"`
-	State        string `json:"state"`
-	City         string `json:"city"`
-	Email        string `json:"email"`
-	KeyAlgorithm string `json:"keyAlgorithm"`
-	RSAKeySize   int    `json:"rsaKeySize"`
-	ValidityDays int    `json:"validityDays"`
-	Passphrase   string `json:"passphrase"`
+	Name         string  `json:"name"`
+	Description  string  `json:"description"`
+	CommonName   string  `json:"commonName"`
+	Organization string  `json:"organization"`
+	Country      string  `json:"country"`
+	State        string  `json:"state"`
+	City         string  `json:"city"`
+	Email        string  `json:"email"`
+	KeyAlgorithm string  `json:"keyAlgorithm"`
+	RSAKeySize   int     `json:"rsaKeySize"`
+	ValidityDays int     `json:"validityDays"`
+	Passphrase   string  `json:"passphrase"`
+	ParentCAID   *string `json:"parentCaId"`
 }
 
 type ImportCARequest struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	CertPEM     string `json:"certPem"`
-	KeyPEM      string `json:"keyPem"`
-	Passphrase  string `json:"passphrase"`
+	Name        string  `json:"name"`
+	Description string  `json:"description"`
+	CertPEM     string  `json:"certPem"`
+	KeyPEM      string  `json:"keyPem"`
+	Passphrase  string  `json:"passphrase"`
+	ParentCAID  *string `json:"parentCaId"`
 }
 
 func (h *CAHandler) List(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.db.Query(`
 		SELECT id, name, description, subject, created_at, expires_at, current_version,
-			COALESCE(key_encrypted_passphrase, X''), COALESCE(imported, FALSE)
+			COALESCE(key_encrypted_passphrase, X''), COALESCE(imported, FALSE),
+			COALESCE(parent_ca_id, '')
 		FROM certificate_authorities ORDER BY created_at DESC
 	`)
 	if err != nil {
@@ -71,26 +74,31 @@ func (h *CAHandler) List(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	type CAResponse struct {
-		ID             string `json:"id"`
-		Name           string `json:"name"`
-		Description    string `json:"description"`
-		Subject        string `json:"subject"`
-		CreatedAt      string `json:"createdAt"`
-		ExpiresAt      string `json:"expiresAt"`
-		CurrentVersion int    `json:"currentVersion"`
-		HasPassphrase  bool   `json:"hasPassphrase"`
-		Imported       bool   `json:"imported"`
+		ID             string  `json:"id"`
+		Name           string  `json:"name"`
+		Description    string  `json:"description"`
+		Subject        string  `json:"subject"`
+		CreatedAt      string  `json:"createdAt"`
+		ExpiresAt      string  `json:"expiresAt"`
+		CurrentVersion int     `json:"currentVersion"`
+		HasPassphrase  bool    `json:"hasPassphrase"`
+		Imported       bool    `json:"imported"`
+		ParentCAID     *string `json:"parentCaId"`
 	}
 
 	var cas []CAResponse
 	for rows.Next() {
 		var ca CAResponse
 		var encPassphrase []byte
-		if err := rows.Scan(&ca.ID, &ca.Name, &ca.Description, &ca.Subject, &ca.CreatedAt, &ca.ExpiresAt, &ca.CurrentVersion, &encPassphrase, &ca.Imported); err != nil {
+		var parentID string
+		if err := rows.Scan(&ca.ID, &ca.Name, &ca.Description, &ca.Subject, &ca.CreatedAt, &ca.ExpiresAt, &ca.CurrentVersion, &encPassphrase, &ca.Imported, &parentID); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		ca.HasPassphrase = len(encPassphrase) > 0
+		if parentID != "" {
+			ca.ParentCAID = &parentID
+		}
 		cas = append(cas, ca)
 	}
 
@@ -108,11 +116,13 @@ func (h *CAHandler) Get(w http.ResponseWriter, r *http.Request) {
 	var ca models.CertificateAuthority
 	var encPassphrase []byte
 	var imported bool
+	var parentID sql.NullString
 	err := h.db.QueryRow(`
 		SELECT id, name, description, subject, created_at, expires_at, current_version,
-			COALESCE(key_encrypted_passphrase, X''), COALESCE(imported, FALSE)
+			COALESCE(key_encrypted_passphrase, X''), COALESCE(imported, FALSE),
+			parent_ca_id
 		FROM certificate_authorities WHERE id = ?
-	`, id).Scan(&ca.ID, &ca.Name, &ca.Description, &ca.Subject, &ca.CreatedAt, &ca.ExpiresAt, &ca.CurrentVersion, &encPassphrase, &imported)
+	`, id).Scan(&ca.ID, &ca.Name, &ca.Description, &ca.Subject, &ca.CreatedAt, &ca.ExpiresAt, &ca.CurrentVersion, &encPassphrase, &imported, &parentID)
 	if err == sql.ErrNoRows {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
@@ -123,19 +133,20 @@ func (h *CAHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type CAResponse struct {
-		ID               string `json:"id"`
-		Name             string `json:"name"`
-		Description      string `json:"description"`
-		Subject          string `json:"subject"`
-		CreatedAt        string `json:"createdAt"`
-		ExpiresAt        string `json:"expiresAt"`
-		CurrentVersion   int    `json:"currentVersion"`
-		HasPassphrase    bool   `json:"hasPassphrase"`
-		Imported         bool   `json:"imported"`
+		ID               string  `json:"id"`
+		Name             string  `json:"name"`
+		Description      string  `json:"description"`
+		Subject          string  `json:"subject"`
+		CreatedAt        string  `json:"createdAt"`
+		ExpiresAt        string  `json:"expiresAt"`
+		CurrentVersion   int     `json:"currentVersion"`
+		HasPassphrase    bool    `json:"hasPassphrase"`
+		Imported         bool    `json:"imported"`
+		ParentCAID       *string `json:"parentCaId"`
+		ParentCAName     *string `json:"parentCaName"`
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(CAResponse{
+	resp := CAResponse{
 		ID:             ca.ID,
 		Name:           ca.Name,
 		Description:    ca.Description,
@@ -145,7 +156,18 @@ func (h *CAHandler) Get(w http.ResponseWriter, r *http.Request) {
 		CurrentVersion: ca.CurrentVersion,
 		HasPassphrase:  len(encPassphrase) > 0,
 		Imported:       imported,
-	})
+	}
+
+	if parentID.Valid && parentID.String != "" {
+		resp.ParentCAID = &parentID.String
+		var parentName string
+		if err := h.db.QueryRow("SELECT name FROM certificate_authorities WHERE id = ?", parentID.String).Scan(&parentName); err == nil {
+			resp.ParentCAName = &parentName
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
 }
 
 func (h *CAHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -160,6 +182,36 @@ func (h *CAHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// If creating an intermediate CA, fetch parent CA cert and key
+	var parentCertPEM, parentKeyPEM []byte
+	if req.ParentCAID != nil && *req.ParentCAID != "" {
+		var parentName string
+		var parentVersion int
+		var parentEncPassphrase []byte
+		err := h.db.QueryRow(`
+			SELECT name, current_version, COALESCE(key_encrypted_passphrase, X'')
+			FROM certificate_authorities WHERE id = ?
+		`, *req.ParentCAID).Scan(&parentName, &parentVersion, &parentEncPassphrase)
+		if err != nil {
+			http.Error(w, "parent CA not found", http.StatusBadRequest)
+			return
+		}
+
+		var parentPassphrase string
+		if len(parentEncPassphrase) > 0 {
+			decrypted, dErr := h.crypto.Decrypt(parentEncPassphrase)
+			if dErr == nil {
+				parentPassphrase = string(decrypted)
+			}
+		}
+
+		parentCertPEM, parentKeyPEM, err = h.ca.ReadCA(parentName, parentVersion, parentPassphrase)
+		if err != nil {
+			http.Error(w, "failed to read parent CA: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
 	caModel, certPEM, keyPEM, err := h.ca.GenerateCA(services.CreateCAInput{
 		Name:         req.Name,
 		Description:  req.Description,
@@ -172,7 +224,8 @@ func (h *CAHandler) Create(w http.ResponseWriter, r *http.Request) {
 		KeyAlgorithm: req.KeyAlgorithm,
 		RSAKeySize:   req.RSAKeySize,
 		ValidityDays: req.ValidityDays,
-	})
+		ParentCAID:   req.ParentCAID,
+	}, parentCertPEM, parentKeyPEM)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -204,9 +257,9 @@ func (h *CAHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_, err = h.db.Exec(`
-		INSERT INTO certificate_authorities (id, name, description, subject, expires_at, current_version, key_encrypted_passphrase)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`, id, caModel.Name, caModel.Description, caModel.Subject, caModel.ExpiresAt, 1, encPassphrase)
+		INSERT INTO certificate_authorities (id, name, description, subject, expires_at, current_version, key_encrypted_passphrase, parent_ca_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`, id, caModel.Name, caModel.Description, caModel.Subject, caModel.ExpiresAt, 1, encPassphrase, req.ParentCAID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -232,6 +285,9 @@ func (h *CAHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	// Orphan child CAs by clearing their parent reference
+	h.db.Exec("UPDATE certificate_authorities SET parent_ca_id = NULL WHERE parent_ca_id = ?", id)
 
 	if _, err := h.db.Exec("DELETE FROM certificate_authorities WHERE id = ?", id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -372,9 +428,9 @@ func (h *CAHandler) Import(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_, err = h.db.Exec(`
-		INSERT INTO certificate_authorities (id, name, description, subject, expires_at, current_version, key_encrypted_passphrase, imported)
-		VALUES (?, ?, ?, ?, ?, ?, ?, TRUE)
-	`, id, caModel.Name, caModel.Description, caModel.Subject, caModel.ExpiresAt, 1, encPassphrase)
+		INSERT INTO certificate_authorities (id, name, description, subject, expires_at, current_version, key_encrypted_passphrase, imported, parent_ca_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, TRUE, ?)
+	`, id, caModel.Name, caModel.Description, caModel.Subject, caModel.ExpiresAt, 1, encPassphrase, req.ParentCAID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

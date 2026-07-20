@@ -176,7 +176,7 @@ function SettingsPage() {
           <Stack gap='md'>
             <TextInput
               label='Organization'
-              placeholder='My Homelab'
+              placeholder='My Company'
               {...form.getInputProps('organization')}
             />
             <Group grow>
@@ -186,7 +186,7 @@ function SettingsPage() {
             </Group>
             <TextInput
               label='Email'
-              placeholder='admin@homelab.local'
+              placeholder='admin@mycompany.com'
               {...form.getInputProps('email')}
             />
             <Select
@@ -289,7 +289,7 @@ function SettingsPage() {
           <NumberInput label="SMTP Port" min={1} max={65535} value={smtpPort} onChange={v => setSmtpPort(Number(v) || 587)} />
           <TextInput label="SMTP Username" placeholder="your@email.com" value={smtpUsername} onChange={e => setSmtpUsername(e.currentTarget.value)} />
           <PasswordInput label="SMTP Password" value={smtpPassword} onChange={e => setSmtpPassword(e.currentTarget.value)} placeholder="Leave empty to keep current" />
-          <TextInput label="From Email" placeholder="noreply@homelab.local" value={smtpFromEmail} onChange={e => setSmtpFromEmail(e.currentTarget.value)} />
+          <TextInput label="From Email" placeholder="noreply@mycompany.com" value={smtpFromEmail} onChange={e => setSmtpFromEmail(e.currentTarget.value)} />
           <TextInput label="From Name" placeholder="GLCert" value={smtpFromName} onChange={e => setSmtpFromName(e.currentTarget.value)} />
           <Switch label="Send expiration alerts via email" checked={emailNotificationsEnabled} onChange={e => setEmailNotificationsEnabled(e.currentTarget.checked)} />
           <Group justify="space-between">

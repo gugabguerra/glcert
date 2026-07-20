@@ -1,12 +1,12 @@
 # GLCert
 
-Self-hosted PKI manager for homelab environments. Generate and manage TLS certificates without using OpenSSL.
+Self-hosted PKI manager for lab and private environments. Generate and manage TLS certificates without using OpenSSL.
 
 For technical details (database schema, API reference, project structure), see [TECH.md](TECH.md).
 
 ## Features
 
-- **CA Management** -- Create or import certificate authorities with RSA, ECDSA, or Ed25519 keys. Support for passphrase-protected private keys (PKCS#8 and legacy PEM). Download CA certificates and private keys individually or as ZIP bundles.
+- **CA Management** -- Create or import certificate authorities with RSA, ECDSA, or Ed25519 keys. Support for passphrase-protected private keys (PKCS#8 and legacy PEM). Create intermediate CAs signed by a parent CA with automatic chain management. Download CA certificates and private keys individually or as ZIP bundles.
 - **Certificate Management** -- Generate server, client, server+client, or self-signed certificates. Regenerate with custom validity periods. Full version history with restore capability.
 - **Download Bundles** -- Download certificates, private keys, CA certs, or complete ZIP/TGZ bundles with a single click.
 - **Temporary Share Links** -- Generate time-limited, single-use URLs for sharing certificates, keys, or bundles via wget/curl. Send share links via email. No authentication required for the download link.

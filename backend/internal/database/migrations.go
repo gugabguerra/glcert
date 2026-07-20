@@ -156,6 +156,7 @@ func migrate(db *sql.DB) error {
 		`ALTER TABLE certificate_authorities ADD COLUMN key_encrypted_passphrase BLOB`,
 		`ALTER TABLE certificate_authorities ADD COLUMN imported BOOLEAN DEFAULT FALSE`,
 		`ALTER TABLE certificates ADD COLUMN ca_subject TEXT DEFAULT ''`,
+		`ALTER TABLE certificate_authorities ADD COLUMN parent_ca_id TEXT`,
 	}
 
 	for _, q := range passphraseAlterQueries {

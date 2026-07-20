@@ -1,6 +1,6 @@
-import { Title, Text, Button, Group, Stack, Badge, Divider, ActionIcon, Center, Loader, Tooltip, TextInput, Modal, Radio, Menu, Code, Box } from '@mantine/core';
+import { Title, Text, Button, Group, Stack, Badge, Divider, ActionIcon, Center, Loader, Tooltip, TextInput, Modal, Radio, Menu, Code, Box, Anchor } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { IconDownload, IconTrash, IconLink, IconClipboard, IconMail } from '@tabler/icons-react';
 import { useState } from 'react';
 import { notifications } from '@mantine/notifications';
@@ -17,6 +17,8 @@ interface CertificateAuthority {
   currentVersion: number;
   hasPassphrase: boolean;
   imported: boolean;
+  parentCaId?: string | null;
+  parentCaName?: string | null;
 }
 
 function CADetail() {
@@ -48,6 +50,10 @@ function CADetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cas'] });
       navigate('/ca');
+    },
+    onError: () => {
+      notifications.show({ message: 'Failed to delete CA', color: 'red' });
+      setShowDelete(false);
     },
   });
 
@@ -170,7 +176,18 @@ function CADetail() {
           {ca.imported && (
             <Badge color="violet" variant="light">Imported</Badge>
           )}
+          {ca.parentCaId && (
+            <Badge color="blue" variant="light">Intermediate CA</Badge>
+          )}
         </Group>
+        {ca.parentCaId && (
+          <Group>
+            <Text fw={500}>Parent CA:</Text>
+            <Anchor component={Link} to={`/ca/${ca.parentCaId}`}>
+              {ca.parentCaName || 'Unknown'}
+            </Anchor>
+          </Group>
+        )}
       </Stack>
 
       <Divider />

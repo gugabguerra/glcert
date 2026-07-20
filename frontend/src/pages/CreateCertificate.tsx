@@ -7,6 +7,7 @@ import { authFetchJson } from '../api';
 interface CA {
   id: string;
   name: string;
+  parentCaId?: string | null;
 }
 
 interface Settings {
@@ -64,7 +65,34 @@ function CreateCertificate() {
     });
   }
 
-  const caOptions = cas.map((ca) => ({ value: String(ca.id), label: ca.name }));
+  // Build hierarchical CA options with indentation
+  const caOptions = (() => {
+    const childrenMap = new Map<string, CA[]>();
+    const roots: CA[] = [];
+
+    for (const ca of cas) {
+      if (ca.parentCaId) {
+        const siblings = childrenMap.get(ca.parentCaId) || [];
+        siblings.push(ca);
+        childrenMap.set(ca.parentCaId, siblings);
+      } else {
+        roots.push(ca);
+      }
+    }
+
+    const result: { value: string; label: string }[] = [];
+    function addNodes(nodes: CA[], depth: number) {
+      for (const ca of nodes) {
+        const indent = '  '.repeat(depth);
+        const prefix = depth > 0 ? '└ ' : '';
+        result.push({ value: ca.id, label: `${indent}${prefix}${ca.name}` });
+        const children = childrenMap.get(ca.id) || [];
+        if (children.length > 0) addNodes(children, depth + 1);
+      }
+    }
+    addNodes(roots, 0);
+    return result;
+  })();
   const hasCA = cas.length > 0;
 
   const typeData = hasCA
@@ -126,7 +154,7 @@ function CreateCertificate() {
           />
           <TextInput
             label="Common Name"
-            placeholder="docker-api-01.homelab.local"
+            placeholder="docker-api-01.mycompany.com"
             required
            
             {...form.getInputProps('commonName')}
@@ -146,7 +174,7 @@ function CreateCertificate() {
           <TagsInput
             label="DNS Names"
             placeholder="Add DNS name and press Enter"
-            description="e.g., docker-api-01.homelab.local, docker-api.homelab.local"
+            description="e.g., docker-api-01.mycompany.com, docker-api.mycompany.com"
             {...form.getInputProps('dnsNames')}
           />
 
@@ -159,7 +187,7 @@ function CreateCertificate() {
 
           <TextInput
             label="Organization"
-            placeholder="My Homelab"
+            placeholder="My Company Department"
            
             {...form.getInputProps('organization')}
           />

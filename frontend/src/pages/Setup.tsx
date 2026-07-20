@@ -159,7 +159,7 @@ function Setup() {
           </Text>
           <TextInput
             label="Organization"
-            placeholder="My Company"
+            placeholder="My Company Department"
             value={organization}
             onChange={e => setOrganization(e.currentTarget.value)}
            

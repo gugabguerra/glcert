@@ -27,20 +27,24 @@ func NewCAService(dataDir string, crypto *CryptoService) *CAService {
 }
 
 type CreateCAInput struct {
-	Name           string `json:"name"`
-	Description    string `json:"description"`
-	CommonName     string `json:"commonName"`
-	Organization   string `json:"organization"`
-	Country        string `json:"country"`
-	State          string `json:"state"`
-	City           string `json:"city"`
-	Email          string `json:"email"`
-	KeyAlgorithm   string `json:"keyAlgorithm"`
-	RSAKeySize     int    `json:"rsaKeySize"`
-	ValidityDays   int    `json:"validityDays"`
+	Name           string  `json:"name"`
+	Description    string  `json:"description"`
+	CommonName     string  `json:"commonName"`
+	Organization   string  `json:"organization"`
+	Country        string  `json:"country"`
+	State          string  `json:"state"`
+	City           string  `json:"city"`
+	Email          string  `json:"email"`
+	KeyAlgorithm   string  `json:"keyAlgorithm"`
+	RSAKeySize     int     `json:"rsaKeySize"`
+	ValidityDays   int     `json:"validityDays"`
+	ParentCAID     *string `json:"parentCaId"`
 }
 
-func (s *CAService) GenerateCA(input CreateCAInput) (*models.CertificateAuthority, []byte, []byte, error) {
+// GenerateCA creates a new CA certificate. If ParentCAID is set, it creates an
+// intermediate CA signed by the parent. Otherwise, it creates a self-signed root CA.
+// Returns the model, cert PEM (chain for intermediates), and key PEM.
+func (s *CAService) GenerateCA(input CreateCAInput, parentCertPEM, parentKeyPEM []byte) (*models.CertificateAuthority, []byte, []byte, error) {
 	if input.RSAKeySize == 0 {
 		input.RSAKeySize = 2048
 	}
@@ -73,15 +77,59 @@ func (s *CAService) GenerateCA(input CreateCAInput) (*models.CertificateAuthorit
 		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
 		BasicConstraintsValid: true,
 		IsCA:                  true,
-		MaxPathLen:            1,
 	}
 
-	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &privKey.PublicKey, privKey)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("create certificate: %w", err)
+	var certDER []byte
+	var certPEM []byte
+	isIntermediate := input.ParentCAID != nil && parentCertPEM != nil && parentKeyPEM != nil
+
+	if isIntermediate {
+		// Intermediate CA: signed by parent, MaxPathLen=0 (can only sign end-entity certs)
+		template.MaxPathLen = 0
+
+		parentCertBlock, _ := pem.Decode(parentCertPEM)
+		if parentCertBlock == nil {
+			return nil, nil, nil, fmt.Errorf("decode parent CA certificate PEM")
+		}
+		parentCert, err := x509.ParseCertificate(parentCertBlock.Bytes)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("parse parent CA certificate: %w", err)
+		}
+
+		parentKey, err := parsePrivateKeyWithPassphrase(parentKeyPEM, nil)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("parse parent CA key: %w", err)
+		}
+
+		var signingKey interface{}
+		switch k := parentKey.(type) {
+		case *rsa.PrivateKey:
+			signingKey = k
+		case *ecdsa.PrivateKey:
+			signingKey = k
+		default:
+			return nil, nil, nil, fmt.Errorf("unsupported parent CA key type: %T", parentKey)
+		}
+
+		certDER, err = x509.CreateCertificate(rand.Reader, template, parentCert, &privKey.PublicKey, signingKey)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("create intermediate certificate: %w", err)
+		}
+
+		// Build chain: intermediate cert + parent cert (full chain up to root)
+		intermediatePEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+		certPEM = append(intermediatePEM, parentCertPEM...)
+	} else {
+		// Root CA: self-signed, MaxPathLen=1
+		template.MaxPathLen = 1
+
+		certDER, err = x509.CreateCertificate(rand.Reader, template, template, &privKey.PublicKey, privKey)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("create root certificate: %w", err)
+		}
+		certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
 	}
 
-	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privKey)})
 
 	ca := &models.CertificateAuthority{
@@ -91,6 +139,7 @@ func (s *CAService) GenerateCA(input CreateCAInput) (*models.CertificateAuthorit
 		CreatedAt:      now,
 		ExpiresAt:      template.NotAfter,
 		CurrentVersion: 1,
+		ParentCAID:     input.ParentCAID,
 	}
 
 	return ca, certPEM, keyPEM, nil
