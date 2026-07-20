@@ -49,7 +49,7 @@ func (s *CAService) GenerateCA(input CreateCAInput, parentCertPEM, parentKeyPEM 
 		input.RSAKeySize = 2048
 	}
 	if input.ValidityDays == 0 {
-		input.ValidityDays = 3650
+		input.ValidityDays = 1825
 	}
 
 	privKey, err := rsa.GenerateKey(rand.Reader, input.RSAKeySize)

@@ -48,7 +48,7 @@ function CreateCA() {
       email: '',
       keyAlgorithm: 'rsa',
       rsaKeySize: 2048,
-      validityDays: 3650,
+      validityDays: 1825,
       passphrase: '',
       parentCaId: null as string | null,
     },
@@ -63,7 +63,7 @@ function CreateCA() {
       email: settings.email,
       keyAlgorithm: settings.defaultKeyAlgorithm || 'rsa',
       rsaKeySize: settings.defaultRSAKeySize || 2048,
-      validityDays: settings.defaultValidityDays || 3650,
+      validityDays: 1825,
     });
   }
 
@@ -101,12 +101,17 @@ function CreateCA() {
             value={form.values.caType}
             onChange={(value) => {
               form.setFieldValue('caType', value as 'root' | 'intermediate');
-              if (value === 'root') form.setFieldValue('parentCaId', null);
+              if (value === 'root') {
+                form.setFieldValue('parentCaId', null);
+                form.setFieldValue('validityDays', 1825);
+              } else {
+                form.setFieldValue('validityDays', settings?.defaultValidityDays || 365);
+              }
             }}
           >
             <Group mt="xs">
               <Radio value="root" label="Root CA" />
-              <Radio value="intermediate" label="Intermediate CA" />
+              <Radio value="intermediate" label="Intermediate CA" disabled={rootCAs.length === 0} />
             </Group>
           </Radio.Group>
 
