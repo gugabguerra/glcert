@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Title, Text, TextInput, PasswordInput, PinInput, Button, Stack, Paper, Group, Anchor, Image, useComputedColorScheme } from '@mantine/core';
-import { useAuth } from '../auth';
+import { useAuth, User } from '../auth';
 
 function Login() {
   const { login } = useAuth();
@@ -40,7 +40,7 @@ function Login() {
         return;
       }
 
-      login(data.token);
+      login(data.token, data.user as User);
       navigate('/');
     } catch {
       setError('Connection failed');
@@ -68,7 +68,7 @@ function Login() {
       }
 
       const data = await res.json();
-      login(data.token);
+      login(data.token, data.user as User);
       navigate('/');
     } catch {
       setError('Connection failed');

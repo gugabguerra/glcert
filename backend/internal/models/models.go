@@ -2,6 +2,15 @@ package models
 
 import "time"
 
+type User struct {
+	ID           string    `json:"id"`
+	Name         string    `json:"name"`
+	Email        string    `json:"email"`
+	Role         string    `json:"role"`
+	TOTPEnabled  bool      `json:"totpEnabled"`
+	CreatedAt    time.Time `json:"createdAt"`
+}
+
 type Settings struct {
 	ID                  int64     `json:"id"`
 	Organization        string    `json:"organization"`

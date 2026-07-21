@@ -2,19 +2,35 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: 'admin' | 'operator' | 'viewer';
+  totpEnabled: boolean;
+  createdAt: string;
+}
+
 interface AuthContextType {
   token: string | null;
+  user: User | null;
   isAuthenticated: boolean;
   isSetupComplete: boolean | null;
-  login: (token: string) => void;
+  login: (token: string, user?: User) => void;
   logout: () => void;
+  setUser: (user: User) => void;
   setSetupComplete: (complete: boolean) => void;
+  hasRole: (...roles: string[]) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('auth_token'));
+  const [user, setUser] = useState<User | null>(() => {
+    const saved = localStorage.getItem('auth_user');
+    return saved ? JSON.parse(saved) : null;
+  });
   const [isSetupComplete, setSetupComplete] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -43,7 +59,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }).catch(() => {});
     }
     localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_user');
     setToken(null);
+    setUser(null);
   }, [token]);
 
   logoutRef.current = logout;
@@ -68,18 +86,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [token, resetIdleTimer]);
 
-  const login = useCallback((newToken: string) => {
+  const login = useCallback((newToken: string, newUser?: User) => {
     localStorage.setItem('auth_token', newToken);
     setToken(newToken);
+    if (newUser) {
+      localStorage.setItem('auth_user', JSON.stringify(newUser));
+      setUser(newUser);
+    }
   }, []);
+
+  const hasRole = useCallback((...roles: string[]) => {
+    if (!user) return false;
+    return roles.includes(user.role);
+  }, [user]);
 
   const value = {
     token,
+    user,
     isAuthenticated: !!token,
     isSetupComplete,
     login,
     logout,
+    setUser,
     setSetupComplete,
+    hasRole,
   };
 
   if (loading) return null;

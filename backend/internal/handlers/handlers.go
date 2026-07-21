@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/glcert/glcert/internal/logger"
 	"github.com/glcert/glcert/internal/models"
 	"github.com/glcert/glcert/internal/services"
 )
@@ -140,6 +141,8 @@ func (h *Handler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 			encrypted, err := h.crypto.Encrypt([]byte(body.SMTPPassword))
 			if err == nil {
 				h.db.Exec("UPDATE settings SET smtp_password = ? WHERE id = 1", string(encrypted))
+			} else {
+				logger.Errorf("Failed to encrypt SMTP password: %v", err)
 			}
 		} else {
 			h.db.Exec("UPDATE settings SET smtp_password = ? WHERE id = 1", body.SMTPPassword)

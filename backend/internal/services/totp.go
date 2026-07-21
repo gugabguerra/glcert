@@ -66,13 +66,13 @@ func (s *TOTPService) GenerateSecret(email string) (*TOTPSetupResult, error) {
 	}, nil
 }
 
-func (s *TOTPService) EnableTOTP(secret string, codes []string) error {
+func (s *TOTPService) EnableTOTP(userID, secret string, codes []string) error {
 	encrypted, err := s.crypto.Encrypt([]byte(secret))
 	if err != nil {
 		return fmt.Errorf("encrypt TOTP secret: %w", err)
 	}
 
-	_, err = s.db.Exec("UPDATE admin SET totp_secret = ?, totp_enabled = TRUE WHERE id = 1", encrypted)
+	_, err = s.db.Exec("UPDATE users SET totp_secret = ?, totp_enabled = TRUE WHERE id = ?", encrypted, userID)
 	if err != nil {
 		return fmt.Errorf("save TOTP secret: %w", err)
 	}
@@ -80,7 +80,7 @@ func (s *TOTPService) EnableTOTP(secret string, codes []string) error {
 	for _, code := range codes {
 		hash := sha256.Sum256([]byte(strings.ToLower(code)))
 		hashHex := hex.EncodeToString(hash[:])
-		_, err := s.db.Exec("INSERT INTO backup_codes (code_hash) VALUES (?)", hashHex)
+		_, err := s.db.Exec("INSERT INTO backup_codes (user_id, code_hash) VALUES (?, ?)", userID, hashHex)
 		if err != nil {
 			return fmt.Errorf("save backup code: %w", err)
 		}
@@ -89,13 +89,13 @@ func (s *TOTPService) EnableTOTP(secret string, codes []string) error {
 	return nil
 }
 
-func (s *TOTPService) DisableTOTP() error {
-	_, err := s.db.Exec("UPDATE admin SET totp_secret = NULL, totp_enabled = FALSE WHERE id = 1")
+func (s *TOTPService) DisableTOTP(userID string) error {
+	_, err := s.db.Exec("UPDATE users SET totp_secret = NULL, totp_enabled = FALSE WHERE id = ?", userID)
 	if err != nil {
 		return fmt.Errorf("disable TOTP: %w", err)
 	}
 
-	_, err = s.db.Exec("DELETE FROM backup_codes")
+	_, err = s.db.Exec("DELETE FROM backup_codes WHERE user_id = ?", userID)
 	if err != nil {
 		return fmt.Errorf("delete backup codes: %w", err)
 	}
@@ -103,15 +103,15 @@ func (s *TOTPService) DisableTOTP() error {
 	return nil
 }
 
-func (s *TOTPService) IsEnabled() bool {
+func (s *TOTPService) IsEnabled(userID string) bool {
 	var enabled bool
-	err := s.db.QueryRow("SELECT totp_enabled FROM admin WHERE id = 1").Scan(&enabled)
+	err := s.db.QueryRow("SELECT totp_enabled FROM users WHERE id = ?", userID).Scan(&enabled)
 	return err == nil && enabled
 }
 
-func (s *TOTPService) ValidateCode(code string) bool {
+func (s *TOTPService) ValidateCode(userID, code string) bool {
 	var encrypted []byte
-	err := s.db.QueryRow("SELECT totp_secret FROM admin WHERE id = 1 AND totp_enabled = TRUE").Scan(&encrypted)
+	err := s.db.QueryRow("SELECT totp_secret FROM users WHERE id = ? AND totp_enabled = TRUE", userID).Scan(&encrypted)
 	if err != nil {
 		return false
 	}
@@ -124,13 +124,13 @@ func (s *TOTPService) ValidateCode(code string) bool {
 	return totp.Validate(code, string(secretBytes))
 }
 
-func (s *TOTPService) ValidateBackupCode(code string) bool {
+func (s *TOTPService) ValidateBackupCode(userID, code string) bool {
 	code = strings.ToLower(code)
 	hash := sha256.Sum256([]byte(code))
 	hashHex := hex.EncodeToString(hash[:])
 
 	var id int
-	err := s.db.QueryRow("SELECT id FROM backup_codes WHERE code_hash = ? AND used = FALSE", hashHex).Scan(&id)
+	err := s.db.QueryRow("SELECT id FROM backup_codes WHERE user_id = ? AND code_hash = ? AND used = FALSE", userID, hashHex).Scan(&id)
 	if err != nil {
 		return false
 	}
@@ -139,8 +139,8 @@ func (s *TOTPService) ValidateBackupCode(code string) bool {
 	return true
 }
 
-func (s *TOTPService) GetBackupCodes() ([]string, error) {
-	rows, err := s.db.Query("SELECT code_hash FROM backup_codes WHERE used = FALSE")
+func (s *TOTPService) GetBackupCodes(userID string) ([]string, error) {
+	rows, err := s.db.Query("SELECT code_hash FROM backup_codes WHERE user_id = ? AND used = FALSE", userID)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +154,7 @@ func (s *TOTPService) GetBackupCodes() ([]string, error) {
 		}
 		codes = append(codes, hash)
 	}
-	return codes, nil
+	return codes, rows.Err()
 }
 
 func (s *TOTPService) GenerateBackupCodes() ([]string, error) {

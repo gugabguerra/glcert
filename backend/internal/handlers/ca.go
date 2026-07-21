@@ -13,13 +13,14 @@ import (
 )
 
 type CAHandler struct {
-	db    *sql.DB
-	ca    *services.CAService
+	db     *sql.DB
+	ca     *services.CAService
 	crypto *services.CryptoService
+	auth   *services.AuthService
 }
 
-func NewCAHandler(db *sql.DB, ca *services.CAService, crypto *services.CryptoService) *CAHandler {
-	return &CAHandler{db: db, ca: ca, crypto: crypto}
+func NewCAHandler(db *sql.DB, ca *services.CAService, crypto *services.CryptoService, auth *services.AuthService) *CAHandler {
+	return &CAHandler{db: db, ca: ca, crypto: crypto, auth: auth}
 }
 
 func (h *CAHandler) getPassphrase(caID string) string {
@@ -61,18 +62,6 @@ type ImportCARequest struct {
 }
 
 func (h *CAHandler) List(w http.ResponseWriter, r *http.Request) {
-	rows, err := h.db.Query(`
-		SELECT id, name, description, subject, created_at, expires_at, current_version,
-			COALESCE(key_encrypted_passphrase, X''), COALESCE(imported, FALSE),
-			COALESCE(parent_ca_id, '')
-		FROM certificate_authorities ORDER BY created_at DESC
-	`)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer rows.Close()
-
 	type CAResponse struct {
 		ID             string  `json:"id"`
 		Name           string  `json:"name"`
@@ -85,6 +74,44 @@ func (h *CAHandler) List(w http.ResponseWriter, r *http.Request) {
 		Imported       bool    `json:"imported"`
 		ParentCAID     *string `json:"parentCaId"`
 	}
+
+	userID := GetUserID(r.Context())
+	query := `
+		SELECT id, name, description, subject, created_at, expires_at, current_version,
+			COALESCE(key_encrypted_passphrase, X''), COALESCE(imported, FALSE),
+			COALESCE(parent_ca_id, '')
+		FROM certificate_authorities
+	`
+	var args []interface{}
+
+	// Filter by permissions for non-admins
+	if userID != "" {
+		accessibleIDs, err := h.auth.GetAccessibleCAIDs(userID)
+		if err == nil && accessibleIDs != nil {
+			if len(accessibleIDs) == 0 {
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode([]CAResponse{})
+				return
+			}
+			placeholders := ""
+			for i, id := range accessibleIDs {
+				if i > 0 {
+					placeholders += ", "
+				}
+				placeholders += "?"
+				args = append(args, id)
+			}
+			query += " WHERE id IN (" + placeholders + ")"
+		}
+	}
+	query += " ORDER BY created_at DESC"
+
+	rows, err := h.db.Query(query, args...)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
 
 	var cas []CAResponse
 	for rows.Next() {
@@ -288,6 +315,9 @@ func (h *CAHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	// Orphan child CAs by clearing their parent reference
 	h.db.Exec("UPDATE certificate_authorities SET parent_ca_id = NULL WHERE parent_ca_id = ?", id)
+
+	// Cascade: remove CA permissions for this CA
+	h.db.Exec("DELETE FROM ca_permissions WHERE ca_id = ?", id)
 
 	if _, err := h.db.Exec("DELETE FROM certificate_authorities WHERE id = ?", id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

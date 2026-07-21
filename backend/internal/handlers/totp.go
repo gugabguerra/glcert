@@ -19,16 +19,18 @@ func NewTOTPHandler(totp *services.TOTPService, auth *services.AuthService) *TOT
 }
 
 func (h *TOTPHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
+	userID := GetUserID(r.Context())
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]bool{
-		"enabled": h.totp.IsEnabled(),
+		"enabled": h.totp.IsEnabled(userID),
 	})
 }
 
 func (h *TOTPHandler) Setup(w http.ResponseWriter, r *http.Request) {
-	email, err := h.auth.GetAdminEmail()
+	userID := GetUserID(r.Context())
+	email, err := h.auth.GetUserEmail(userID)
 	if err != nil {
-		http.Error(w, "admin not found", http.StatusInternalServerError)
+		http.Error(w, "user not found", http.StatusInternalServerError)
 		return
 	}
 
@@ -65,7 +67,8 @@ func (h *TOTPHandler) VerifySetup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.totp.EnableTOTP(req.Secret, req.Codes); err != nil {
+	userID := GetUserID(r.Context())
+	if err := h.totp.EnableTOTP(userID, req.Secret, req.Codes); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -96,26 +99,37 @@ func (h *TOTPHandler) Verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	valid := false
-	if len(req.Code) >= 8 {
-		valid = h.totp.ValidateBackupCode(req.Code)
-	} else {
-		valid = h.totp.ValidateCode(req.Code)
+	// Resolve user from pending session
+	valid, userID := h.auth.ValidatePendingToken(req.PartialToken)
+	if !valid {
+		http.Error(w, "invalid pending token", http.StatusUnauthorized)
+		return
 	}
 
-	if !valid {
+	var codeValid bool
+	if len(req.Code) >= 8 {
+		codeValid = h.totp.ValidateBackupCode(userID, req.Code)
+	} else {
+		codeValid = h.totp.ValidateCode(userID, req.Code)
+	}
+
+	if !codeValid {
 		http.Error(w, "invalid code", http.StatusUnauthorized)
 		return
 	}
 
-	token, err := h.auth.CompletePendingLogin(req.PartialToken)
+	token, _, err := h.auth.CompletePendingLogin(req.PartialToken)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
 
+	user, _ := h.auth.GetUserByID(userID)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"token": token})
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"token": token,
+		"user":  user,
+	})
 }
 
 type DisableRequest struct {
@@ -135,17 +149,18 @@ func (h *TOTPHandler) Disable(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !h.auth.ValidatePassword(req.Password) {
+	userID := GetUserID(r.Context())
+	if !h.auth.ValidatePassword(userID, req.Password) {
 		http.Error(w, "invalid password", http.StatusUnauthorized)
 		return
 	}
 
-	if !h.totp.ValidateCode(req.Code) {
+	if !h.totp.ValidateCode(userID, req.Code) {
 		http.Error(w, "invalid TOTP code", http.StatusUnauthorized)
 		return
 	}
 
-	if err := h.totp.DisableTOTP(); err != nil {
+	if err := h.totp.DisableTOTP(userID); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

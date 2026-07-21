@@ -34,6 +34,9 @@ func main() {
 	totpService := services.NewTOTPService(db, crypto)
 	emailService := services.NewEmailService(db, crypto)
 	notificationService := services.NewNotificationService(db, emailService)
+	auditService := services.NewAuditService(db)
+	caService := services.NewCAService(cfg.DataDir, crypto)
+	certService := services.NewCertService(cfg.DataDir, crypto)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
@@ -41,50 +44,53 @@ func main() {
 
 	authHandler := handlers.NewAuthHandler(auth, crypto, emailService, totpService)
 	authMiddleware := handlers.NewAuthMiddleware(auth)
+	totpHandler := handlers.NewTOTPHandler(totpService, auth)
+	userHandler := handlers.NewUserHandler(auth)
+	backupHandler := handlers.NewBackupHandler(db, cfg.DataDir)
+	adminHandler := handlers.NewAdminHandler(db, cfg.DataDir, crypto)
+	caHandler := handlers.NewCAHandler(db, caService, crypto, auth)
+	certHandler := handlers.NewCertHandler(db, certService, caService, crypto, auth)
+	caPermHandler := handlers.NewCAPermissionHandler(auth)
+	auditHandler := handlers.NewAuditHandler(auditService)
+	notificationHandler := handlers.NewNotificationHandler(notificationService)
+	shareHandler := handlers.NewShareHandler(db, certService, caService, crypto, emailService)
+	h := handlers.New(db, crypto)
 
 	r.Route("/api", func(r chi.Router) {
+		// --- Public routes ---
 		r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{"status":"ok"}`))
 		})
-
 		r.Get("/auth/status", authHandler.GetStatus)
 		r.Post("/auth/setup", authHandler.Setup)
 		r.Post("/auth/login", authHandler.Login)
 		r.Post("/auth/forgot-password", authHandler.ForgotPassword)
 		r.Post("/auth/reset-password", authHandler.ResetPassword)
-
-		backupHandler := handlers.NewBackupHandler(db, cfg.DataDir)
-		r.Post("/backup/restore", backupHandler.RestoreBackup)
-
-		totpHandler := handlers.NewTOTPHandler(totpService, auth)
-		r.Post("/totp/verify", totpHandler.Verify)
-
-		caService := services.NewCAService(cfg.DataDir, crypto)
-		certService := services.NewCertService(cfg.DataDir, crypto)
-		notificationHandler := handlers.NewNotificationHandler(notificationService)
-		shareHandler := handlers.NewShareHandler(db, certService, caService, crypto, emailService)
-
 		r.Get("/share/{token}", shareHandler.ServeLink)
 
+		// --- TOTP verify (unauthenticated) ---
+		r.Post("/totp/verify", totpHandler.Verify)
+
+		// --- Backup restore (unauthenticated — runs before setup) ---
+		r.Post("/backup/restore", backupHandler.RestoreBackup)
+
+		// --- Authenticated routes ---
 		r.Group(func(r chi.Router) {
 			r.Use(authMiddleware.RequireAuth)
 
+			// --- Any role ---
 			r.Post("/auth/logout", authHandler.Logout)
 			r.Put("/auth/password", authHandler.ChangePassword)
-			adminHandler := handlers.NewAdminHandler(db, cfg.DataDir, crypto)
-			r.Post("/admin/factory-reset", adminHandler.FactoryReset)
-			r.Post("/backup/create", backupHandler.CreateBackup)
-
 			r.Get("/totp/status", totpHandler.GetStatus)
 			r.Get("/totp/setup", totpHandler.Setup)
 			r.Post("/totp/verify-setup", totpHandler.VerifySetup)
 			r.Post("/totp/disable", totpHandler.Disable)
 
-			h := handlers.New(db, crypto)
+			r.Get("/users/me", userHandler.GetMe)
+			r.Put("/users/me", userHandler.UpdateMe)
+
 			r.Get("/dashboard", h.GetDashboardStats)
-			r.Get("/settings", h.GetSettings)
-			r.Put("/settings", h.UpdateSettings)
 			r.Post("/notifications/test", notificationHandler.TestNotification)
 			r.Post("/notifications/test-email", func(w http.ResponseWriter, r *http.Request) {
 				var req struct {
@@ -102,42 +108,65 @@ func main() {
 				json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 			})
 
-			caHandler := handlers.NewCAHandler(db, caService, crypto)
-
-		r.Route("/ca", func(r chi.Router) {
-			r.Get("/", caHandler.List)
-			r.Post("/", caHandler.Create)
-			r.Post("/import", caHandler.Import)
-			r.Get("/{id}", caHandler.Get)
-			r.Delete("/{id}", caHandler.Delete)
-			r.Get("/{id}/download/cert", caHandler.DownloadCert)
-			r.Get("/{id}/download/key", caHandler.DownloadKey)
-			r.Get("/{id}/download/bundle", caHandler.DownloadCABundle)
-		})
-
-			certHandler := handlers.NewCertHandler(db, certService, caService, crypto)
-
+			// --- Share (any role — viewers can share) ---
 			r.Post("/share/{type}/{id}", shareHandler.GenerateLink)
 			r.Post("/share/send-email", shareHandler.SendShareEmail)
 
-		r.Route("/certificates", func(r chi.Router) {
-			r.Get("/", certHandler.List)
-			r.Get("/groups", certHandler.ListGroups)
-			r.Get("/download/group", certHandler.DownloadGroup)
-			r.Post("/", certHandler.Create)
-			r.Post("/import", certHandler.ImportCert)
-			r.Get("/{id}", certHandler.Get)
-			r.Patch("/{id}", certHandler.UpdateGroup)
-			r.Get("/{id}/versions", certHandler.GetVersions)
-			r.Post("/{id}/regenerate", certHandler.Regenerate)
-			r.Post("/{id}/versions/{version}/restore", certHandler.RestoreVersion)
-			r.Delete("/{id}/versions/{version}", certHandler.DeleteVersion)
-			r.Delete("/{id}", certHandler.Delete)
-			r.Get("/{id}/download/cert", certHandler.DownloadCert)
-			r.Get("/{id}/download/key", certHandler.DownloadKey)
-			r.Get("/{id}/download/ca", certHandler.DownloadCA)
-			r.Get("/{id}/download/bundle", certHandler.DownloadBundle)
-		})
+			// --- Read-only CAs and certs (viewers can list/download) ---
+			r.Route("/ca", func(r chi.Router) {
+				r.Get("/", caHandler.List)
+				r.Get("/{id}", caHandler.Get)
+				r.Get("/{id}/download/cert", caHandler.DownloadCert)
+				r.Get("/{id}/download/key", caHandler.DownloadKey)
+				r.Get("/{id}/download/bundle", caHandler.DownloadCABundle)
+			})
+			r.Route("/certificates", func(r chi.Router) {
+				r.Get("/", certHandler.List)
+				r.Get("/groups", certHandler.ListGroups)
+				r.Get("/download/group", certHandler.DownloadGroup)
+				r.Get("/{id}", certHandler.Get)
+				r.Get("/{id}/versions", certHandler.GetVersions)
+				r.Get("/{id}/download/cert", certHandler.DownloadCert)
+				r.Get("/{id}/download/key", certHandler.DownloadKey)
+				r.Get("/{id}/download/ca", certHandler.DownloadCA)
+				r.Get("/{id}/download/bundle", certHandler.DownloadBundle)
+			})
+
+			// --- Operator + Admin (write operations) ---
+			r.Group(func(r chi.Router) {
+				r.Use(handlers.RequireRole("admin", "operator"))
+
+				r.Post("/ca", caHandler.Create)
+				r.Post("/ca/import", caHandler.Import)
+				r.Delete("/ca/{id}", caHandler.Delete)
+
+				r.Post("/certificates", certHandler.Create)
+				r.Post("/certificates/import", certHandler.ImportCert)
+				r.Patch("/certificates/{id}", certHandler.UpdateGroup)
+				r.Post("/certificates/{id}/regenerate", certHandler.Regenerate)
+				r.Post("/certificates/{id}/versions/{version}/restore", certHandler.RestoreVersion)
+				r.Delete("/certificates/{id}/versions/{version}", certHandler.DeleteVersion)
+				r.Delete("/certificates/{id}", certHandler.Delete)
+			})
+
+			// --- Admin only ---
+			r.Group(func(r chi.Router) {
+				r.Use(handlers.RequireRole("admin"))
+
+				r.Get("/settings", h.GetSettings)
+				r.Put("/settings", h.UpdateSettings)
+				r.Post("/admin/factory-reset", adminHandler.FactoryReset)
+				r.Post("/backup/create", backupHandler.CreateBackup)
+
+				r.Get("/users", userHandler.List)
+				r.Post("/users", userHandler.Create)
+				r.Put("/users/{id}", userHandler.Update)
+				r.Delete("/users/{id}", userHandler.Delete)
+
+				r.Get("/ca/{id}/permissions", caPermHandler.Get)
+				r.Put("/ca/{id}/permissions", caPermHandler.Set)
+				r.Get("/audit", auditHandler.List)
+			})
 		})
 	})
 

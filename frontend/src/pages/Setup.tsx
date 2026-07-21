@@ -5,7 +5,7 @@ import {
   Stepper, Group, ThemeIcon
 } from '@mantine/core';
 import { IconShieldLock } from '@tabler/icons-react';
-import { useAuth } from '../auth';
+import { useAuth, User } from '../auth';
 import { PasswordStrengthIndicator } from '../components/PasswordStrengthIndicator';
 
 function Setup() {
@@ -67,7 +67,7 @@ function Setup() {
       }
 
       const data = await res.json();
-      login(data.token);
+      login(data.token, data.user as User);
       setSetupComplete(true);
       navigate('/');
     } catch {

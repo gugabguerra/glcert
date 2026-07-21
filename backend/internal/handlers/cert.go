@@ -22,10 +22,11 @@ type CertHandler struct {
 	cert   *services.CertService
 	ca     *services.CAService
 	crypto *services.CryptoService
+	auth   *services.AuthService
 }
 
-func NewCertHandler(db *sql.DB, cert *services.CertService, ca *services.CAService, crypto *services.CryptoService) *CertHandler {
-	return &CertHandler{db: db, cert: cert, ca: ca, crypto: crypto}
+func NewCertHandler(db *sql.DB, cert *services.CertService, ca *services.CAService, crypto *services.CryptoService, auth *services.AuthService) *CertHandler {
+	return &CertHandler{db: db, cert: cert, ca: ca, crypto: crypto, auth: auth}
 }
 
 func (h *CertHandler) readCAWithPassphrase(caID string) ([]byte, []byte, error) {
@@ -84,9 +85,43 @@ func (h *CertHandler) List(w http.ResponseWriter, r *http.Request) {
 		LEFT JOIN certificate_versions cv ON cv.certificate_id = c.id AND cv.version = c.current_version
 	`
 	var args []interface{}
+	var conditions []string
+
+	// Filter by permissions for non-admins
+	userID := GetUserID(r.Context())
+	if userID != "" {
+		accessibleIDs, err := h.auth.GetAccessibleCAIDs(userID)
+		if err == nil && accessibleIDs != nil {
+			if len(accessibleIDs) == 0 {
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode([]interface{}{})
+				return
+			}
+			placeholders := ""
+			for i, id := range accessibleIDs {
+				if i > 0 {
+					placeholders += ", "
+				}
+				placeholders += "?"
+				args = append(args, id)
+			}
+			conditions = append(conditions, "(c.certificate_authority_id IN ("+placeholders+") OR c.certificate_authority_id IS NULL)")
+		}
+	}
+
 	if groupFilter != "" {
-		query += " WHERE c.group_name = ?"
+		conditions = append(conditions, "c.group_name = ?")
 		args = append(args, groupFilter)
+	}
+
+	if len(conditions) > 0 {
+		query += " WHERE "
+		for i, cond := range conditions {
+			if i > 0 {
+				query += " AND "
+			}
+			query += cond
+		}
 	}
 	query += " ORDER BY c.created_at DESC"
 

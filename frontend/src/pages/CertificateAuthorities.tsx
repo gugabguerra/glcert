@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { useState, useMemo } from 'react';
 import { IconTrash, IconPlus, IconUpload, IconShieldCheck } from '@tabler/icons-react';
 import { authFetch, authFetchJson } from '../api';
+import { useAuth } from '../auth';
 
 interface CertificateAuthority {
   id: string;
@@ -110,6 +111,9 @@ function TreeRow({ node, onDelete }: { node: TreeNode; onDelete: (id: string) =>
 
 function CertificateAuthorities() {
   const queryClient = useQueryClient();
+  const { hasRole } = useAuth();
+  const canWrite = hasRole('admin', 'operator');
+  const isAdmin = hasRole('admin');
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const { data: cas = [], isLoading } = useQuery<CertificateAuthority[]>({
@@ -134,23 +138,27 @@ function CertificateAuthorities() {
     <Stack>
       <Group justify="space-between">
         <Title>Certificate Authorities</Title>
-        <Group>
-          <Button
-            component={Link}
-            to="/ca/import"
-            variant="default"
-            leftSection={<IconUpload size={16} />}
-          >
-            Import CA
-          </Button>
-          <Button
-            component={Link}
-            to="/ca/new"
-            leftSection={<IconPlus size={16} />}
-          >
-            New CA
-          </Button>
-        </Group>
+        {canWrite && (
+          <Group>
+            {isAdmin && (
+              <Button
+                component={Link}
+                to="/ca/import"
+                variant="default"
+                leftSection={<IconUpload size={16} />}
+              >
+                Import CA
+              </Button>
+            )}
+            <Button
+              component={Link}
+              to="/ca/new"
+              leftSection={<IconPlus size={16} />}
+            >
+              New CA
+            </Button>
+          </Group>
+        )}
       </Group>
 
       {isLoading ? (

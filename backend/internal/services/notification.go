@@ -121,7 +121,7 @@ func (s *NotificationService) CheckAndNotify() {
 	var adminEmail string
 	s.db.QueryRow("SELECT email_notifications_enabled FROM settings WHERE id = 1").Scan(&emailEnabled)
 	if emailEnabled && s.email != nil {
-		emailErr := s.db.QueryRow("SELECT email FROM admin WHERE id = 1").Scan(&adminEmail)
+		emailErr := s.db.QueryRow("SELECT email FROM users WHERE role = 'admin' ORDER BY created_at ASC LIMIT 1").Scan(&adminEmail)
 		if emailErr == nil && adminEmail != "" {
 			if err := s.email.SendExpirationAlertEmail(adminEmail, certs, cas); err != nil {
 				logger.Errorf("Failed to send expiration email: %v", err)

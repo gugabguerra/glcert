@@ -1,4 +1,4 @@
-import { Title, Text, Button, Group, Stack, Badge, Divider, ActionIcon, Center, Loader, Tooltip, TextInput, Modal, Radio, Menu, Code, Box, Anchor } from '@mantine/core';
+import { Title, Text, Button, Group, Stack, Badge, Divider, ActionIcon, Center, Loader, Tooltip, TextInput, Modal, Radio, Menu, Code, Box, Anchor, Checkbox } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { IconDownload, IconTrash, IconLink, IconClipboard, IconMail } from '@tabler/icons-react';
@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { notifications } from '@mantine/notifications';
 import { authFetch, authFetchJson, downloadFile } from '../api';
 import { copyToClipboard, sanitizeFilename } from '../utils/clipboard';
+import { useAuth } from '../auth';
 
 interface CertificateAuthority {
   id: string;
@@ -25,6 +26,8 @@ function CADetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { hasRole } = useAuth();
+  const isAdmin = hasRole('admin');
   const [showDelete, setShowDelete] = useState(false);
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [shareFileType, setShareFileType] = useState<string>('bundle_zip');
@@ -43,6 +46,34 @@ function CADetail() {
   const { data: settings } = useQuery<{ smtpHost: string }>({
     queryKey: ['settings'],
     queryFn: () => authFetchJson('/api/settings'),
+  });
+
+  const { data: users } = useQuery<Array<{ id: string; name: string; email: string; role: string }>>({
+    queryKey: ['users'],
+    queryFn: () => authFetchJson('/api/users'),
+    enabled: isAdmin,
+  });
+
+  const { data: permissions } = useQuery<{ caId: string; userIds: string[] }>({
+    queryKey: ['caPermissions', id],
+    queryFn: () => authFetchJson(`/api/ca/${id}/permissions`),
+    enabled: isAdmin,
+  });
+
+  const permissionsMutation = useMutation({
+    mutationFn: (userIds: string[]) =>
+      authFetchJson(`/api/ca/${id}/permissions`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userIds }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['caPermissions', id] });
+      notifications.show({ message: 'Permissions updated', color: 'teal' });
+    },
+    onError: () => {
+      notifications.show({ message: 'Failed to update permissions', color: 'red' });
+    },
   });
 
   const deleteMutation = useMutation({
@@ -224,6 +255,32 @@ function CADetail() {
           Temporary Link
         </Button>
       </Group>
+
+      {isAdmin && users && permissions && (
+        <>
+          <Divider />
+          <Title order={4}>Access Control</Title>
+          <Text size="sm" c="dimmed">Control which users can access this CA and create certificates under it.</Text>
+          <Stack gap="xs" mt="xs">
+            {users.filter(u => u.role !== 'admin').map(u => (
+              <Checkbox
+                key={u.id}
+                label={`${u.name || u.email} (${u.role})`}
+                checked={permissions.userIds.includes(u.id)}
+                onChange={(e) => {
+                  const newUserIds = e.currentTarget.checked
+                    ? [...permissions.userIds, u.id]
+                    : permissions.userIds.filter(id => id !== u.id);
+                  permissionsMutation.mutate(newUserIds);
+                }}
+              />
+            ))}
+            {users.filter(u => u.role !== 'admin').length === 0 && (
+              <Text size="sm" c="dimmed">No non-admin users to assign.</Text>
+            )}
+          </Stack>
+        </>
+      )}
 
       <Modal opened={showDelete} onClose={() => setShowDelete(false)} title="Delete CA">
         <Text>Are you sure you want to delete this CA?</Text>

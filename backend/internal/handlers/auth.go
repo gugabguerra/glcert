@@ -49,7 +49,7 @@ func (h *AuthHandler) Setup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.auth.CompleteSetup(services.SetupInput{
+	token, userID, err := h.auth.CompleteSetup(services.SetupInput{
 		Email:                req.Email,
 		Password:             req.Password,
 		EncryptionPassphrase: req.EncryptionPassphrase,
@@ -68,8 +68,12 @@ func (h *AuthHandler) Setup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	user, _ := h.auth.GetUserByID(userID)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"token": token})
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"token": token,
+		"user":  user,
+	})
 }
 
 type LoginRequest struct {
@@ -95,7 +99,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.crypto.HasPassphrase() {
+	if h.crypto.HasPassphrase() && result.Role == "admin" {
 		if err := h.crypto.LoadPassphrase(req.Password); err != nil {
 			http.Error(w, "failed to load encryption passphrase", http.StatusInternalServerError)
 			return
@@ -110,8 +114,12 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	user, _ := h.auth.GetUserByID(result.UserID)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"token": result.Token})
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"token": result.Token,
+		"user":  user,
+	})
 }
 
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
@@ -146,12 +154,18 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.auth.ChangePassword(req.CurrentPassword, req.NewPassword); err != nil {
+	userID := GetUserID(r.Context())
+	if userID == "" {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if err := h.auth.ChangePassword(userID, req.CurrentPassword, req.NewPassword); err != nil {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
 
-	if h.crypto.HasPassphrase() {
+	if h.crypto.HasPassphrase() && GetUserRole(r.Context()) == "admin" {
 		if err := h.crypto.ChangeAdminPassword(req.CurrentPassword, req.NewPassword); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -177,8 +191,11 @@ func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	adminEmail, err := h.auth.GetAdminEmail()
-	if err != nil || adminEmail != req.Email {
+	// Look up user by email
+	var userID string
+	err := h.auth.DB().QueryRow("SELECT id FROM users WHERE email = ?", req.Email).Scan(&userID)
+	if err != nil {
+		// Don't reveal whether user exists
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
@@ -193,10 +210,10 @@ func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.auth.SaveResetToken(token)
+	h.auth.SaveResetToken(userID, token)
 
 	resetURL := fmt.Sprintf("%s/reset-password?token=%s", "http://"+r.Host, token)
-	h.email.SendPasswordResetEmail(adminEmail, resetURL)
+	h.email.SendPasswordResetEmail(req.Email, resetURL)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -228,7 +245,7 @@ func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.crypto.HasPassphrase() {
+	if h.crypto.HasPassphrase() && h.crypto.IsEnabled() {
 		if err := h.crypto.LoadPassphrase(req.Password); err != nil {
 			http.Error(w, "password updated but failed to load encryption", http.StatusInternalServerError)
 			return

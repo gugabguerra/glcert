@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { AppShell, Group, Box, NavLink, ActionIcon, useMantineColorScheme, useComputedColorScheme, Burger, Drawer, Divider, Stack, Space, Image } from '@mantine/core';
+import { AppShell, Group, Box, NavLink, ActionIcon, useMantineColorScheme, useComputedColorScheme, Burger, Drawer, Divider, Stack, Space, Image, Badge, Text } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { Link } from 'react-router-dom';
-import { IconShield, IconCertificate, IconSettings, IconSun, IconMoon, IconDeviceDesktop, IconLogout, IconUser } from '@tabler/icons-react';
+import { IconShield, IconCertificate, IconSettings, IconSun, IconMoon, IconDeviceDesktop, IconLogout, IconUser, IconUsers, IconClipboardList } from '@tabler/icons-react';
 import { AuthProvider, useAuth } from './auth';
 import Login from './pages/Login';
 import Setup from './pages/Setup';
@@ -20,9 +20,23 @@ import ImportCertificate from './pages/ImportCertificate';
 import CertificateDetail from './pages/CertificateDetail';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+import Users from './pages/Users';
+import AuditLog from './pages/AuditLog';
+
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { hasRole } = useAuth();
+  if (!hasRole('admin')) return <Navigate to="/" />;
+  return <>{children}</>;
+}
+
+function OperatorRoute({ children }: { children: React.ReactNode }) {
+  const { hasRole } = useAuth();
+  if (!hasRole('admin', 'operator')) return <Navigate to="/" />;
+  return <>{children}</>;
+}
 
 function AppRoutes() {
-  const { isAuthenticated, isSetupComplete, logout } = useAuth();
+  const { isAuthenticated, isSetupComplete, logout, user, hasRole } = useAuth();
   const location = useLocation();
 
   if (isSetupComplete === false) return <Setup />;
@@ -52,12 +66,20 @@ function AppRoutes() {
 
   const ColorSchemeIcon = colorScheme === 'dark' ? IconMoon : colorScheme === 'light' ? IconSun : IconDeviceDesktop;
 
+  const roleColors: Record<string, string> = { admin: 'red', operator: 'blue', viewer: 'green' };
+
   const navLinks = (
     <>
       <NavLink component={Link} to="/" label="Dashboard" leftSection={<IconSettings size={18} />} active={location.pathname === '/'} onClick={() => setDrawerOpened(false)} />
       <NavLink component={Link} to="/ca" label="CAs" leftSection={<IconShield size={18} />} active={location.pathname.startsWith('/ca')} onClick={() => setDrawerOpened(false)} />
       <NavLink component={Link} to="/certificates" label="Certificates" leftSection={<IconCertificate size={18} />} active={location.pathname.startsWith('/certificates')} onClick={() => setDrawerOpened(false)} />
-      <NavLink component={Link} to="/settings" label="Settings" leftSection={<IconSettings size={18} />} active={location.pathname === '/settings'} onClick={() => setDrawerOpened(false)} />
+      {hasRole('admin') && (
+        <>
+          <NavLink component={Link} to="/settings" label="Settings" leftSection={<IconSettings size={18} />} active={location.pathname === '/settings'} onClick={() => setDrawerOpened(false)} />
+          <NavLink component={Link} to="/users" label="Users" leftSection={<IconUsers size={18} />} active={location.pathname === '/users'} onClick={() => setDrawerOpened(false)} />
+          <NavLink component={Link} to="/audit" label="Audit Log" leftSection={<IconClipboardList size={18} />} active={location.pathname === '/audit'} onClick={() => setDrawerOpened(false)} />
+        </>
+      )}
     </>
   );
 
@@ -80,6 +102,10 @@ function AppRoutes() {
           </Box>
           {!isMobile && (
             <Space>
+              <Badge size="sm" color={roleColors[user?.role || '']} variant="light" mr="xs">
+                {user?.role}
+              </Badge>
+              <Text size="sm" c="dimmed" mr="xs">{user?.name || user?.email}</Text>
               <ActionIcon variant="subtle" size="lg" onClick={cycleColorScheme}>
                 <ColorSchemeIcon size={20} />
               </ActionIcon>
@@ -133,14 +159,16 @@ function AppRoutes() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/ca" element={<CertificateAuthorities />} />
-          <Route path="/ca/new" element={<CreateCA />} />
-          <Route path="/ca/import" element={<ImportCA />} />
+          <Route path="/ca/new" element={<OperatorRoute><CreateCA /></OperatorRoute>} />
+          <Route path="/ca/import" element={<AdminRoute><ImportCA /></AdminRoute>} />
           <Route path="/ca/:id" element={<CADetail />} />
           <Route path="/certificates" element={<Certificates />} />
-          <Route path="/certificates/new" element={<CreateCertificate />} />
-          <Route path="/certificates/import" element={<ImportCertificate />} />
+          <Route path="/certificates/new" element={<OperatorRoute><CreateCertificate /></OperatorRoute>} />
+          <Route path="/certificates/import" element={<OperatorRoute><ImportCertificate /></OperatorRoute>} />
           <Route path="/certificates/:id" element={<CertificateDetail />} />
-          <Route path="/settings" element={<Settings />} />
+          <Route path="/settings" element={<AdminRoute><Settings /></AdminRoute>} />
+          <Route path="/users" element={<AdminRoute><Users /></AdminRoute>} />
+          <Route path="/audit" element={<AdminRoute><AuditLog /></AdminRoute>} />
           <Route path="/profile" element={<UserProfile />} />
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />

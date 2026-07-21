@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/glcert/glcert/internal/logger"
 	"github.com/glcert/glcert/internal/services"
 )
 
@@ -28,16 +29,14 @@ func (h *AdminHandler) FactoryReset(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
-	tables := []string{"certificate_versions", "certificates", "certificate_authorities", "sessions", "admin"}
+	tables := []string{"certificate_versions", "certificates", "certificate_authorities", "sessions", "pending_sessions", "backup_codes", "ca_permissions", "password_resets", "users", "audit_log"}
 	for _, table := range tables {
 		if _, err := tx.Exec("DELETE FROM " + table); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+			logger.Errorf("Failed to clear table %s: %v", table, err)
 		}
 	}
 
 	if _, err := tx.Exec(`UPDATE settings SET
-		setup_complete = FALSE,
 		organization = '',
 		country = '',
 		state = '',
