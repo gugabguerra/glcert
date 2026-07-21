@@ -2,7 +2,7 @@ import { useCallback, useState, useEffect } from 'react';
 import { Title, TextInput, Select, NumberInput, Button, Stack, Group, Textarea, Text, TagsInput, Combobox, InputBase, useCombobox, CloseButton, Divider, ThemeIcon } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { authFetchJson } from '../api';
 import { IconCertificate } from '@tabler/icons-react';
 
@@ -30,6 +30,28 @@ interface CertGroup {
 function CreateCertificate() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  const templateValues = (() => {
+    const v: Record<string, string | number | string[] | null> = {};
+    const cn = searchParams.get('commonName');
+    if (cn) v.commonName = cn;
+    const type = searchParams.get('type');
+    if (type) v.type = type;
+    const caId = searchParams.get('caId');
+    if (caId) v.certificateAuthorityId = caId;
+    const dns = searchParams.get('dnsNames');
+    if (dns) { try { v.dnsNames = JSON.parse(dns); } catch {} }
+    const ips = searchParams.get('ipAddresses');
+    if (ips) { try { v.ipAddresses = JSON.parse(ips); } catch {} }
+    const group = searchParams.get('groupName');
+    if (group) v.groupName = group;
+    const alg = searchParams.get('keyAlgorithm');
+    if (alg) v.keyAlgorithm = alg;
+    const days = searchParams.get('validityDays');
+    if (days) { const n = parseInt(days, 10); if (n > 0) v.validityDays = n; }
+    return v;
+  })();
 
   const { data: cas = [] } = useQuery<CA[]>({
     queryKey: ['cas'],
@@ -63,6 +85,7 @@ function CreateCertificate() {
       rsaKeySize: 2048,
       validityDays: 365,
       groupName: '',
+      ...templateValues,
     },
   });
 

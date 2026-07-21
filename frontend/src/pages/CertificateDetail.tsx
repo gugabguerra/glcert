@@ -1,7 +1,7 @@
 import { Title, Text, Button, Group, Stack, Badge, Divider, ActionIcon, Table, Modal, Center, Loader, SimpleGrid, Paper, Tooltip, TextInput, NumberInput, Radio, Menu, Code, Box, Combobox, InputBase, useCombobox, CloseButton } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
-import { IconDownload, IconTrash, IconRefresh, IconHistory, IconEye, IconLink, IconClipboard, IconMail } from '@tabler/icons-react';
+import { IconDownload, IconTrash, IconRefresh, IconHistory, IconEye, IconLink, IconClipboard, IconMail, IconCopy } from '@tabler/icons-react';
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { notifications } from '@mantine/notifications';
 import { authFetch, authFetchJson, downloadFile } from '../api';
@@ -508,15 +508,46 @@ function CertificateDetail() {
 
       <Group justify="space-between">
         <Title order={4}>Version History</Title>
-        <Button
-          leftSection={<IconRefresh size={16} />}
-          variant="light"
-          loading={regenerateMutation.isPending}
-          disabled={!cert.caName && !!cert.caSubject}
-          onClick={() => setShowRegenerate(true)}
-        >
-          Regenerate
-        </Button>
+        <Group>
+          <Button
+            leftSection={<IconCopy size={16} />}
+            variant="light"
+            disabled={!cert.caName && !!cert.caSubject}
+            onClick={() => {
+              const currentVersion = versions.find(v => v.version === cert.currentVersion);
+              const params = new URLSearchParams();
+              if (cert.commonName) params.set('commonName', cert.commonName);
+              if (cert.type) params.set('type', cert.type);
+              if (cert.certificateAuthorityId) params.set('caId', cert.certificateAuthorityId);
+              if (cert.dnsNames?.length) params.set('dnsNames', JSON.stringify(cert.dnsNames));
+              if (cert.ipAddresses?.length) params.set('ipAddresses', JSON.stringify(cert.ipAddresses));
+              if (cert.groupName) params.set('groupName', cert.groupName);
+              if (currentVersion) {
+                if (currentVersion.publicKeyAlgorithm) {
+                  const alg = currentVersion.publicKeyAlgorithm.toLowerCase();
+                  if (alg.startsWith('rsa')) params.set('keyAlgorithm', 'rsa');
+                  else if (alg.startsWith('ecdsa') || alg.startsWith('ec')) params.set('keyAlgorithm', 'ecdsa');
+                }
+                if (currentVersion.expiresAt && currentVersion.createdAt) {
+                  const days = Math.round((new Date(currentVersion.expiresAt).getTime() - new Date(currentVersion.createdAt).getTime()) / 86400000);
+                  if (days > 0) params.set('validityDays', String(days));
+                }
+              }
+              navigate(`/certificates/new?${params.toString()}`);
+            }}
+          >
+            Use as template
+          </Button>
+          <Button
+            leftSection={<IconRefresh size={16} />}
+            variant="light"
+            loading={regenerateMutation.isPending}
+            disabled={!cert.caName && !!cert.caSubject}
+            onClick={() => setShowRegenerate(true)}
+          >
+            Regenerate
+          </Button>
+        </Group>
       </Group>
 
       {versionsLoading ? (
