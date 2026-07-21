@@ -3,12 +3,13 @@ import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-
 import { AppShell, Group, Box, NavLink, ActionIcon, useMantineColorScheme, useComputedColorScheme, Burger, Drawer, Divider, Stack, Space, Image, Badge, Text } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { Link } from 'react-router-dom';
-import { IconShield, IconCertificate, IconSettings, IconSun, IconMoon, IconDeviceDesktop, IconLogout, IconUser, IconUsers, IconClipboardList } from '@tabler/icons-react';
+import { IconShield, IconCertificate, IconSettings, IconSun, IconMoon, IconDeviceDesktop, IconLogout, IconUser, IconAdjustments } from '@tabler/icons-react';
 import { AuthProvider, useAuth } from './auth';
 import Login from './pages/Login';
 import Setup from './pages/Setup';
 import Dashboard from './pages/Dashboard';
 import Settings from './pages/Settings';
+import Administration from './pages/Administration';
 import UserProfile from './pages/UserProfile';
 import CertificateAuthorities from './pages/CertificateAuthorities';
 import CreateCA from './pages/CreateCA';
@@ -20,8 +21,6 @@ import ImportCertificate from './pages/ImportCertificate';
 import CertificateDetail from './pages/CertificateDetail';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
-import Users from './pages/Users';
-import AuditLog from './pages/AuditLog';
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { hasRole } = useAuth();
@@ -76,8 +75,7 @@ function AppRoutes() {
       {hasRole('admin') && (
         <>
           <NavLink component={Link} to="/settings" label="Settings" leftSection={<IconSettings size={18} />} active={location.pathname === '/settings'} onClick={() => setDrawerOpened(false)} />
-          <NavLink component={Link} to="/users" label="Users" leftSection={<IconUsers size={18} />} active={location.pathname === '/users'} onClick={() => setDrawerOpened(false)} />
-          <NavLink component={Link} to="/audit" label="Audit Log" leftSection={<IconClipboardList size={18} />} active={location.pathname === '/audit'} onClick={() => setDrawerOpened(false)} />
+          <NavLink component={Link} to="/admin" label="Administration" leftSection={<IconAdjustments size={18} />} active={location.pathname === '/admin'} onClick={() => setDrawerOpened(false)} />
         </>
       )}
     </>
@@ -167,8 +165,7 @@ function AppRoutes() {
           <Route path="/certificates/import" element={<OperatorRoute><ImportCertificate /></OperatorRoute>} />
           <Route path="/certificates/:id" element={<CertificateDetail />} />
           <Route path="/settings" element={<AdminRoute><Settings /></AdminRoute>} />
-          <Route path="/users" element={<AdminRoute><Users /></AdminRoute>} />
-          <Route path="/audit" element={<AdminRoute><AuditLog /></AdminRoute>} />
+          <Route path="/admin" element={<AdminRoute><Administration /></AdminRoute>} />
           <Route path="/profile" element={<UserProfile />} />
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />

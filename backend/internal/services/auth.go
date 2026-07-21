@@ -401,6 +401,26 @@ func (s *AuthService) DeleteUser(userID string) error {
 	return tx.Commit()
 }
 
+func (s *AuthService) AdminResetPassword(userID, newPassword string) error {
+	var exists int
+	s.db.QueryRow("SELECT COUNT(*) FROM users WHERE id = ?", userID).Scan(&exists)
+	if exists == 0 {
+		return fmt.Errorf("user not found")
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("hash password: %w", err)
+	}
+
+	_, err = s.db.Exec("UPDATE users SET password_hash = ? WHERE id = ?", string(hash), userID)
+	if err != nil {
+		return fmt.Errorf("update password: %w", err)
+	}
+
+	return nil
+}
+
 func (s *AuthService) UpdateUserName(userID, name string) error {
 	_, err := s.db.Exec("UPDATE users SET name = ? WHERE id = ?", name, userID)
 	return err

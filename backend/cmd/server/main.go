@@ -158,10 +158,11 @@ func main() {
 				r.Post("/admin/factory-reset", adminHandler.FactoryReset)
 				r.Post("/backup/create", backupHandler.CreateBackup)
 
-				r.Get("/users", userHandler.List)
-				r.Post("/users", userHandler.Create)
-				r.Put("/users/{id}", userHandler.Update)
-				r.Delete("/users/{id}", userHandler.Delete)
+			r.Get("/users", userHandler.List)
+			r.Post("/users", userHandler.Create)
+			r.Put("/users/{id}", userHandler.Update)
+			r.Post("/users/{id}/reset-password", userHandler.ResetPassword)
+			r.Delete("/users/{id}", userHandler.Delete)
 
 				r.Get("/ca/{id}/permissions", caPermHandler.Get)
 				r.Put("/ca/{id}/permissions", caPermHandler.Set)

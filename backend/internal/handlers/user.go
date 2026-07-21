@@ -125,6 +125,35 @@ func (h *UserHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *UserHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
+	userID := chi.URLParam(r, "id")
+	if userID == "" {
+		http.Error(w, "user ID is required", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if len(req.Password) < 6 {
+		http.Error(w, "password must be at least 6 characters", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.auth.AdminResetPassword(userID, req.Password); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
 func (h *UserHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 	userID := GetUserID(r.Context())
 	user, err := h.auth.GetUserByID(userID)

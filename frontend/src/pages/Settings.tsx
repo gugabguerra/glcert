@@ -10,15 +10,13 @@ import {
   Center,
   Loader,
   Text,
-  Modal,
   Paper,
   Switch,
-  FileInput,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { authFetchJson, authFetchDownload } from '../api';
+import { authFetchJson } from '../api';
 
 interface Settings {
   id: number;
@@ -131,33 +129,6 @@ function SettingsPage() {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
     },
   });
-
-  const [showResetModal, setShowResetModal] = useState(false);
-  const [resetConfirmText, setResetConfirmText] = useState('');
-  const [showBackupModal, setShowBackupModal] = useState(false);
-  const [backupPassword, setBackupPassword] = useState('');
-  const [backupStatus, setBackupStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [showRestoreModal, setShowRestoreModal] = useState(false);
-  const [restoreFile, setRestoreFile] = useState<File | null>(null);
-  const [restorePassword, setRestorePassword] = useState('');
-  const [restoreStatus, setRestoreStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [restoreMessage, setRestoreMessage] = useState('');
-
-  const resetMutation = useMutation({
-    mutationFn: () =>
-      authFetchJson('/api/admin/factory-reset', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      }),
-    onSuccess: () => {
-      localStorage.removeItem('auth_token');
-      window.location.reload();
-    },
-  });
-
-  const handleFactoryReset = () => {
-    resetMutation.mutate();
-  };
 
   if (isLoading)
     return (
@@ -325,175 +296,6 @@ function SettingsPage() {
           </Group>
         </Stack>
       </Paper>
-
-      <Paper withBorder p='lg' style={{ borderLeft: '3px solid var(--mantine-color-red-5)' }}>
-        <Title order={5} c='red' mb='md'>Danger Zone</Title>
-        <Stack gap='md'>
-          <Group>
-            <Button color='teal' variant='filled' onClick={() => { setBackupPassword(''); setBackupStatus('idle'); setShowBackupModal(true); }}>
-              Backup Data
-            </Button>
-            <Button color='orange' variant='filled' onClick={() => { setRestoreFile(null); setRestorePassword(''); setRestoreStatus('idle'); setRestoreMessage(''); setShowRestoreModal(true); }}>
-              Restore from Backup
-            </Button>
-          </Group>
-          <Text size='sm' c='dimmed'>
-            Factory Reset will permanently delete all certificate authorities, certificates, admin account,
-            and settings. You will need to go through setup again.
-          </Text>
-          <div>
-            <Button color='red' variant='filled' onClick={() => { setResetConfirmText(''); setShowResetModal(true); }}>
-              Factory Reset
-            </Button>
-          </div>
-        </Stack>
-      </Paper>
-
-      <Modal
-        opened={showResetModal}
-        onClose={() => setShowResetModal(false)}
-        title='Factory Reset'
-        centered
-      >
-        <Stack gap='md'>
-          <Text size='sm'>This action cannot be undone. All data will be permanently deleted.</Text>
-          <TextInput
-            label='Type RESET to confirm'
-            placeholder='RESET'
-            value={resetConfirmText}
-            onChange={(e) => setResetConfirmText(e.currentTarget.value)}
-           
-          />
-          <Group justify='flex-end'>
-            <Button variant='default' onClick={() => setShowResetModal(false)}>
-              Cancel
-            </Button>
-            <Button
-              color='red'
-              loading={resetMutation.isPending}
-              disabled={resetConfirmText !== 'RESET'}
-              onClick={handleFactoryReset}
-            >
-              Factory Reset
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
-
-      <Modal
-        opened={showBackupModal}
-        onClose={() => setShowBackupModal(false)}
-        title='Backup Data'
-        centered
-      >
-        <Stack gap='md'>
-          <Text size='sm' c='dimmed'>
-            Create an encrypted backup of all your data: certificates, CAs, settings, and encryption keys.
-          </Text>
-          <PasswordInput
-            label='Backup Password'
-            placeholder='Enter a strong password'
-            value={backupPassword}
-            onChange={(e) => setBackupPassword(e.currentTarget.value)}
-           
-          />
-          {backupStatus === 'success' && <Text c='green' size='sm'>Backup downloaded successfully</Text>}
-          {backupStatus === 'error' && <Text c='red' size='sm'>Failed to create backup</Text>}
-          <Group justify='flex-end'>
-            <Button variant='default' onClick={() => setShowBackupModal(false)}>Cancel</Button>
-            <Button
-              color='teal'
-              loading={backupStatus === 'loading'}
-              disabled={!backupPassword}
-              onClick={() => {
-                setBackupStatus('loading');
-                authFetchDownload('/api/backup/create', { password: backupPassword }, 'glcert-backup.zip')
-                  .then(() => setBackupStatus('success'))
-                  .catch(() => setBackupStatus('error'));
-              }}
-            >
-              Download Backup
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
-
-      <Modal
-        opened={showRestoreModal}
-        onClose={() => setShowRestoreModal(false)}
-        title='Restore from Backup'
-        centered
-      >
-        <Stack gap='md'>
-          {restoreStatus !== 'success' ? (
-            <>
-              <Text size='sm' c='dimmed'>
-                Restore CAs, certificates, and settings from a backup. Your admin account and encryption keys are preserved.
-              </Text>
-              <FileInput
-                label='Backup File'
-                placeholder='Select .zip backup file'
-                accept='.zip'
-                value={restoreFile}
-                onChange={setRestoreFile}
-              />
-              <PasswordInput
-                label='Backup Password'
-                placeholder='Enter backup password'
-                value={restorePassword}
-                onChange={(e) => setRestorePassword(e.currentTarget.value)}
-               
-              />
-              {restoreStatus === 'error' && <Text c='red' size='sm'>{restoreMessage}</Text>}
-              <Group justify='flex-end'>
-                <Button variant='default' onClick={() => setShowRestoreModal(false)}>Cancel</Button>
-                <Button
-                  color='orange'
-                  loading={restoreStatus === 'loading'}
-                  disabled={!restoreFile || !restorePassword}
-                  onClick={() => {
-                    setRestoreStatus('loading');
-                    const formData = new FormData();
-                    formData.append('backup', restoreFile!);
-                    formData.append('password', restorePassword);
-                    fetch('/api/backup/restore', { method: 'POST', body: formData })
-                      .then(async (res) => {
-                        if (!res.ok) {
-                          const text = await res.text();
-                          throw new Error(text);
-                        }
-                        return res.json();
-                      })
-                      .then((data) => {
-                        setRestoreStatus('success');
-                        setRestoreMessage(data.message);
-                      })
-                      .catch((err) => {
-                        setRestoreStatus('error');
-                        setRestoreMessage(err.message || 'Restore failed');
-                      });
-                  }}
-                >
-                  Restore
-                </Button>
-              </Group>
-            </>
-          ) : (
-            <>
-              <Text c='green' fw={500}>{restoreMessage}</Text>
-              <Text size='sm' c='dimmed'>
-                Data has been imported. The page will refresh to show the updated data.
-              </Text>
-              <Group justify='flex-end'>
-                <Button onClick={() => {
-                  queryClient.invalidateQueries();
-                  window.location.href = '/';
-                }}>Close</Button>
-              </Group>
-            </>
-          )}
-        </Stack>
-      </Modal>
     </Stack>
   );
 }
