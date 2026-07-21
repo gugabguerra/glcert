@@ -84,6 +84,7 @@ Singleton table storing application configuration.
 | created_at               | DATETIME      |                                             |
 | updated_at               | DATETIME      |                                             |
 | last_notified_at         | DATETIME      | nullable                                    |
+| group_name               | TEXT          | DEFAULT ''                                  |
 
 ### certificate_versions
 
@@ -231,6 +232,8 @@ glcert/
         share.go                Temporary link generation, serving, email
         static.go               SPA file server
         totp.go                 TOTP setup, verify, disable endpoints
+      logger/
+        logger.go               Leveled logger (DEBUG/INFO/WARN/ERROR/FATAL), LOG_LEVEL env var
       models/models.go          Domain models
       services/
         auth.go                 bcrypt, session management, reset tokens, pending sessions

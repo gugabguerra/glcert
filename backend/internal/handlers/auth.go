@@ -3,7 +3,6 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 
@@ -96,16 +95,13 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("[LOGIN DEBUG] HasPassphrase=%v", h.crypto.HasPassphrase())
 	if h.crypto.HasPassphrase() {
 		if err := h.crypto.LoadPassphrase(req.Password); err != nil {
-			log.Printf("[LOGIN DEBUG] LoadPassphrase failed: %v", err)
 			http.Error(w, "failed to load encryption passphrase", http.StatusInternalServerError)
 			return
 		}
 	}
 
-	log.Printf("[LOGIN DEBUG] TOTPEnabled=%v, returning partialToken", result.TOTPEnabled)
 	if result.TOTPEnabled {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{

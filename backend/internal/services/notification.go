@@ -3,9 +3,9 @@ package services
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"time"
 
+	"github.com/glcert/glcert/internal/logger"
 	"github.com/nicholas-fedor/shoutrrr"
 )
 
@@ -34,7 +34,7 @@ func (s *NotificationService) CheckAndNotify() {
 		"SELECT notifications_enabled, notification_webhook_url, notification_threshold_days FROM settings WHERE id = 1",
 	).Scan(&enabled, &webhookURL, &thresholdDays)
 	if err != nil {
-		log.Printf("[notifications] failed to read settings: %v", err)
+		logger.Errorf("Failed to read notification settings: %v", err)
 		return
 	}
 
@@ -57,7 +57,7 @@ func (s *NotificationService) CheckAndNotify() {
 		  AND (c.last_notified_at IS NULL OR c.last_notified_at < datetime('now', '-1 day'))
 	`, time.Now(), threshold)
 	if err != nil {
-		log.Printf("[notifications] failed to query certificates: %v", err)
+		logger.Errorf("Failed to query expiring certificates: %v", err)
 		return
 	}
 	defer rows.Close()
@@ -79,7 +79,7 @@ func (s *NotificationService) CheckAndNotify() {
 		  AND (last_notified_at IS NULL OR last_notified_at < datetime('now', '-1 day'))
 	`, time.Now(), threshold)
 	if err != nil {
-		log.Printf("[notifications] failed to query CAs: %v", err)
+		logger.Errorf("Failed to query expiring CAs: %v", err)
 		return
 	}
 	defer rows2.Close()
@@ -102,7 +102,7 @@ func (s *NotificationService) CheckAndNotify() {
 
 	err = shoutrrr.Send(webhookURL, msg)
 	if err != nil {
-		log.Printf("[notifications] send error: %v", err)
+		logger.Errorf("Notification send error: %v", err)
 		return
 	}
 
@@ -114,7 +114,7 @@ func (s *NotificationService) CheckAndNotify() {
 		s.db.Exec("UPDATE certificate_authorities SET last_notified_at = ? WHERE name = ?", now, ca.Name)
 	}
 
-	log.Printf("[notifications] sent alert: %d certificates, %d CAs expiring", len(certs), len(cas))
+	logger.Infof("Sent alert: %d certificates, %d CAs expiring", len(certs), len(cas))
 
 	// Send email notifications if enabled
 	var emailEnabled bool
@@ -124,9 +124,9 @@ func (s *NotificationService) CheckAndNotify() {
 		emailErr := s.db.QueryRow("SELECT email FROM admin WHERE id = 1").Scan(&adminEmail)
 		if emailErr == nil && adminEmail != "" {
 			if err := s.email.SendExpirationAlertEmail(adminEmail, certs, cas); err != nil {
-				log.Printf("[notifications] email error: %v", err)
+				logger.Errorf("Failed to send expiration email: %v", err)
 			} else {
-				log.Printf("[notifications] sent email alert to %s", adminEmail)
+				logger.Infof("Sent expiration email to %s", adminEmail)
 			}
 		}
 	}

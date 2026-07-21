@@ -2,7 +2,8 @@ package database
 
 import (
 	"database/sql"
-	"log"
+
+	"github.com/glcert/glcert/internal/logger"
 )
 
 func migrate(db *sql.DB) error {
@@ -10,7 +11,7 @@ func migrate(db *sql.DB) error {
 	var idType string
 	err := db.QueryRow("SELECT type FROM pragma_table_info('certificate_authorities') WHERE name = 'id'").Scan(&idType)
 	if err == nil && idType == "INTEGER" {
-		log.Println("[migration] detected old integer PK schema — dropping tables for UUID migration")
+		logger.Infof("Detected old integer PK schema — dropping tables for UUID migration")
 		dropTables := []string{"certificate_versions", "certificates", "certificate_authorities", "share_links"}
 		for _, t := range dropTables {
 			db.Exec("DROP TABLE IF EXISTS " + t)
@@ -167,7 +168,7 @@ func migrate(db *sql.DB) error {
 	var createSQL string
 	err = db.QueryRow("SELECT sql FROM sqlite_master WHERE type='table' AND name='certificates'").Scan(&createSQL)
 	if err == nil && createSQL != "" && !containsString(createSQL, "'serverclient'") {
-		log.Println("[migration] migrating certificates table to add 'serverclient' type")
+		logger.Infof("Migrating certificates table to add 'serverclient' type")
 		tx, txErr := db.Begin()
 		if txErr != nil {
 			return txErr

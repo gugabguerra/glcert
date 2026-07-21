@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	zip "github.com/alexmullins/zip"
+	"github.com/glcert/glcert/internal/logger"
 )
 
 type BackupMetadata struct {
@@ -63,7 +63,7 @@ func CreateBackup(dataDir string, password string) (io.Reader, int64, error) {
 
 	certsDir := filepath.Join(dataDir, "certificates")
 	if err := addDirectoryToZip(w, certsDir, "certificates", password); err != nil {
-		log.Printf("[backup] warning: could not add certificates directory: %v", err)
+		logger.Warnf("Could not add certificates directory to backup: %v", err)
 	}
 
 	if err := w.Close(); err != nil {

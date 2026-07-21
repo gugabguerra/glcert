@@ -2,12 +2,11 @@ package handlers
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 	"strings"
 
-	"github.com/pquerna/otp/totp"
 	"github.com/glcert/glcert/internal/services"
+	"github.com/pquerna/otp/totp"
 )
 
 type TOTPHandler struct {
@@ -97,14 +96,11 @@ func (h *TOTPHandler) Verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("[TOTP VERIFY DEBUG] code_len=%d, partialToken prefix=%s", len(req.Code), req.PartialToken[:16])
 	valid := false
 	if len(req.Code) >= 8 {
 		valid = h.totp.ValidateBackupCode(req.Code)
-		log.Printf("[TOTP VERIFY DEBUG] backup code validation: %v", valid)
 	} else {
 		valid = h.totp.ValidateCode(req.Code)
-		log.Printf("[TOTP VERIFY DEBUG] TOTP code validation: %v", valid)
 	}
 
 	if !valid {

@@ -6,12 +6,12 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/glcert/glcert/internal/logger"
 	"github.com/glcert/glcert/internal/models"
 	"github.com/glcert/glcert/internal/services"
 	"github.com/google/uuid"
@@ -244,7 +244,7 @@ func (h *CertHandler) Create(w http.ResponseWriter, r *http.Request) {
 		var err error
 		caCertPEM, caKeyPEM, err = h.readCAWithPassphrase(*req.CertificateAuthorityID)
 		if err != nil {
-			log.Printf("create certificate error: %v", err)
+			logger.Errorf("Create cert: failed to read CA: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -268,14 +268,14 @@ func (h *CertHandler) Create(w http.ResponseWriter, r *http.Request) {
 		ValidityDays:      req.ValidityDays,
 	}, caCertPEM, caKeyPEM)
 	if err != nil {
-		log.Printf("create certificate error: %v", err)
+		logger.Errorf("Create cert: generate certificate: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	// Save files
 	if err := h.cert.SaveCert(req.Type, req.Name, 1, result.CertPEM, result.KeyPEM, result.CAPem); err != nil {
-		log.Printf("create certificate error: %v", err)
+		logger.Errorf("Create cert: save certificate files: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -292,7 +292,7 @@ func (h *CertHandler) Create(w http.ResponseWriter, r *http.Request) {
 		req.CommonName, req.Organization, req.Country, req.State, req.City,
 		string(dnsNamesBytes), string(ipAddressesBytes), caSubject, req.GroupName)
 	if err != nil {
-		log.Printf("create certificate error: %v", err)
+		logger.Errorf("Create cert: insert certificate record: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -322,7 +322,7 @@ func (h *CertHandler) Create(w http.ResponseWriter, r *http.Request) {
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`, certID, 1, storagePath, serialNumber, fingerprint, sigAlgo, pubKeyAlgo, expiresAt)
 	if err != nil {
-		log.Printf("create certificate error: %v", err)
+		logger.Errorf("Create cert: insert version record: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -757,7 +757,7 @@ func (h *CertHandler) DownloadGroup(w http.ResponseWriter, r *http.Request) {
 	for _, c := range certs {
 		certPEM, keyPEM, caPEM, err := h.cert.ReadCert(c.Type, c.Name, c.Version)
 		if err != nil {
-			log.Printf("group bundle read error for %s: %v", c.Name, err)
+			logger.Errorf("Group bundle: failed to read cert %s: %v", c.Name, err)
 			continue
 		}
 

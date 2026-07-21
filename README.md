@@ -75,6 +75,7 @@ This builds and runs the application on port 8080 with a persistent Docker volum
 |---|---|---|
 | `PORT` | `8080` | HTTP server listen port |
 | `DATA_DIR` | `./data` | Root directory for database and certificate storage |
+| `LOG_LEVEL` | `info` | Log verbosity: `debug`, `info`, `warn`, `error`, `fatal` |
 
 ## Notifications
 

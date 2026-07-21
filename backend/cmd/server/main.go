@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 
@@ -12,21 +11,23 @@ import (
 	"github.com/glcert/glcert/internal/config"
 	"github.com/glcert/glcert/internal/database"
 	"github.com/glcert/glcert/internal/handlers"
+	"github.com/glcert/glcert/internal/logger"
 	"github.com/glcert/glcert/internal/services"
 )
 
 func main() {
+	logger.Init()
 	cfg := config.Load()
 
 	db, err := database.New(cfg.DataDir)
 	if err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
+		logger.Fatalf("Failed to initialize database: %v", err)
 	}
 	defer db.Close()
 
 	db.Exec("DELETE FROM sessions")
 	db.Exec("DELETE FROM pending_sessions")
-	log.Printf("Sessions cleared — re-login required after restart")
+	logger.Infof("Sessions cleared — re-login required after restart")
 
 	crypto := services.NewCryptoService(cfg.DataDir)
 	auth := services.NewAuthService(db)
@@ -154,8 +155,8 @@ func main() {
 	}()
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
-	log.Printf("GLCert server starting on %s", addr)
+	logger.Infof("GLCert server starting on %s", addr)
 	if err := http.ListenAndServe(addr, r); err != nil {
-		log.Fatalf("Server failed: %v", err)
+		logger.Fatalf("Server failed: %v", err)
 	}
 }
