@@ -6,6 +6,7 @@ import {
 } from '@mantine/core';
 import { IconShieldLock } from '@tabler/icons-react';
 import { useAuth } from '../auth';
+import { PasswordStrengthIndicator } from '../components/PasswordStrengthIndicator';
 
 function Setup() {
   const { login, setSetupComplete } = useAuth();
@@ -110,6 +111,7 @@ function Setup() {
            
             required
           />
+          <PasswordStrengthIndicator password={password} />
           <PasswordInput
             label="Confirm Password"
             value={confirmPassword}
@@ -137,6 +139,7 @@ function Setup() {
            
             required
           />
+          <PasswordStrengthIndicator password={encryptionPassphrase} />
           <PasswordInput
             label="Confirm Passphrase"
             value={confirmPassphrase}

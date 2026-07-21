@@ -20,6 +20,7 @@ import { useEffect, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { authFetchJson } from '../api';
 import { useAuth } from '../auth';
+import { PasswordStrengthIndicator } from '../components/PasswordStrengthIndicator';
 
 function UserProfile() {
   const { logout } = useAuth();
@@ -127,6 +128,7 @@ function UserProfile() {
             value={newPassword}
             onChange={(e) => setNewPassword(e.currentTarget.value)}
           />
+          <PasswordStrengthIndicator password={newPassword} />
           <PasswordInput
             label='Confirm New Password'
             value={confirmPassword}

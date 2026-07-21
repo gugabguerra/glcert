@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Title, Text, PasswordInput, Button, Stack, Paper, ThemeIcon, Group } from '@mantine/core';
 import { IconShieldLock } from '@tabler/icons-react';
+import { PasswordStrengthIndicator } from '../components/PasswordStrengthIndicator';
 
 function ResetPassword() {
   const [searchParams] = useSearchParams();
@@ -82,6 +83,7 @@ function ResetPassword() {
              
               required
             />
+            <PasswordStrengthIndicator password={password} />
             <PasswordInput
               label="Confirm Password"
               value={confirmPassword}
