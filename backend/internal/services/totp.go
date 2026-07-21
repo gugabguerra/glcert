@@ -68,10 +68,12 @@ func (s *TOTPService) GenerateSecret(email string) (*TOTPSetupResult, error) {
 }
 
 func (s *TOTPService) EnableTOTP(secret string, codes []string) error {
+	log.Printf("[TOTP ENABLE DEBUG] EnableTOTP called, secret len=%d, secret_hex=%x, gcm_enabled=%v", len(secret), secret, s.crypto.IsEnabled())
 	encrypted, err := s.crypto.Encrypt([]byte(secret))
 	if err != nil {
 		return fmt.Errorf("encrypt TOTP secret: %w", err)
 	}
+	log.Printf("[TOTP ENABLE DEBUG] encrypted len=%d", len(encrypted))
 
 	_, err = s.db.Exec("UPDATE admin SET totp_secret = ?, totp_enabled = TRUE WHERE id = 1", encrypted)
 	if err != nil {
@@ -124,9 +126,21 @@ func (s *TOTPService) ValidateCode(code string) bool {
 		log.Printf("[TOTP DEBUG] Decrypt failed: %v", err)
 		return false
 	}
-	log.Printf("[TOTP DEBUG] Decrypt OK, secret len=%d", len(string(secretBytes)))
+	secretStr := string(secretBytes)
+	log.Printf("[TOTP DEBUG] Decrypt OK, secret len=%d, secret_hex=%x", len(secretStr), secretStr)
 
-	valid := totp.Validate(code, string(secretBytes))
+	now := time.Now()
+	log.Printf("[TOTP DEBUG] server time=%d (unix), server_time_rfc3339=%s", now.Unix(), now.Format(time.RFC3339))
+	log.Printf("[TOTP DEBUG] submitted code=%s", code)
+
+	expected, err := totp.GenerateCode(secretStr, now)
+	if err != nil {
+		log.Printf("[TOTP DEBUG] GenerateCode error: %v", err)
+	} else {
+		log.Printf("[TOTP DEBUG] expected code for current time=%s", expected)
+	}
+
+	valid := totp.Validate(code, secretStr)
 	log.Printf("[TOTP DEBUG] totp.Validate result=%v", valid)
 	return valid
 }
