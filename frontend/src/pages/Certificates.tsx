@@ -18,7 +18,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { useState, useMemo } from 'react';
-import { IconTrash, IconPlus, IconDownload, IconLink, IconCertificate, IconUpload } from '@tabler/icons-react';
+import { IconTrash, IconPlus, IconDownload, IconLink, IconCertificate, IconUpload, IconShieldCheck } from '@tabler/icons-react';
 import { authFetch, authFetchJson, downloadFile } from '../api';
 import { sanitizeFilename } from '../utils/clipboard';
 
@@ -37,9 +37,237 @@ interface Certificate {
   groupName: string;
 }
 
+interface CertificateAuthority {
+  id: string;
+  name: string;
+  subject: string;
+  createdAt: string;
+  expiresAt: string;
+  currentVersion: number;
+  parentCaId?: string | null;
+}
+
 interface CertGroup {
   name: string;
   count: number;
+}
+
+interface CertTreeNode {
+  kind: 'ca' | 'cert';
+  id: string;
+  name: string;
+  prefix: string;
+  depth: number;
+  children: CertTreeNode[];
+  ca?: CertificateAuthority;
+  cert?: Certificate;
+}
+
+function buildCertTree(cas: CertificateAuthority[], certs: Certificate[]): CertTreeNode[] {
+  const caChildrenMap = new Map<string, CertificateAuthority[]>();
+  const roots: CertificateAuthority[] = [];
+  const certsByCaId = new Map<string, Certificate[]>();
+  const orphanCerts: Certificate[] = [];
+
+  for (const ca of cas) {
+    if (ca.parentCaId) {
+      const siblings = caChildrenMap.get(ca.parentCaId) || [];
+      siblings.push(ca);
+      caChildrenMap.set(ca.parentCaId, siblings);
+    } else {
+      roots.push(ca);
+    }
+  }
+
+  for (const cert of certs) {
+    if (cert.certificateAuthorityId) {
+      const list = certsByCaId.get(cert.certificateAuthorityId) || [];
+      list.push(cert);
+      certsByCaId.set(cert.certificateAuthorityId, list);
+    } else {
+      orphanCerts.push(cert);
+    }
+  }
+
+  function buildCaNodes(nodes: CertificateAuthority[], depth: number, parentPrefix: string): CertTreeNode[] {
+    return nodes.map((ca, i) => {
+      const last = i === nodes.length - 1;
+      const connector = last ? '└── ' : '├── ';
+      const prefix = depth === 0 ? '' : parentPrefix + connector;
+      const childPrefix = depth === 0 ? '' : parentPrefix + (last ? '    ' : '│   ');
+
+      const childCAs = caChildrenMap.get(ca.id) || [];
+      const caCerts = certsByCaId.get(ca.id) || [];
+
+      const children: CertTreeNode[] = [
+        ...buildCaNodes(childCAs, depth + 1, childPrefix),
+        ...caCerts.map((cert, j) => {
+          const certLast = j === caCerts.length - 1 && childCAs.length === 0;
+          const certConnector = certLast ? '└── ' : '├── ';
+          return {
+            kind: 'cert' as const,
+            id: cert.id,
+            name: cert.name,
+            prefix: childPrefix + certConnector,
+            depth: depth + 1,
+            children: [],
+            cert,
+          };
+        }),
+      ];
+
+      return {
+        kind: 'ca' as const,
+        id: ca.id,
+        name: ca.name,
+        prefix,
+        depth,
+        children,
+        ca,
+      };
+    });
+  }
+
+  const caRoots = buildCaNodes(roots, 0, '');
+
+  const orphanNodes: CertTreeNode[] = orphanCerts.map((cert) => ({
+    kind: 'cert' as const,
+    id: cert.id,
+    name: cert.name,
+    prefix: '',
+    depth: 0,
+    children: [],
+    cert,
+  }));
+
+  return [...caRoots, ...orphanNodes];
+}
+
+function CertTreeRow({
+  node,
+  onDelete,
+  isExpired,
+  isExpiringSoon,
+  bundleMutation,
+  bundleMenuId,
+  setBundleMenuId,
+  navigate,
+}: {
+  node: CertTreeNode;
+  onDelete: (id: string) => void;
+  isExpired: (expiresAt: string | null) => boolean;
+  isExpiringSoon: (expiresAt: string | null) => boolean;
+  bundleMutation: any;
+  bundleMenuId: string | null;
+  setBundleMenuId: (id: string | null) => void;
+  navigate: (path: string) => void;
+}) {
+  if (node.kind === 'ca') {
+    const ca = node.ca!;
+    const expExpired = new Date(ca.expiresAt) < new Date();
+    const daysLeft = Math.ceil((new Date(ca.expiresAt).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+    const expExpiringSoon = !expExpired && daysLeft <= 30;
+
+    return (
+      <>
+        <Table.Tr>
+          <Table.Td colSpan={4}>
+            <span style={{ fontFamily: 'monospace', whiteSpace: 'pre', fontSize: '18px', paddingLeft: '4px' }}>{node.prefix}</span>
+            <Box style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'gray', textDecoration: 'none' }}>
+              <IconShieldCheck size={16} />
+              {ca.name}
+            </Box>
+            {node.depth > 0 && (
+              <Badge color='violet' variant='light' size='xs' ml='xs'>Intermediate</Badge>
+            )}
+          </Table.Td>
+          <Table.Td>v{ca.currentVersion}</Table.Td>
+          <Table.Td>{new Date(ca.expiresAt).toLocaleDateString()}</Table.Td>
+          <Table.Td>
+            {expExpired ? (
+              <Badge color='red'>Expired</Badge>
+            ) : expExpiringSoon ? (
+              <Badge color='yellow'>Expiring Soon</Badge>
+            ) : (
+              <Badge color='green'>Active</Badge>
+            )}
+          </Table.Td>
+          <Table.Td />
+        </Table.Tr>
+        {node.children.map((child) => (
+          <CertTreeRow
+            key={child.id}
+            node={child}
+            onDelete={onDelete}
+            isExpired={isExpired}
+            isExpiringSoon={isExpiringSoon}
+            bundleMutation={bundleMutation}
+            bundleMenuId={bundleMenuId}
+            setBundleMenuId={setBundleMenuId}
+            navigate={navigate}
+          />
+        ))}
+      </>
+    );
+  }
+
+  const cert = node.cert!;
+  return (
+    <Table.Tr>
+      <Table.Td colSpan={4}>
+        <span style={{ fontFamily: 'monospace', whiteSpace: 'pre', fontSize: '18px', paddingLeft: '4px' }}>{node.prefix}</span>
+        <Box component={Link} to={`/certificates/${cert.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--mantine-color-teal-6)', textDecoration: 'none' }}>
+          <IconCertificate size={16} />
+          {cert.name}
+        </Box>
+      </Table.Td>
+      <Table.Td>v{cert.currentVersion}</Table.Td>
+      <Table.Td>
+        {cert.expiresAt ? new Date(cert.expiresAt).toLocaleDateString() : '—'}
+      </Table.Td>
+      <Table.Td>
+        {cert.expiresAt &&
+          (isExpired(cert.expiresAt) ? (
+            <Badge color='red'>Expired</Badge>
+          ) : isExpiringSoon(cert.expiresAt) ? (
+            <Badge color='yellow'>Expiring Soon</Badge>
+          ) : (
+            <Badge color='green'>Active</Badge>
+          ))}
+      </Table.Td>
+      <Table.Td>
+        <Group gap={4}>
+          <Menu shadow='md' width={180} opened={bundleMenuId === cert.id} onChange={(open) => !open && setBundleMenuId(null)}>
+            <Menu.Target>
+              <Tooltip label='Download bundle'>
+                <ActionIcon variant='subtle' onClick={() => setBundleMenuId(cert.id)}>
+                  <IconDownload size={16} />
+                </ActionIcon>
+              </Tooltip>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Item onClick={() => bundleMutation.mutate({ id: cert.id, format: 'zip' })}>
+                ZIP (.zip)
+              </Menu.Item>
+              <Menu.Item onClick={() => bundleMutation.mutate({ id: cert.id, format: 'tgz' })}>
+                Tarball (.tar.gz)
+              </Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
+          <Tooltip label='Temporary share link'>
+            <ActionIcon variant='subtle' onClick={() => navigate(`/certificates/${cert.id}`)}>
+              <IconLink size={16} />
+            </ActionIcon>
+          </Tooltip>
+          <Tooltip label='Delete certificate'>
+            <ActionIcon color='red' variant='subtle' onClick={() => onDelete(cert.id)}>
+              <IconTrash size={16} />
+            </ActionIcon>
+          </Tooltip>
+        </Group>
+      </Table.Td>
+    </Table.Tr>
+  );
 }
 
 function Certificates() {
@@ -63,6 +291,11 @@ function Certificates() {
     },
   });
 
+  const { data: cas = [] } = useQuery<CertificateAuthority[]>({
+    queryKey: ['cas'],
+    queryFn: () => authFetchJson('/api/ca'),
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => authFetch(`/api/certificates/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
@@ -84,6 +317,8 @@ function Certificates() {
     },
     onSettled: () => setBundleMenuId(null),
   });
+
+  const isTreeMode = !typeFilter && !groupFilter;
 
   const filteredCerts = typeFilter ? certs.filter((c) => c.type === typeFilter) : certs;
 
@@ -159,6 +394,11 @@ function Certificates() {
     });
   }, [filteredCerts, sortKey, sortDirection]);
 
+  const tree = useMemo(() => {
+    if (!isTreeMode) return [];
+    return buildCertTree(cas, certs);
+  }, [cas, certs, isTreeMode]);
+
   const typeColors: Record<string, string> = {
     server: 'blue',
     client: 'green',
@@ -224,8 +464,38 @@ function Certificates() {
         <Center py={80}>
           <Loader />
         </Center>
-      ) : filteredCerts.length === 0 ? (
+      ) : certs.length === 0 ? (
         <Text c='dimmed'>No certificates yet.</Text>
+      ) : isTreeMode ? (
+        <Table striped highlightOnHover>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Name</Table.Th>
+              <Table.Th>Group</Table.Th>
+              <Table.Th>Type</Table.Th>
+              <Table.Th>Issuer</Table.Th>
+              <Table.Th>Version</Table.Th>
+              <Table.Th>Expires</Table.Th>
+              <Table.Th>Status</Table.Th>
+              <Table.Th>Actions</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {tree.map((node) => (
+              <CertTreeRow
+                key={node.id}
+                node={node}
+                onDelete={(id) => { setDeleteId(id); }}
+                isExpired={isExpired}
+                isExpiringSoon={isExpiringSoon}
+                bundleMutation={bundleMutation}
+                bundleMenuId={bundleMenuId}
+                setBundleMenuId={setBundleMenuId}
+                navigate={navigate}
+              />
+            ))}
+          </Table.Tbody>
+        </Table>
       ) : (
         <Table striped highlightOnHover>
           <Table.Thead>
