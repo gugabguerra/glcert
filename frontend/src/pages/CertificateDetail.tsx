@@ -1,8 +1,8 @@
-import { Title, Text, Button, Group, Stack, Badge, Divider, ActionIcon, Table, Modal, Center, Loader, SimpleGrid, Paper, Tooltip, TextInput, NumberInput, Radio, Menu, Code, Box } from '@mantine/core';
+import { Title, Text, Button, Group, Stack, Badge, Divider, ActionIcon, Table, Modal, Center, Loader, SimpleGrid, Paper, Tooltip, TextInput, NumberInput, Radio, Menu, Code, Box, Combobox, InputBase, useCombobox, CloseButton } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import { IconDownload, IconTrash, IconRefresh, IconHistory, IconEye, IconLink, IconClipboard, IconMail } from '@tabler/icons-react';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { notifications } from '@mantine/notifications';
 import { authFetch, authFetchJson, downloadFile } from '../api';
 import { copyToClipboard, sanitizeFilename } from '../utils/clipboard';
@@ -57,6 +57,10 @@ function CertificateDetail() {
   const [emailAddress, setEmailAddress] = useState('');
   const [showRegenerate, setShowRegenerate] = useState(false);
   const [regenerateValidity, setRegenerateValidity] = useState(365);
+  const [editingGroup, setEditingGroup] = useState(false);
+  const [groupSearch, setGroupSearch] = useState('');
+  const [editingDescription, setEditingDescription] = useState(false);
+  const [descriptionValue, setDescriptionValue] = useState('');
 
   const { data: cert, isLoading } = useQuery<Certificate>({
     queryKey: ['certificate', id],
@@ -71,6 +75,61 @@ function CertificateDetail() {
   const { data: versions = [], isLoading: versionsLoading } = useQuery<CertificateVersion[]>({
     queryKey: ['certificateVersions', id],
     queryFn: () => authFetchJson(`/api/certificates/${id}/versions`),
+  });
+
+  const { data: groups = [] } = useQuery<{ name: string; count: number }[]>({
+    queryKey: ['certGroups'],
+    queryFn: () => authFetchJson('/api/certificates/groups'),
+  });
+
+  const groupCombobox = useCombobox({
+    onDropdownClose: () => groupCombobox.resetSelectedOption(),
+  });
+
+  const groupNames = groups.map((g) => g.name).filter((n) => n !== '');
+  const exactGroupMatch = groupNames.some((name) => name === groupSearch);
+  const filteredGroups = exactGroupMatch
+    ? groupNames
+    : groupNames.filter((name) => name.toLowerCase().includes(groupSearch.toLowerCase().trim()));
+
+  useEffect(() => {
+    if (editingGroup) {
+      setGroupSearch(cert?.groupName || '');
+    }
+  }, [editingGroup, cert?.groupName]);
+
+  const clearGroupEdit = useCallback(() => {
+    setEditingGroup(false);
+    setGroupSearch(cert?.groupName || '');
+  }, [cert?.groupName]);
+
+  const updateGroupMutation = useMutation({
+    mutationFn: (groupName: string) =>
+      authFetchJson(`/api/certificates/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ groupName }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['certificate', id] });
+      queryClient.invalidateQueries({ queryKey: ['certificates'] });
+      queryClient.invalidateQueries({ queryKey: ['certGroups'] });
+      setEditingGroup(false);
+    },
+  });
+
+  const updateDescriptionMutation = useMutation({
+    mutationFn: (description: string) =>
+      authFetchJson(`/api/certificates/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ groupName: cert?.groupName || '', description }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['certificate', id] });
+      queryClient.invalidateQueries({ queryKey: ['certificates'] });
+      setEditingDescription(false);
+    },
   });
 
   const deleteMutation = useMutation({
@@ -255,10 +314,137 @@ function CertificateDetail() {
           <Text fw={500}>Common Name:</Text>
           <Text>{cert.commonName || '—'}</Text>
         </Group>
-        {cert.groupName && (
+        {editingDescription ? (
+          <Group>
+            <Text fw={500}>Description:</Text>
+            <TextInput
+              size="sm"
+              value={descriptionValue}
+              onChange={(e) => setDescriptionValue(e.currentTarget.value)}
+              onBlur={() => {
+                if (descriptionValue !== cert.description) {
+                  updateDescriptionMutation.mutate(descriptionValue);
+                } else {
+                  setEditingDescription(false);
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  (e.target as HTMLInputElement).blur();
+                }
+                if (e.key === 'Escape') {
+                  setDescriptionValue(cert.description || '');
+                  setEditingDescription(false);
+                }
+              }}
+              autoFocus
+              style={{ width: 300 }}
+            />
+          </Group>
+        ) : (
+          <Group>
+            <Text fw={500}>Description:</Text>
+            <Text
+              c={cert.description ? undefined : 'dimmed'}
+              style={{ cursor: 'pointer' }}
+              onClick={() => {
+                setDescriptionValue(cert.description || '');
+                setEditingDescription(true);
+              }}
+            >
+              {cert.description || 'Click to add'}
+            </Text>
+          </Group>
+        )}
+        {editingGroup ? (
           <Group>
             <Text fw={500}>Group:</Text>
-            <Badge variant='light'>{cert.groupName}</Badge>
+            <Combobox
+              store={groupCombobox}
+              withinPortal
+              onOptionSubmit={(val) => {
+                const newGroup = val === '$create' ? groupSearch : val;
+                updateGroupMutation.mutate(newGroup);
+                groupCombobox.closeDropdown();
+              }}
+            >
+              <Combobox.Target>
+                <InputBase
+                  size="sm"
+                  placeholder="e.g., web-servers"
+                  rightSection={
+                    groupSearch ? (
+                      <CloseButton size="sm" onClick={clearGroupEdit} />
+                    ) : (
+                      <Combobox.Chevron />
+                    )
+                  }
+                  rightSectionPointerEvents="none"
+                  value={groupSearch}
+                  onChange={(event) => {
+                    groupCombobox.openDropdown();
+                    groupCombobox.updateSelectedOptionIndex();
+                    setGroupSearch(event.currentTarget.value);
+                  }}
+                  onClick={() => groupCombobox.openDropdown()}
+                  onBlur={() => {
+                    groupCombobox.closeDropdown();
+                    setGroupSearch(cert.groupName || '');
+                    setEditingGroup(false);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      const newGroup = exactGroupMatch ? groupSearch : groupSearch.trim();
+                      if (newGroup) {
+                        updateGroupMutation.mutate(newGroup);
+                      } else {
+                        updateGroupMutation.mutate('');
+                      }
+                    }
+                    if (event.key === 'Escape') {
+                      clearGroupEdit();
+                    }
+                  }}
+                  style={{ width: 220 }}
+                />
+              </Combobox.Target>
+              <Combobox.Dropdown>
+                <Combobox.Options>
+                  {filteredGroups.map((name) => (
+                    <Combobox.Option value={name} key={name}>
+                      {name}
+                    </Combobox.Option>
+                  ))}
+                  {!exactGroupMatch && groupSearch.trim().length > 0 && (
+                    <Combobox.Option value="$create">+ Create "{groupSearch}"</Combobox.Option>
+                  )}
+                </Combobox.Options>
+              </Combobox.Dropdown>
+            </Combobox>
+          </Group>
+        ) : (
+          <Group>
+            <Text fw={500}>Group:</Text>
+            {cert.groupName ? (
+              <Badge
+                variant="light"
+                style={{ cursor: 'pointer' }}
+                onClick={() => setEditingGroup(true)}
+              >
+                {cert.groupName}
+              </Badge>
+            ) : (
+              <Badge
+                variant="dashed"
+                color="gray"
+                style={{ cursor: 'pointer' }}
+                onClick={() => setEditingGroup(true)}
+              >
+                + Group
+              </Badge>
+            )}
           </Group>
         )}
         <Group>

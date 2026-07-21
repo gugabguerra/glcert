@@ -780,6 +780,45 @@ func (h *CertHandler) DownloadGroup(w http.ResponseWriter, r *http.Request) {
 	WriteBundle(w, files, format)
 }
 
+type UpdateGroupRequest struct {
+	GroupName   string `json:"groupName"`
+	Description *string `json:"description,omitempty"`
+}
+
+func (h *CertHandler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	var exists bool
+	err := h.db.QueryRow("SELECT EXISTS(SELECT 1 FROM certificates WHERE id = ?)", id).Scan(&exists)
+	if err != nil || !exists {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
+	var req UpdateGroupRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if req.Description != nil {
+		if _, err := h.db.Exec("UPDATE certificates SET description = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", *req.Description, id); err != nil {
+			logger.Errorf("Update description: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	if _, err := h.db.Exec("UPDATE certificates SET group_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", req.GroupName, id); err != nil {
+		logger.Errorf("Update group: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"groupName": req.GroupName})
+}
+
 func sanitizeFilename(name string) string {
 	result := make([]rune, 0, len(name))
 	for _, r := range name {

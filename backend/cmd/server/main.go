@@ -126,6 +126,7 @@ func main() {
 			r.Get("/download/group", certHandler.DownloadGroup)
 			r.Post("/", certHandler.Create)
 			r.Get("/{id}", certHandler.Get)
+			r.Patch("/{id}", certHandler.UpdateGroup)
 			r.Get("/{id}/versions", certHandler.GetVersions)
 			r.Post("/{id}/regenerate", certHandler.Regenerate)
 			r.Post("/{id}/versions/{version}/restore", certHandler.RestoreVersion)
