@@ -59,7 +59,7 @@ function buildTree(cas: CertificateAuthority[]): TreeNode[] {
   return buildNodes(roots, 0, '');
 }
 
-function TreeRow({ node, onDelete }: { node: TreeNode; onDelete: (id: string) => void }) {
+function TreeRow({ node, onDelete, canDelete }: { node: TreeNode; onDelete: (id: string) => void; canDelete: boolean }) {
   const isExpired = new Date(node.ca.expiresAt) < new Date();
   const daysLeft = Math.ceil((new Date(node.ca.expiresAt).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
   const isExpiringSoon = !isExpired && daysLeft <= 30;
@@ -91,19 +91,21 @@ function TreeRow({ node, onDelete }: { node: TreeNode; onDelete: (id: string) =>
           )}
         </Table.Td>
         <Table.Td>
-          <Tooltip label="Delete certificate authority">
-            <ActionIcon
-              color="red"
-              variant="subtle"
-              onClick={() => onDelete(node.ca.id)}
-            >
-              <IconTrash size={16} />
-            </ActionIcon>
-          </Tooltip>
+          {canDelete && (
+            <Tooltip label="Delete certificate authority">
+              <ActionIcon
+                color="red"
+                variant="subtle"
+                onClick={() => onDelete(node.ca.id)}
+              >
+                <IconTrash size={16} />
+              </ActionIcon>
+            </Tooltip>
+          )}
         </Table.Td>
       </Table.Tr>
       {node.children.map((child) => (
-        <TreeRow key={child.ca.id} node={child} onDelete={onDelete} />
+        <TreeRow key={child.ca.id} node={child} onDelete={onDelete} canDelete={canDelete} />
       ))}
     </>
   );
@@ -112,7 +114,6 @@ function TreeRow({ node, onDelete }: { node: TreeNode; onDelete: (id: string) =>
 function CertificateAuthorities() {
   const queryClient = useQueryClient();
   const { hasRole } = useAuth();
-  const canWrite = hasRole('admin', 'operator');
   const isAdmin = hasRole('admin');
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -138,18 +139,16 @@ function CertificateAuthorities() {
     <Stack>
       <Group justify="space-between">
         <Title>Certificate Authorities</Title>
-        {canWrite && (
+        {isAdmin && (
           <Group>
-            {isAdmin && (
-              <Button
-                component={Link}
-                to="/ca/import"
-                variant="default"
-                leftSection={<IconUpload size={16} />}
-              >
-                Import CA
-              </Button>
-            )}
+            <Button
+              component={Link}
+              to="/ca/import"
+              variant="default"
+              leftSection={<IconUpload size={16} />}
+            >
+              Import CA
+            </Button>
             <Button
               component={Link}
               to="/ca/new"
@@ -180,7 +179,7 @@ function CertificateAuthorities() {
           </Table.Thead>
           <Table.Tbody>
             {tree.map((node) => (
-              <TreeRow key={node.ca.id} node={node} onDelete={(id) => setDeleteId(id)} />
+              <TreeRow key={node.ca.id} node={node} onDelete={(id) => setDeleteId(id)} canDelete={isAdmin} />
             ))}
           </Table.Tbody>
         </Table>

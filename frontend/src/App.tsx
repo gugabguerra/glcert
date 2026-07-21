@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { AppShell, Group, Box, NavLink, ActionIcon, useMantineColorScheme, useComputedColorScheme, Burger, Drawer, Divider, Stack, Space, Image, Badge, Text } from '@mantine/core';
+import { AppShell, Group, Box, NavLink, ActionIcon, useMantineColorScheme, useComputedColorScheme, Burger, Drawer, Divider, Stack, Space, Image } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { Link } from 'react-router-dom';
 import { IconShield, IconCertificate, IconSettings, IconSun, IconMoon, IconDeviceDesktop, IconLogout, IconUser, IconAdjustments } from '@tabler/icons-react';
@@ -34,8 +34,14 @@ function OperatorRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function ViewerRoute({ children }: { children: React.ReactNode }) {
+  const { hasRole } = useAuth();
+  if (hasRole('viewer')) return <Navigate to="/certificates" />;
+  return <>{children}</>;
+}
+
 function AppRoutes() {
-  const { isAuthenticated, isSetupComplete, logout, user, hasRole } = useAuth();
+  const { isAuthenticated, isSetupComplete, logout, hasRole } = useAuth();
   const location = useLocation();
 
   if (isSetupComplete === false) return <Setup />;
@@ -65,12 +71,14 @@ function AppRoutes() {
 
   const ColorSchemeIcon = colorScheme === 'dark' ? IconMoon : colorScheme === 'light' ? IconSun : IconDeviceDesktop;
 
-  const roleColors: Record<string, string> = { admin: 'red', operator: 'blue', viewer: 'green' };
-
   const navLinks = (
     <>
-      <NavLink component={Link} to="/" label="Dashboard" leftSection={<IconSettings size={18} />} active={location.pathname === '/'} onClick={() => setDrawerOpened(false)} />
-      <NavLink component={Link} to="/ca" label="CAs" leftSection={<IconShield size={18} />} active={location.pathname.startsWith('/ca')} onClick={() => setDrawerOpened(false)} />
+      {!hasRole('viewer') && (
+        <>
+          <NavLink component={Link} to="/" label="Dashboard" leftSection={<IconSettings size={18} />} active={location.pathname === '/'} onClick={() => setDrawerOpened(false)} />
+          <NavLink component={Link} to="/ca" label="CAs" leftSection={<IconShield size={18} />} active={location.pathname.startsWith('/ca')} onClick={() => setDrawerOpened(false)} />
+        </>
+      )}
       <NavLink component={Link} to="/certificates" label="Certificates" leftSection={<IconCertificate size={18} />} active={location.pathname.startsWith('/certificates')} onClick={() => setDrawerOpened(false)} />
       {hasRole('admin') && (
         <>
@@ -100,10 +108,6 @@ function AppRoutes() {
           </Box>
           {!isMobile && (
             <Space>
-              <Badge size="sm" color={roleColors[user?.role || '']} variant="light" mr="xs">
-                {user?.role}
-              </Badge>
-              <Text size="sm" c="dimmed" mr="xs">{user?.name || user?.email}</Text>
               <ActionIcon variant="subtle" size="lg" onClick={cycleColorScheme}>
                 <ColorSchemeIcon size={20} />
               </ActionIcon>
@@ -155,11 +159,11 @@ function AppRoutes() {
 
       <AppShell.Main>
         <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/ca" element={<CertificateAuthorities />} />
-          <Route path="/ca/new" element={<OperatorRoute><CreateCA /></OperatorRoute>} />
+          <Route path="/" element={<ViewerRoute><Dashboard /></ViewerRoute>} />
+          <Route path="/ca" element={<ViewerRoute><CertificateAuthorities /></ViewerRoute>} />
+          <Route path="/ca/new" element={<AdminRoute><CreateCA /></AdminRoute>} />
           <Route path="/ca/import" element={<AdminRoute><ImportCA /></AdminRoute>} />
-          <Route path="/ca/:id" element={<CADetail />} />
+          <Route path="/ca/:id" element={<ViewerRoute><CADetail /></ViewerRoute>} />
           <Route path="/certificates" element={<Certificates />} />
           <Route path="/certificates/new" element={<OperatorRoute><CreateCertificate /></OperatorRoute>} />
           <Route path="/certificates/import" element={<OperatorRoute><ImportCertificate /></OperatorRoute>} />

@@ -153,6 +153,7 @@ function CertTreeRow({
   bundleMenuId,
   setBundleMenuId,
   navigate,
+  canWrite,
 }: {
   node: CertTreeNode;
   onDelete: (id: string) => void;
@@ -162,6 +163,7 @@ function CertTreeRow({
   bundleMenuId: string | null;
   setBundleMenuId: (id: string | null) => void;
   navigate: (path: string) => void;
+  canWrite: boolean;
 }) {
   if (node.kind === 'ca') {
     const ca = node.ca!;
@@ -206,6 +208,7 @@ function CertTreeRow({
             bundleMenuId={bundleMenuId}
             setBundleMenuId={setBundleMenuId}
             navigate={navigate}
+            canWrite={canWrite}
           />
         ))}
       </>
@@ -260,11 +263,13 @@ function CertTreeRow({
               <IconLink size={16} />
             </ActionIcon>
           </Tooltip>
-          <Tooltip label='Delete certificate'>
-            <ActionIcon color='red' variant='subtle' onClick={() => onDelete(cert.id)}>
-              <IconTrash size={16} />
-            </ActionIcon>
-          </Tooltip>
+          {canWrite && (
+            <Tooltip label='Delete certificate'>
+              <ActionIcon color='red' variant='subtle' onClick={() => onDelete(cert.id)}>
+                <IconTrash size={16} />
+              </ActionIcon>
+            </Tooltip>
+          )}
         </Group>
       </Table.Td>
     </Table.Tr>
@@ -499,6 +504,7 @@ function Certificates() {
                 bundleMenuId={bundleMenuId}
                 setBundleMenuId={setBundleMenuId}
                 navigate={navigate}
+                canWrite={canWrite}
               />
             ))}
           </Table.Tbody>
@@ -598,11 +604,13 @@ function Certificates() {
                         <IconLink size={16} />
                       </ActionIcon>
                     </Tooltip>
-                    <Tooltip label='Delete certificate'>
-                      <ActionIcon color='red' variant='subtle' onClick={() => setDeleteId(cert.id)}>
-                        <IconTrash size={16} />
-                      </ActionIcon>
-                    </Tooltip>
+                    {canWrite && (
+                      <Tooltip label='Delete certificate'>
+                        <ActionIcon color='red' variant='subtle' onClick={() => setDeleteId(cert.id)}>
+                          <IconTrash size={16} />
+                        </ActionIcon>
+                      </Tooltip>
+                    )}
                   </Group>
                 </Table.Td>
               </Table.Tr>

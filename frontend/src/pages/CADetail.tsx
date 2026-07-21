@@ -156,15 +156,17 @@ function CADetail() {
               <IconDownload size={20} />
             </ActionIcon>
           </Tooltip>
-          <Tooltip label="Delete CA">
-            <ActionIcon
-              color="red"
-              variant="subtle"
-              onClick={() => setShowDelete(true)}
-            >
-              <IconTrash size={20} />
-            </ActionIcon>
-          </Tooltip>
+          {isAdmin && (
+            <Tooltip label="Delete CA">
+              <ActionIcon
+                color="red"
+                variant="subtle"
+                onClick={() => setShowDelete(true)}
+              >
+                <IconTrash size={20} />
+              </ActionIcon>
+            </Tooltip>
+          )}
           <Tooltip label="Temporary share link">
             <ActionIcon variant="subtle" onClick={() => setShowShareDialog(true)}>
               <IconLink size={20} />

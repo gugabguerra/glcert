@@ -6,6 +6,11 @@ For technical details (database schema, API reference, project structure), see [
 
 ## Features
 
+- **Multi-User Support** -- Admin, Operator, and Viewer roles. Admins manage users and system settings. Operators create and manage certificates under assigned CAs. Viewers have read-only access with share link capabilities.
+- **Role-Based Access Control** -- Per-CA permission assignment. Operators only see CAs they have been granted access to (including child CAs via automatic chain traversal).
+- **Administration Panel** -- Centralized admin page with user management, audit log, and system operations (backup, restore, factory reset).
+- **User Management** -- Create users with role assignment and CA access. Admins can reset passwords and change roles. Password strength indicator on all password fields.
+- **Audit Log** -- Track all system activity: CA/certificate operations, user changes, settings updates, logins. Filterable by action type.
 - **CA Management** -- Create or import certificate authorities with RSA, ECDSA, or Ed25519 keys. Support for passphrase-protected private keys (PKCS#8 and legacy PEM). Create intermediate CAs signed by a parent CA with automatic chain management. Download CA certificates and private keys individually or as ZIP bundles.
 - **Certificate Management** -- Generate server, client, server+client, or self-signed certificates. Regenerate with custom validity periods. Full version history with restore capability.
 - **Download Bundles** -- Download certificates, private keys, CA certs, or complete ZIP/TGZ bundles with a single click.
@@ -14,12 +19,28 @@ For technical details (database schema, API reference, project structure), see [
 - **Backup & Restore** -- Password-encrypted ZIP backup of all data. Restore merges into existing data without overwriting.
 - **Email Integration** -- SMTP support for password reset and expiration alerts. Configure in Settings with a test button.
 - **Expiration Notifications** -- Get notified via Discord, Slack, Telegram, email (SMTP), or 20+ other services when certificates or CAs are close to expiration. Configurable threshold and webhook URL.
-- **Dashboard** -- Overview of all CAs, certificates, expiring soon, and expired counts.
+- **Dashboard** -- Overview of all CAs, certificates, expiring soon, and expired counts. Visible to admin and operator roles.
 - **Dark / Light / System Theme** -- Full theme support with instant switching.
 - **Responsive Design** -- Mobile-friendly with hamburger menu on small screens.
 - **Password Reset** -- Forgot your password? Reset via email link (requires SMTP configured).
-- **Setup Wizard** -- Guided initial setup for admin credentials.
-- **Factory Reset** -- Complete data wipe with confirmation dialog.
+- **Setup Wizard** -- Guided initial setup for admin credentials and encryption passphrase.
+- **Factory Reset** -- Complete data wipe with confirmation dialog (admin only).
+
+## Role Permissions
+
+| Action | Admin | Operator | Viewer |
+|--------|:-----:|:--------:|:------:|
+| View Dashboard | Yes | Yes | No |
+| View / Download CAs | Yes | Assigned CAs | No |
+| View / Download Certificates | Yes | Assigned CAs | Yes (shared) |
+| Create / Delete CAs | Yes | No | No |
+| Import CAs | Yes | No | No |
+| Create / Delete Certificates | Yes | Assigned CAs | No |
+| Manage Users | Yes | No | No |
+| View Audit Log | Yes | No | No |
+| Backup / Restore / Factory Reset | Yes | No | No |
+| System Settings | Yes | No | No |
+| Create Share Links | Yes | Yes | Yes |
 
 ## Tech Stack
 
@@ -98,22 +119,24 @@ GLCert can notify you when certificates or CAs are close to expiration via webho
 | Slack | `slack://token-a/token-b/token-c` |
 | Telegram | `telegram://token@telegram?chats=@channel` |
 | Email | `smtp://user:pass@host:port/?from=addr&to=recipient` |
+| Gotify | `gotify://host/token` |
 
 Alternatively, configure built-in SMTP in Settings for password reset and email alerts without a webhook URL.
-
-| Gotify | `gotify://host/token` |
 
 See the full list at [shoutrrr.nickfedor.com](https://shoutrrr.nickfedor.com/services/overview/).
 
 ## Security
 
+- **Multi-user access control** -- Role-based permissions with per-CA access assignment for operators
 - **Encryption at rest** -- Private keys are encrypted using AES-256-GCM before being stored on disk
 - **Key derivation** -- The encryption passphrase is derived from the admin password using PBKDF2 with SHA-256
-- **Session management** -- Random hex tokens with 24-hour expiry and 30-minute idle timeout
+- **Session management** -- Random hex tokens with 24-hour expiry, 30-minute idle timeout, and global session clearing on server restart
 - **MFA / TOTP** -- Optional two-factor authentication with encrypted secret storage and single-use backup codes
 - **Share links** -- Single-use, 15-minute expiry, cryptographically random 32-char tokens
 - **Password hashing** -- bcrypt with automatic salting
+- **Password strength enforcement** -- Visual strength indicator with minimum length requirements
 - **Password manager prevention** -- All form inputs configured to disable browser autofill
+- **Audit trail** -- All administrative and certificate operations are logged with user attribution
 
 ## License
 
