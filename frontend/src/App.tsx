@@ -16,6 +16,7 @@ import ImportCA from './pages/ImportCA';
 import CADetail from './pages/CADetail';
 import Certificates from './pages/Certificates';
 import CreateCertificate from './pages/CreateCertificate';
+import ImportCertificate from './pages/ImportCertificate';
 import CertificateDetail from './pages/CertificateDetail';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
@@ -137,6 +138,7 @@ function AppRoutes() {
           <Route path="/ca/:id" element={<CADetail />} />
           <Route path="/certificates" element={<Certificates />} />
           <Route path="/certificates/new" element={<CreateCertificate />} />
+          <Route path="/certificates/import" element={<ImportCertificate />} />
           <Route path="/certificates/:id" element={<CertificateDetail />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/profile" element={<UserProfile />} />

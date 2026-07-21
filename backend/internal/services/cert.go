@@ -1,6 +1,7 @@
 package services
 
 import (
+	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -238,4 +239,98 @@ func (s *CertService) DeleteCert(certType, name string) error {
 func (s *CertService) DeleteVersion(certType, name string, version int) error {
 	dir := s.GetCertPath(certType, name, version)
 	return os.RemoveAll(dir)
+}
+
+type ImportCertResult struct {
+	Type           string
+	CommonName     string
+	DNSNames       []string
+	IPAddresses    []string
+	SerialNumber   string
+	Fingerprint    string
+	SigAlgo        string
+	PubKeyAlgo     string
+	ExpiresAt      time.Time
+}
+
+func (s *CertService) ImportCert(certPEM, keyPEM []byte, passphrase string) (*ImportCertResult, *x509.Certificate, error) {
+	certBlock, _ := pem.Decode(certPEM)
+	if certBlock == nil {
+		return nil, nil, fmt.Errorf("failed to decode certificate PEM")
+	}
+
+	cert, err := x509.ParseCertificate(certBlock.Bytes)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse certificate: %w", err)
+	}
+
+	if cert.IsCA {
+		return nil, nil, fmt.Errorf("certificate is a CA — use Import CA instead")
+	}
+
+	if len(keyPEM) > 0 {
+		privKey, err := parsePrivateKeyWithPassphrase(keyPEM, []byte(passphrase))
+		if err != nil {
+			return nil, nil, fmt.Errorf("private key: %w", err)
+		}
+
+		if cert.PublicKeyAlgorithm == x509.RSA {
+			rsaKey, ok := privKey.(*rsa.PrivateKey)
+			if !ok {
+				return nil, nil, fmt.Errorf("private key type does not match certificate")
+			}
+			pubKey, ok := cert.PublicKey.(*rsa.PublicKey)
+			if !ok || pubKey.N.Cmp(rsaKey.PublicKey.N) != 0 || pubKey.E != rsaKey.PublicKey.E {
+				return nil, nil, fmt.Errorf("private key does not match certificate public key")
+			}
+		} else if cert.PublicKeyAlgorithm == x509.ECDSA {
+			ecKey, ok := privKey.(*ecdsa.PrivateKey)
+			if !ok {
+				return nil, nil, fmt.Errorf("private key type does not match certificate")
+			}
+			pubKey, ok := cert.PublicKey.(*ecdsa.PublicKey)
+			if !ok || pubKey.X.Cmp(ecKey.PublicKey.X) != 0 || pubKey.Y.Cmp(ecKey.PublicKey.Y) != 0 {
+				return nil, nil, fmt.Errorf("private key does not match certificate public key")
+			}
+		}
+	}
+
+	certType := detectCertType(cert)
+
+	result := &ImportCertResult{
+		Type:         certType,
+		CommonName:   cert.Subject.CommonName,
+		DNSNames:     cert.DNSNames,
+		SerialNumber: cert.SerialNumber.String(),
+		Fingerprint:  fmt.Sprintf("%x", cert.SerialNumber),
+		SigAlgo:      cert.SignatureAlgorithm.String(),
+		PubKeyAlgo:   cert.PublicKeyAlgorithm.String(),
+		ExpiresAt:    cert.NotAfter,
+	}
+
+	for _, ip := range cert.IPAddresses {
+		result.IPAddresses = append(result.IPAddresses, ip.String())
+	}
+
+	return result, cert, nil
+}
+
+func detectCertType(cert *x509.Certificate) string {
+	hasServer := false
+	hasClient := false
+	for _, usage := range cert.ExtKeyUsage {
+		if usage == x509.ExtKeyUsageServerAuth {
+			hasServer = true
+		}
+		if usage == x509.ExtKeyUsageClientAuth {
+			hasClient = true
+		}
+	}
+	if hasServer && hasClient {
+		return "serverclient"
+	}
+	if hasClient {
+		return "client"
+	}
+	return "server"
 }

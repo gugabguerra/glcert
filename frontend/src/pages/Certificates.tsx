@@ -18,7 +18,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { useState, useMemo } from 'react';
-import { IconTrash, IconPlus, IconDownload, IconLink, IconCertificate } from '@tabler/icons-react';
+import { IconTrash, IconPlus, IconDownload, IconLink, IconCertificate, IconUpload } from '@tabler/icons-react';
 import { authFetch, authFetchJson, downloadFile } from '../api';
 import { sanitizeFilename } from '../utils/clipboard';
 
@@ -211,6 +211,9 @@ function Certificates() {
               </ActionIcon>
             </Tooltip>
           )}
+          <Button component={Link} to='/certificates/import' variant='light' leftSection={<IconUpload size={16} />}>
+            Import
+          </Button>
           <Button component={Link} to='/certificates/new' leftSection={<IconPlus size={16} />}>
             New Certificate
           </Button>

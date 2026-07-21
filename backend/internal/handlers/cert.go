@@ -819,6 +819,97 @@ func (h *CertHandler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"groupName": req.GroupName})
 }
 
+type ImportCertRequest struct {
+	Name                  string  `json:"name"`
+	Description           string  `json:"description"`
+	CertPEM               string  `json:"certPem"`
+	KeyPEM                string  `json:"keyPem"`
+	Passphrase            string  `json:"passphrase"`
+	CertificateAuthorityID *string `json:"certificateAuthorityId"`
+}
+
+func (h *CertHandler) ImportCert(w http.ResponseWriter, r *http.Request) {
+	var req ImportCertRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if req.Name == "" || req.CertPEM == "" || req.KeyPEM == "" || req.CertificateAuthorityID == nil {
+		http.Error(w, "name, certPem, keyPem, and certificateAuthorityId are required", http.StatusBadRequest)
+		return
+	}
+
+	result, parsedCert, err := h.cert.ImportCert([]byte(req.CertPEM), []byte(req.KeyPEM), req.Passphrase)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	caCertPEM, _, err := h.readCAWithPassphrase(*req.CertificateAuthorityID)
+	if err != nil {
+		http.Error(w, "certificate authority not found", http.StatusBadRequest)
+		return
+	}
+
+	caBlock, _ := pem.Decode(caCertPEM)
+	if caBlock == nil {
+		http.Error(w, "failed to decode CA certificate", http.StatusInternalServerError)
+		return
+	}
+	caCert, err := x509.ParseCertificate(caBlock.Bytes)
+	if err != nil {
+		http.Error(w, "failed to parse CA certificate", http.StatusInternalServerError)
+		return
+	}
+
+	if err := parsedCert.CheckSignatureFrom(caCert); err != nil {
+		http.Error(w, fmt.Sprintf("certificate was not signed by the selected CA: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	var caSubject string
+	h.db.QueryRow("SELECT subject FROM certificate_authorities WHERE id = ?", *req.CertificateAuthorityID).Scan(&caSubject)
+
+	certID := uuid.New().String()
+
+	if err := h.cert.SaveCert(result.Type, req.Name, 1, []byte(req.CertPEM), []byte(req.KeyPEM), caCertPEM); err != nil {
+		logger.Errorf("Import cert: save files: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	dnsNamesBytes, _ := json.Marshal(result.DNSNames)
+	ipAddressesBytes, _ := json.Marshal(result.IPAddresses)
+	_, err = h.db.Exec(`
+		INSERT INTO certificates (id, name, description, type, certificate_authority_id, current_version,
+			common_name, dns_names, ip_addresses, ca_subject)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, certID, req.Name, req.Description, result.Type, req.CertificateAuthorityID, 1,
+		result.CommonName, string(dnsNamesBytes), string(ipAddressesBytes), caSubject)
+	if err != nil {
+		logger.Errorf("Import cert: insert certificate: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	storagePath := h.cert.GetCertPath(result.Type, req.Name, 1)
+	_, err = h.db.Exec(`
+		INSERT INTO certificate_versions (certificate_id, version, storage_path, serial_number,
+			fingerprint, signature_algorithm, public_key_algorithm, expires_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`, certID, 1, storagePath, result.SerialNumber, result.Fingerprint, result.SigAlgo, result.PubKeyAlgo, result.ExpiresAt)
+	if err != nil {
+		logger.Errorf("Import cert: insert version: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]string{"id": certID})
+}
+
 func sanitizeFilename(name string) string {
 	result := make([]rune, 0, len(name))
 	for _, r := range name {
