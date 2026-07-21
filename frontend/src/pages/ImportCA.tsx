@@ -56,6 +56,7 @@ function ImportCA() {
     setError('');
     if (!name.trim()) return setError('Name is required');
     if (!certPEM.trim()) return setError('Certificate file is required');
+    if (!keyPEM.trim()) return setError('Private key file is required');
     mutation.mutate();
   };
 
@@ -85,7 +86,7 @@ function ImportCA() {
            
           />
           <FileInput
-            label="CA Certificate (PEM)"
+            label="CA Certificate"
             placeholder="Select ca.crt file"
             accept=".crt,.pem,.cer"
             required
@@ -96,9 +97,10 @@ function ImportCA() {
             }}
           />
           <FileInput
-            label="Private Key (PEM) — optional"
+            label="CA Private Key"
             placeholder="Select ca.key file"
             accept=".key,.pem"
+            required
             value={keyFile}
             onChange={(file) => {
               setKeyFile(file);
@@ -115,7 +117,7 @@ function ImportCA() {
             />
           )}
           <Text size="xs" c="dimmed">
-            Without a private key, this CA can only be used for trust (verification), not for signing new certificates. Encrypted keys (PKCS#8 or legacy PEM) are supported.
+            Encrypted keys (PKCS#8 or legacy PEM) are supported.
           </Text>
 
           {error && <Text c="red" size="sm">{error}</Text>}

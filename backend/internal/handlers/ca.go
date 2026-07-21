@@ -399,8 +399,8 @@ func (h *CAHandler) Import(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Name == "" || req.CertPEM == "" {
-		http.Error(w, "name and certPem are required", http.StatusBadRequest)
+	if req.Name == "" || req.CertPEM == "" || req.KeyPEM == "" {
+		http.Error(w, "name, certPem, and keyPem are required", http.StatusBadRequest)
 		return
 	}
 
