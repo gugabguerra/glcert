@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"image/png"
+	"log"
 	"strings"
 	"time"
 
@@ -113,15 +114,21 @@ func (s *TOTPService) ValidateCode(code string) bool {
 	var encrypted []byte
 	err := s.db.QueryRow("SELECT totp_secret FROM admin WHERE id = 1 AND totp_enabled = TRUE").Scan(&encrypted)
 	if err != nil {
+		log.Printf("[TOTP DEBUG] DB query failed: %v", err)
 		return false
 	}
+	log.Printf("[TOTP DEBUG] DB query OK, encrypted len=%d, gcm_enabled=%v", len(encrypted), s.crypto.IsEnabled())
 
 	secretBytes, err := s.crypto.Decrypt(encrypted)
 	if err != nil {
+		log.Printf("[TOTP DEBUG] Decrypt failed: %v", err)
 		return false
 	}
+	log.Printf("[TOTP DEBUG] Decrypt OK, secret len=%d", len(string(secretBytes)))
 
-	return totp.Validate(code, string(secretBytes))
+	valid := totp.Validate(code, string(secretBytes))
+	log.Printf("[TOTP DEBUG] totp.Validate result=%v", valid)
+	return valid
 }
 
 func (s *TOTPService) ValidateBackupCode(code string) bool {

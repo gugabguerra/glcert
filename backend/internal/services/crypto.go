@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 
@@ -82,13 +83,16 @@ func (s *CryptoService) SavePassphrase(passphrase string, adminPassword string) 
 }
 
 func (s *CryptoService) LoadPassphrase(adminPassword string) error {
+	log.Printf("[CRYPTO DEBUG] LoadPassphrase called, path=%s", s.GetPassphrasePath())
 	encoded, err := os.ReadFile(s.GetPassphrasePath())
 	if err != nil {
+		log.Printf("[CRYPTO DEBUG] ReadFile failed: %v", err)
 		return fmt.Errorf("read passphrase file: %w", err)
 	}
 
 	data, err := base64.StdEncoding.DecodeString(string(encoded))
 	if err != nil {
+		log.Printf("[CRYPTO DEBUG] Base64 decode failed: %v", err)
 		return fmt.Errorf("decode passphrase file: %w", err)
 	}
 
@@ -119,6 +123,7 @@ func (s *CryptoService) LoadPassphrase(adminPassword string) error {
 	nonce, ciphertext := encrypted[:nonceSize], encrypted[nonceSize:]
 	passphrase, err := gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
+		log.Printf("[CRYPTO DEBUG] Decrypt passphrase failed (wrong password?): %v", err)
 		return fmt.Errorf("decrypt passphrase: %w", err)
 	}
 
@@ -126,6 +131,7 @@ func (s *CryptoService) LoadPassphrase(adminPassword string) error {
 
 	s.gcm = gcm
 	s.enabled = true
+	log.Printf("[CRYPTO DEBUG] LoadPassphrase OK, gcm set")
 	return nil
 }
 
