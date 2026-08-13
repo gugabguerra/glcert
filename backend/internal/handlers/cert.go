@@ -273,6 +273,12 @@ func (h *CertHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Operators may only issue certificates under CAs they have been granted.
+	if req.CertificateAuthorityID != nil && !h.auth.UserHasCAAccess(GetUserID(r.Context()), *req.CertificateAuthorityID) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
 	var caCertPEM, caKeyPEM []byte
 	var caSubject string
 	if req.Type != "selfsigned" && req.CertificateAuthorityID != nil {
@@ -896,6 +902,12 @@ func (h *CertHandler) ImportCert(w http.ResponseWriter, r *http.Request) {
 
 	if req.Name == "" || req.CertPEM == "" || req.KeyPEM == "" || req.CertificateAuthorityID == nil {
 		http.Error(w, "name, certPem, keyPem, and certificateAuthorityId are required", http.StatusBadRequest)
+		return
+	}
+
+	// Operators may only import certificates under CAs they have been granted.
+	if !h.auth.UserHasCAAccess(GetUserID(r.Context()), *req.CertificateAuthorityID) {
+		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
 

@@ -139,11 +139,11 @@ func SetupRouter(db *sql.DB, crypto *services.CryptoService, cfg *config.Config,
 
 				r.Post("/certificates", certHandler.Create)
 				r.Post("/certificates/import", certHandler.ImportCert)
-				r.Patch("/certificates/{id}", certHandler.UpdateGroup)
-				r.Post("/certificates/{id}/regenerate", certHandler.Regenerate)
-				r.Post("/certificates/{id}/versions/{version}/restore", certHandler.RestoreVersion)
-				r.Delete("/certificates/{id}/versions/{version}", certHandler.DeleteVersion)
-				r.Delete("/certificates/{id}", certHandler.Delete)
+				r.With(authMiddleware.RequireCertAccess).Patch("/certificates/{id}", certHandler.UpdateGroup)
+				r.With(authMiddleware.RequireCertAccess).Post("/certificates/{id}/regenerate", certHandler.Regenerate)
+				r.With(authMiddleware.RequireCertAccess).Post("/certificates/{id}/versions/{version}/restore", certHandler.RestoreVersion)
+				r.With(authMiddleware.RequireCertAccess).Delete("/certificates/{id}/versions/{version}", certHandler.DeleteVersion)
+				r.With(authMiddleware.RequireCertAccess).Delete("/certificates/{id}", certHandler.Delete)
 			})
 
 			// --- Admin only ---
