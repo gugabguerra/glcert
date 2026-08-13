@@ -4,10 +4,30 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/glcert/glcert/internal/services"
 )
+
+// appBaseURL derives the externally reachable base URL for links embedded in
+// emails (e.g. password reset). It honours X-Forwarded-Proto when present and
+// validates the Host header so a poisoned or malformed Host cannot be used to
+// craft phishing links or header-injection payloads.
+func appBaseURL(r *http.Request) string {
+	scheme := "http"
+	if r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https") {
+		scheme = "https"
+	}
+	host := strings.TrimSpace(r.Host)
+	if host == "" || strings.ContainsAny(host, "/\\\r\n") {
+		return "http://localhost"
+	}
+	if u, err := url.Parse(scheme + "://" + host); err != nil || u.Host != host || u.Path != "" {
+		return "http://localhost"
+	}
+	return scheme + "://" + host
+}
 
 type AuthHandler struct {
 	auth   *services.AuthService
@@ -217,7 +237,7 @@ func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 
 	h.auth.SaveResetToken(userID, token)
 
-	resetURL := fmt.Sprintf("%s/reset-password?token=%s", "http://"+r.Host, token)
+	resetURL := fmt.Sprintf("%s/reset-password?token=%s", appBaseURL(r), token)
 	h.email.SendPasswordResetEmail(req.Email, resetURL)
 
 	w.Header().Set("Content-Type", "application/json")
