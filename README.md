@@ -70,7 +70,7 @@ go mod download
 go run ./cmd/server
 ```
 
-The server starts on `http://localhost:8080`.
+The server starts on `http://localhost:18080`.
 
 **Frontend:**
 
@@ -80,7 +80,7 @@ npm install
 npm run dev
 ```
 
-The dev server starts on `http://localhost:5173` with proxy to the backend.
+The dev server starts on `http://localhost:3000` with a proxy to the backend.
 
 ### Docker Deployment
 
@@ -94,7 +94,7 @@ This builds and runs the application on port 8080 with a persistent Docker volum
 
 | Environment Variable | Default | Description |
 |---|---|---|
-| `PORT` | `8080` | HTTP server listen port |
+| `PORT` | `18080` | HTTP server listen port |
 | `DATA_DIR` | `./data` | Root directory for database and certificate storage |
 | `LOG_LEVEL` | `info` | Log verbosity: `debug`, `info`, `warn`, `error`, `fatal` |
 
