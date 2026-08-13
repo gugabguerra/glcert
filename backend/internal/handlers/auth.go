@@ -38,6 +38,11 @@ func (h *AuthHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) Setup(w http.ResponseWriter, r *http.Request) {
+	if h.auth.IsSetupComplete() {
+		http.Error(w, "setup already completed", http.StatusForbidden)
+		return
+	}
+
 	var req SetupRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)

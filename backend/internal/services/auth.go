@@ -55,12 +55,20 @@ func (s *AuthService) CompleteSetup(input SetupInput) (string, string, error) {
 		return "", "", fmt.Errorf("generate user ID: %w", err)
 	}
 
-	_, err = s.db.Exec(`
+	// Atomically create the first (admin) user. The NOT EXISTS guard makes
+	// concurrent setup attempts safe: only one request can ever create the
+	// initial admin account.
+	res, err := s.db.Exec(`
 		INSERT INTO users (id, email, password_hash, role)
-		VALUES (?, ?, ?, 'admin')
+		SELECT ?, ?, ?, 'admin'
+		WHERE NOT EXISTS (SELECT 1 FROM users)
 	`, userID, input.Email, string(hash))
 	if err != nil {
 		return "", "", fmt.Errorf("save user: %w", err)
+	}
+	rows, err := res.RowsAffected()
+	if err != nil || rows == 0 {
+		return "", "", fmt.Errorf("setup already completed")
 	}
 
 	_, err = s.db.Exec(`
