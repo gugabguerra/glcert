@@ -26,6 +26,7 @@ func SetupRouter(db *sql.DB, crypto *services.CryptoService, cfg *config.Config,
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+	r.Use(handlers.SecurityHeaders)
 
 	authHandler := handlers.NewAuthHandler(auth, crypto, emailService, totpService)
 	authMiddleware := handlers.NewAuthMiddleware(auth, db)
