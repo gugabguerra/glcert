@@ -109,12 +109,14 @@ func (s *AuthService) Login(email, password string) (LoginResult, error) {
 	var userID, storedHash, role string
 	err := s.db.QueryRow("SELECT id, password_hash, role FROM users WHERE email = ?", email).Scan(&userID, &storedHash, &role)
 	if err != nil {
-		logger.Errorf("Login: user lookup failed for email=%q: %v", email, err)
-		return LoginResult{}, fmt.Errorf("user not found")
+		// Log the same generic message as a password mismatch so logs cannot
+		// be used to enumerate registered email addresses.
+		logger.Errorf("Login failed for email=%q", email)
+		return LoginResult{}, fmt.Errorf("invalid credentials")
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(storedHash), []byte(password)); err != nil {
-		logger.Errorf("Login: password mismatch for user=%s email=%q: %v", userID, email, err)
+		logger.Errorf("Login failed for email=%q", email)
 		return LoginResult{}, fmt.Errorf("invalid credentials")
 	}
 

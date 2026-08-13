@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/http"
 	"time"
 
@@ -295,18 +296,8 @@ func (h *ShareHandler) SendShareEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dlName := req.FileName
 	subject := fmt.Sprintf("GLCert Share Link — %s", req.FileName)
-	htmlBody := fmt.Sprintf(`<h2>GLCert Share Link</h2>
-<p>A temporary share link has been generated for <strong>%s</strong>.</p>
-<p>This link expires in <strong>15 minutes</strong> and can only be used once.</p>
-<h3>Download</h3>
-<p><a href="%s">%s</a></p>
-<h3>wget</h3>
-<pre>wget -O %s "%s"</pre>
-<h3>curl</h3>
-<pre>curl -L -o %s "%s"</pre>`,
-		req.FileName, req.URL, req.URL, dlName, req.URL, dlName, req.URL)
+	htmlBody := buildShareEmailBody(req.FileName, req.URL)
 
 	if err := h.email.SendEmail(req.Email, subject, htmlBody); err != nil {
 		http.Error(w, "failed to send email: "+err.Error(), http.StatusInternalServerError)
@@ -315,4 +306,22 @@ func (h *ShareHandler) SendShareEmail(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+// buildShareEmailBody renders the share email. All user-controlled values are
+// HTML-escaped so a malicious file name or URL cannot inject markup into the
+// email sent to the recipient.
+func buildShareEmailBody(fileName, url string) string {
+	safeName := html.EscapeString(fileName)
+	safeURL := html.EscapeString(url)
+	return fmt.Sprintf(`<h2>GLCert Share Link</h2>
+<p>A temporary share link has been generated for <strong>%s</strong>.</p>
+<p>This link expires in <strong>15 minutes</strong> and can only be used once.</p>
+<h3>Download</h3>
+<p><a href="%s">%s</a></p>
+<h3>wget</h3>
+<pre>wget -O %s "%s"</pre>
+<h3>curl</h3>
+<pre>curl -L -o %s "%s"</pre>`,
+		safeName, safeURL, safeURL, safeName, safeURL, safeName, safeURL)
 }
