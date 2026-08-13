@@ -87,7 +87,7 @@ func TestRestoreBlockedAfterSetupForAnonymous(t *testing.T) {
 	completeSetup(t, h)
 
 	backup := makeBackupZip(t, "pw", map[string][]byte{
-		"backup.json":    []byte(`{"version":1,"timestamp":"2026-01-01T00:00:00Z"}`),
+		"backup.json":     []byte(`{"version":1,"timestamp":"2026-01-01T00:00:00Z"}`),
 		"database.sqlite": validBackupDB(t),
 	})
 
@@ -101,8 +101,8 @@ func TestRestoreAllowedBeforeSetup(t *testing.T) {
 	h, _ := newTestRouter(t)
 
 	backup := makeBackupZip(t, "pw", map[string][]byte{
-		"backup.json":     []byte(`{"version":1,"timestamp":"2026-01-01T00:00:00Z"}`),
-		"database.sqlite":  validBackupDB(t),
+		"backup.json":                          []byte(`{"version":1,"timestamp":"2026-01-01T00:00:00Z"}`),
+		"database.sqlite":                      validBackupDB(t),
 		"certificates/demo/server/v1/cert.pem": []byte("CERT"),
 	})
 
@@ -117,7 +117,7 @@ func TestRestoreAllowedForAdminAfterSetup(t *testing.T) {
 	adminToken := completeSetup(t, h)
 
 	backup := makeBackupZip(t, "pw", map[string][]byte{
-		"backup.json":    []byte(`{"version":1,"timestamp":"2026-01-01T00:00:00Z"}`),
+		"backup.json":     []byte(`{"version":1,"timestamp":"2026-01-01T00:00:00Z"}`),
 		"database.sqlite": validBackupDB(t),
 	})
 
@@ -141,7 +141,7 @@ func TestRestoreForbiddenForNonAdminAfterSetup(t *testing.T) {
 	}
 
 	backup := makeBackupZip(t, "pw", map[string][]byte{
-		"backup.json":    []byte(`{"version":1,"timestamp":"2026-01-01T00:00:00Z"}`),
+		"backup.json":     []byte(`{"version":1,"timestamp":"2026-01-01T00:00:00Z"}`),
 		"database.sqlite": validBackupDB(t),
 	})
 
@@ -156,7 +156,7 @@ func TestRestoreZipSlipDoesNotWriteOutsideDataDir(t *testing.T) {
 	completeSetup(t, h)
 
 	backup := makeBackupZip(t, "pw", map[string][]byte{
-		"backup.json":    []byte(`{"version":1,"timestamp":"2026-01-01T00:00:00Z"}`),
+		"backup.json":     []byte(`{"version":1,"timestamp":"2026-01-01T00:00:00Z"}`),
 		"database.sqlite": validBackupDB(t),
 		// Malicious entry attempting to escape the data dir.
 		"certificates/../../pwned.txt": []byte("PWNED"),
@@ -201,8 +201,8 @@ func TestRestoreInvalidArchiveHandledSafely(t *testing.T) {
 	adminToken, _ := loginAs(t, h, "admin@example.com", "admin-password123!")
 
 	rr := doRestore(t, h, makeBackupZip(t, "pw", map[string][]byte{
-		"backup.json":    []byte(`{"version":1}`),
-		"big.bin":        big,
+		"backup.json": []byte(`{"version":1}`),
+		"big.bin":     big,
 	}), "pw", adminToken)
 
 	// The archive is not a valid backup (missing database.sqlite) but it must

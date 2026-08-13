@@ -5,15 +5,15 @@ import (
 	"database/sql"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/glcert/glcert/internal/services"
+	"github.com/go-chi/chi/v5"
 )
 
 type contextKey string
 
 const (
-	TokenKey  contextKey = "token"
-	UserIDKey contextKey = "userID"
+	TokenKey    contextKey = "token"
+	UserIDKey   contextKey = "userID"
 	UserRoleKey contextKey = "userRole"
 )
 

@@ -35,9 +35,9 @@ func TestCreateCertRejectsTraversalName(t *testing.T) {
 
 	for _, name := range []string{"../../evil", "a/b", ".."} {
 		rr := doRequest(t, h, http.MethodPost, "/api/certificates", map[string]interface{}{
-			"name":                  name,
-			"commonName":            "cn.example.com",
-			"type":                  "server",
+			"name":                   name,
+			"commonName":             "cn.example.com",
+			"type":                   "server",
 			"certificateAuthorityId": caID,
 		}, token)
 		if rr.Code != http.StatusBadRequest {

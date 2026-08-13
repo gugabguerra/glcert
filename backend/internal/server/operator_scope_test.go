@@ -28,9 +28,9 @@ func TestOperatorCanCreateCertUnderGrantedCA(t *testing.T) {
 	h, _, opToken, caA, _ := setupOpScenario(t)
 
 	rr := doRequest(t, h, http.MethodPost, "/api/certificates", map[string]interface{}{
-		"name":                  "ok",
-		"commonName":            "ok.example.com",
-		"type":                  "server",
+		"name":                   "ok",
+		"commonName":             "ok.example.com",
+		"type":                   "server",
 		"certificateAuthorityId": caA,
 	}, opToken)
 	if rr.Code != http.StatusCreated && rr.Code != http.StatusOK {
@@ -42,9 +42,9 @@ func TestOperatorCannotCreateCertUnderUngrantedCA(t *testing.T) {
 	h, _, opToken, _, caB := setupOpScenario(t)
 
 	rr := doRequest(t, h, http.MethodPost, "/api/certificates", map[string]interface{}{
-		"name":                  "nope",
-		"commonName":            "nope.example.com",
-		"type":                  "server",
+		"name":                   "nope",
+		"commonName":             "nope.example.com",
+		"type":                   "server",
 		"certificateAuthorityId": caB,
 	}, opToken)
 	if rr.Code != http.StatusForbidden {
@@ -89,9 +89,9 @@ func TestOperatorCannotImportUnderUngrantedCA(t *testing.T) {
 	h, _, opToken, _, caB := setupOpScenario(t)
 
 	rr := doRequest(t, h, http.MethodPost, "/api/certificates/import", map[string]interface{}{
-		"name":                  "imported",
-		"certPem":               "CERT",
-		"keyPem":                "KEY",
+		"name":                   "imported",
+		"certPem":                "CERT",
+		"keyPem":                 "KEY",
 		"certificateAuthorityId": caB,
 	}, opToken)
 	if rr.Code != http.StatusForbidden {

@@ -10,8 +10,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/glcert/glcert/internal/services"
+	"github.com/go-chi/chi/v5"
 )
 
 type ShareHandler struct {

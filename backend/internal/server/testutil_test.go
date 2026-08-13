@@ -163,13 +163,13 @@ func grantCAPermission(t *testing.T, h http.Handler, adminToken, caID, userID st
 func createCertAs(t *testing.T, h http.Handler, token, name, commonName, caID string) string {
 	t.Helper()
 	rr := doRequest(t, h, http.MethodPost, "/api/certificates", map[string]interface{}{
-		"name":                  name,
-		"commonName":            commonName,
-		"type":                  "server",
+		"name":                   name,
+		"commonName":             commonName,
+		"type":                   "server",
 		"certificateAuthorityId": caID,
-		"keyAlgorithm":          "rsa",
-		"rsaKeySize":            2048,
-		"validityDays":          365,
+		"keyAlgorithm":           "rsa",
+		"rsaKeySize":             2048,
+		"validityDays":           365,
 	}, token)
 	if rr.Code != http.StatusCreated && rr.Code != http.StatusOK {
 		t.Fatalf("create cert %s failed: status=%d body=%s", name, rr.Code, rr.Body.String())

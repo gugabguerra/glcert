@@ -6,11 +6,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 	"github.com/glcert/glcert/internal/config"
 	"github.com/glcert/glcert/internal/handlers"
 	"github.com/glcert/glcert/internal/services"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"golang.org/x/time/rate"
 )
 
