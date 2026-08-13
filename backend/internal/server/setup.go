@@ -4,12 +4,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/glcert/glcert/internal/config"
 	"github.com/glcert/glcert/internal/handlers"
 	"github.com/glcert/glcert/internal/services"
+	"golang.org/x/time/rate"
 )
 
 func SetupRouter(db *sql.DB, crypto *services.CryptoService, cfg *config.Config, staticHandler http.Handler) *chi.Mux {
@@ -47,13 +49,13 @@ func SetupRouter(db *sql.DB, crypto *services.CryptoService, cfg *config.Config,
 		})
 		r.Get("/auth/status", authHandler.GetStatus)
 		r.Post("/auth/setup", authHandler.Setup)
-		r.Post("/auth/login", authHandler.Login)
-		r.Post("/auth/forgot-password", authHandler.ForgotPassword)
-		r.Post("/auth/reset-password", authHandler.ResetPassword)
+		r.With(handlers.RateLimit(rate.Every(2*time.Second), 5)).Post("/auth/login", authHandler.Login)
+		r.With(handlers.RateLimit(rate.Every(2*time.Second), 3)).Post("/auth/forgot-password", authHandler.ForgotPassword)
+		r.With(handlers.RateLimit(rate.Every(2*time.Second), 3)).Post("/auth/reset-password", authHandler.ResetPassword)
 		r.Get("/share/{token}", shareHandler.ServeLink)
 
 		// --- TOTP verify (unauthenticated) ---
-		r.Post("/totp/verify", totpHandler.Verify)
+		r.With(handlers.RateLimit(rate.Every(3*time.Second), 3)).Post("/totp/verify", totpHandler.Verify)
 
 		// --- Backup restore ---
 		// Allowed unauthenticated only during initial bootstrap (setup wizard).
