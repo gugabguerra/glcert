@@ -710,13 +710,25 @@ func parseCert(pemBytes []byte) (*x509.Certificate, error) {
 }
 
 func (h *CertHandler) ListGroups(w http.ResponseWriter, r *http.Request) {
-	rows, err := h.db.Query(`
+	userID := GetUserID(r.Context())
+	caCond, caArgs, filtered := h.accessibleCAFilter(userID)
+
+	query := `
 		SELECT DISTINCT group_name, COUNT(*) as cert_count
 		FROM certificates
 		WHERE group_name != ''
+	`
+	var args []interface{}
+	if filtered {
+		query += " AND " + caCond
+	}
+	args = append(args, caArgs...)
+	query += `
 		GROUP BY group_name
 		ORDER BY group_name
-	`)
+	`
+
+	rows, err := h.db.Query(query, args...)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -757,11 +769,23 @@ func (h *CertHandler) DownloadGroup(w http.ResponseWriter, r *http.Request) {
 		format = "zip"
 	}
 
-	rows, err := h.db.Query(`
+	caCond, caArgs, filtered := h.accessibleCAFilter(GetUserID(r.Context()))
+
+	query := `
 		SELECT name, type, current_version FROM certificates
 		WHERE group_name = ?
+	`
+	if filtered {
+		query += " AND " + caCond
+	}
+	query += `
 		ORDER BY name
-	`, groupName)
+	`
+
+	args := []interface{}{groupName}
+	args = append(args, caArgs...)
+
+	rows, err := h.db.Query(query, args...)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -943,6 +967,33 @@ func (h *CertHandler) ImportCert(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]string{"id": certID})
+}
+
+// accessibleCAFilter returns a SQL condition and args restricting certificate
+// queries to the CAs the given user may access. Admins (and any unexpected
+// lookup errors) are treated as unfiltered. If the user has no accessible CAs
+// the condition is impossible so no certificates leak.
+func (h *CertHandler) accessibleCAFilter(userID string) (string, []interface{}, bool) {
+	if userID == "" {
+		return "", nil, false
+	}
+	ids, err := h.auth.GetAccessibleCAIDs(userID)
+	if err != nil || ids == nil {
+		return "", nil, false // admin (nil) or lookup error → unfiltered
+	}
+	if len(ids) == 0 {
+		return "1 = 0", nil, true
+	}
+	placeholders := ""
+	args := make([]interface{}, 0, len(ids))
+	for i, id := range ids {
+		if i > 0 {
+			placeholders += ", "
+		}
+		placeholders += "?"
+		args = append(args, id)
+	}
+	return "(certificate_authority_id IN (" + placeholders + ") OR certificate_authority_id IS NULL)", args, true
 }
 
 func sanitizeFilename(name string) string {

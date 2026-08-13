@@ -19,10 +19,11 @@ type ShareHandler struct {
 	ca     *services.CAService
 	crypto *services.CryptoService
 	email  *services.EmailService
+	auth   *services.AuthService
 }
 
-func NewShareHandler(db *sql.DB, cert *services.CertService, ca *services.CAService, crypto *services.CryptoService, email *services.EmailService) *ShareHandler {
-	return &ShareHandler{db: db, cert: cert, ca: ca, crypto: crypto, email: email}
+func NewShareHandler(db *sql.DB, cert *services.CertService, ca *services.CAService, crypto *services.CryptoService, email *services.EmailService, auth *services.AuthService) *ShareHandler {
+	return &ShareHandler{db: db, cert: cert, ca: ca, crypto: crypto, email: email, auth: auth}
 }
 
 var validFileTypes = map[string]bool{
@@ -40,6 +41,26 @@ func (h *ShareHandler) GenerateLink(w http.ResponseWriter, r *http.Request) {
 	if entityType != "certificate" && entityType != "ca" {
 		http.Error(w, "invalid entity type", http.StatusBadRequest)
 		return
+	}
+
+	// Only allow sharing entities the caller is allowed to access.
+	userID := GetUserID(r.Context())
+	if entityType == "ca" {
+		if !h.auth.UserHasCAAccess(userID, entityID) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+	} else {
+		var caID sql.NullString
+		err := h.db.QueryRow("SELECT certificate_authority_id FROM certificates WHERE id = ?", entityID).Scan(&caID)
+		if err != nil {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		if caID.Valid && caID.String != "" && !h.auth.UserHasCAAccess(userID, caID.String) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 	}
 
 	var req struct {

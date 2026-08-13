@@ -26,7 +26,7 @@ func SetupRouter(db *sql.DB, crypto *services.CryptoService, cfg *config.Config,
 	r.Use(middleware.Recoverer)
 
 	authHandler := handlers.NewAuthHandler(auth, crypto, emailService, totpService)
-	authMiddleware := handlers.NewAuthMiddleware(auth)
+	authMiddleware := handlers.NewAuthMiddleware(auth, db)
 	totpHandler := handlers.NewTOTPHandler(totpService, auth)
 	userHandler := handlers.NewUserHandler(auth)
 	backupHandler := handlers.NewBackupHandler(db, cfg.DataDir)
@@ -36,7 +36,7 @@ func SetupRouter(db *sql.DB, crypto *services.CryptoService, cfg *config.Config,
 	caPermHandler := handlers.NewCAPermissionHandler(auth)
 	auditHandler := handlers.NewAuditHandler(auditService)
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
-	shareHandler := handlers.NewShareHandler(db, certService, caService, crypto, emailService)
+	shareHandler := handlers.NewShareHandler(db, certService, caService, crypto, emailService, auth)
 	h := handlers.New(db, crypto)
 
 	r.Route("/api", func(r chi.Router) {
@@ -112,21 +112,21 @@ func SetupRouter(db *sql.DB, crypto *services.CryptoService, cfg *config.Config,
 			// --- Read-only CAs and certs (viewers can list/download) ---
 			r.Route("/ca", func(r chi.Router) {
 				r.Get("/", caHandler.List)
-				r.Get("/{id}", caHandler.Get)
-				r.Get("/{id}/download/cert", caHandler.DownloadCert)
-				r.Get("/{id}/download/key", caHandler.DownloadKey)
-				r.Get("/{id}/download/bundle", caHandler.DownloadCABundle)
+				r.With(authMiddleware.RequireCAAccess).Get("/{id}", caHandler.Get)
+				r.With(authMiddleware.RequireCAAccess).Get("/{id}/download/cert", caHandler.DownloadCert)
+				r.With(authMiddleware.RequireCAAccess).Get("/{id}/download/key", caHandler.DownloadKey)
+				r.With(authMiddleware.RequireCAAccess).Get("/{id}/download/bundle", caHandler.DownloadCABundle)
 			})
 			r.Route("/certificates", func(r chi.Router) {
 				r.Get("/", certHandler.List)
 				r.Get("/groups", certHandler.ListGroups)
 				r.Get("/download/group", certHandler.DownloadGroup)
-				r.Get("/{id}", certHandler.Get)
-				r.Get("/{id}/versions", certHandler.GetVersions)
-				r.Get("/{id}/download/cert", certHandler.DownloadCert)
-				r.Get("/{id}/download/key", certHandler.DownloadKey)
-				r.Get("/{id}/download/ca", certHandler.DownloadCA)
-				r.Get("/{id}/download/bundle", certHandler.DownloadBundle)
+				r.With(authMiddleware.RequireCertAccess).Get("/{id}", certHandler.Get)
+				r.With(authMiddleware.RequireCertAccess).Get("/{id}/versions", certHandler.GetVersions)
+				r.With(authMiddleware.RequireCertAccess).Get("/{id}/download/cert", certHandler.DownloadCert)
+				r.With(authMiddleware.RequireCertAccess).Get("/{id}/download/key", certHandler.DownloadKey)
+				r.With(authMiddleware.RequireCertAccess).Get("/{id}/download/ca", certHandler.DownloadCA)
+				r.With(authMiddleware.RequireCertAccess).Get("/{id}/download/bundle", certHandler.DownloadBundle)
 			})
 
 			// --- Operator + Admin (write operations) ---

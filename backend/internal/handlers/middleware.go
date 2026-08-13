@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/glcert/glcert/internal/services"
 )
 
@@ -17,10 +19,11 @@ const (
 
 type AuthMiddleware struct {
 	auth *services.AuthService
+	db   *sql.DB
 }
 
-func NewAuthMiddleware(auth *services.AuthService) *AuthMiddleware {
-	return &AuthMiddleware{auth: auth}
+func NewAuthMiddleware(auth *services.AuthService, db *sql.DB) *AuthMiddleware {
+	return &AuthMiddleware{auth: auth, db: db}
 }
 
 func (m *AuthMiddleware) RequireAuth(next http.Handler) http.Handler {
@@ -75,4 +78,41 @@ func GetUserRole(ctx context.Context) string {
 		return role
 	}
 	return ""
+}
+
+// RequireCAAccess enforces that the authenticated user has been granted access
+// to the CA identified by the {id} route parameter. Admins always pass.
+func (m *AuthMiddleware) RequireCAAccess(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userID := GetUserID(r.Context())
+		caID := chi.URLParam(r, "id")
+		if caID == "" || !m.auth.UserHasCAAccess(userID, caID) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// RequireCertAccess enforces that the authenticated user can access the
+// certificate identified by the {id} route parameter (by resolving the CA the
+// certificate belongs to). Self-signed certificates (no CA) are visible to any
+// authenticated user, matching the listing behaviour. Admins always pass.
+func (m *AuthMiddleware) RequireCertAccess(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userID := GetUserID(r.Context())
+		certID := chi.URLParam(r, "id")
+
+		var caID sql.NullString
+		err := m.db.QueryRow("SELECT certificate_authority_id FROM certificates WHERE id = ?", certID).Scan(&caID)
+		if err != nil {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		if caID.Valid && caID.String != "" && !m.auth.UserHasCAAccess(userID, caID.String) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
