@@ -139,6 +139,10 @@ func ValidateBackup(backupData []byte, password string) (*BackupMetadata, error)
 	return nil, fmt.Errorf("backup.json not found in archive")
 }
 
+// MaxBackupExtractSize bounds the total decompressed size of a restored
+// backup to defend against zip bombs served through the restore endpoint.
+const MaxBackupExtractSize = 512 << 20 // 512 MiB
+
 func ExtractBackupFiles(backupData []byte, password string) (map[string][]byte, error) {
 	r, err := zip.NewReader(bytes.NewReader(backupData), int64(len(backupData)))
 	if err != nil {
@@ -146,8 +150,13 @@ func ExtractBackupFiles(backupData []byte, password string) (map[string][]byte, 
 	}
 
 	files := make(map[string][]byte)
+	var total int64
 
 	for _, f := range r.File {
+		if total >= MaxBackupExtractSize {
+			return nil, fmt.Errorf("backup exceeds maximum decompressed size")
+		}
+
 		f.SetPassword(password)
 
 		rc, err := f.Open()
@@ -155,10 +164,15 @@ func ExtractBackupFiles(backupData []byte, password string) (map[string][]byte, 
 			return nil, fmt.Errorf("open file %s: %w", f.Name, err)
 		}
 
-		data, err := io.ReadAll(rc)
+		data, err := io.ReadAll(io.LimitReader(rc, MaxBackupExtractSize-total))
 		rc.Close()
 		if err != nil {
 			return nil, fmt.Errorf("read file %s: %w", f.Name, err)
+		}
+
+		total += int64(len(data))
+		if total > MaxBackupExtractSize {
+			return nil, fmt.Errorf("backup exceeds maximum decompressed size")
 		}
 
 		files[f.Name] = data

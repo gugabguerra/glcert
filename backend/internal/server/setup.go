@@ -55,8 +55,22 @@ func SetupRouter(db *sql.DB, crypto *services.CryptoService, cfg *config.Config,
 		// --- TOTP verify (unauthenticated) ---
 		r.Post("/totp/verify", totpHandler.Verify)
 
-		// --- Backup restore (unauthenticated — runs before setup) ---
-		r.Post("/backup/restore", backupHandler.RestoreBackup)
+		// --- Backup restore ---
+		// Allowed unauthenticated only during initial bootstrap (setup wizard).
+		// After setup completes, it requires an authenticated admin.
+		r.Post("/backup/restore", func(w http.ResponseWriter, r *http.Request) {
+			if !auth.IsSetupComplete() {
+				backupHandler.RestoreBackup(w, r)
+				return
+			}
+			authMiddleware.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if handlers.GetUserRole(r.Context()) != "admin" {
+					http.Error(w, "forbidden", http.StatusForbidden)
+					return
+				}
+				backupHandler.RestoreBackup(w, r)
+			})).ServeHTTP(w, r)
+		})
 
 		// --- Authenticated routes ---
 		r.Group(func(r chi.Router) {

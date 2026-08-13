@@ -556,7 +556,7 @@ function DangerZone() {
                     const formData = new FormData();
                     formData.append('backup', restoreFile!);
                     formData.append('password', restorePassword);
-                    fetch('/api/backup/restore', { method: 'POST', body: formData })
+                    authFetch('/api/backup/restore', { method: 'POST', body: formData })
                       .then(async res => { if (!res.ok) throw new Error(await res.text()); return res.json(); })
                       .then(data => { setRestoreStatus('success'); setRestoreMessage(data.message); })
                       .catch(err => { setRestoreStatus('error'); setRestoreMessage(err.message || 'Restore failed'); });

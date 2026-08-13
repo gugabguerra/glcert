@@ -8,8 +8,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/glcert/glcert/internal/backup"
+	"github.com/glcert/glcert/internal/logger"
 )
 
 type BackupHandler struct {
@@ -99,12 +101,27 @@ func (h *BackupHandler) RestoreBackup(w http.ResponseWriter, r *http.Request) {
 
 	certFiles := backup.CertFilesFromBackup(files)
 	for name, data := range certFiles {
-		outPath := filepath.Join(h.dataDir, name)
+		rel := strings.TrimPrefix(name, "certificates/")
+		clean := filepath.Clean(filepath.FromSlash(rel))
+		// Reject any entry that escapes the data dir (zip slip).
+		if clean == "." || clean == ".." ||
+			strings.HasPrefix(clean, ".."+string(filepath.Separator)) ||
+			filepath.IsAbs(clean) {
+			logger.Warnf("restore: skipping unsafe path %q", name)
+			continue
+		}
+		outPath := filepath.Join(h.dataDir, "certificates", clean)
+		if !strings.HasPrefix(filepath.Clean(outPath), filepath.Clean(h.dataDir)+string(filepath.Separator)) {
+			logger.Warnf("restore: skipping path escaping data dir: %q", name)
+			continue
+		}
 		dir := filepath.Dir(outPath)
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			continue
 		}
-		os.WriteFile(outPath, data, 0644)
+		if err := os.WriteFile(outPath, data, 0644); err != nil {
+			logger.Warnf("restore: failed to write %q: %v", name, err)
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
