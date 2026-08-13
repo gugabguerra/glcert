@@ -13,7 +13,15 @@ dist/
 
 # Data (persistent volume)
 data/database.sqlite
+data/encryption.key
+data/glcert.db
 data/certificates/
+backend/data/
+
+# Misc data files
+*.sqlite
+*.db
+*.key
 
 # IDE
 .vscode/
