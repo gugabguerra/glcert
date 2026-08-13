@@ -91,22 +91,6 @@ func SetupRouter(db *sql.DB, crypto *services.CryptoService, cfg *config.Config,
 			r.Put("/users/me", userHandler.UpdateMe)
 
 			r.Get("/dashboard", h.GetDashboardStats)
-			r.Post("/notifications/test", notificationHandler.TestNotification)
-			r.Post("/notifications/test-email", func(w http.ResponseWriter, r *http.Request) {
-				var req struct {
-					Email string `json:"email"`
-				}
-				if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Email == "" {
-					http.Error(w, "email is required", http.StatusBadRequest)
-					return
-				}
-				if err := emailService.SendTestEmail(req.Email); err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-					return
-				}
-				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
-			})
 
 			// --- Share (any role — viewers can share) ---
 			r.Post("/share/{type}/{id}", shareHandler.GenerateLink)
@@ -167,6 +151,23 @@ func SetupRouter(db *sql.DB, crypto *services.CryptoService, cfg *config.Config,
 				r.Get("/ca/{id}/permissions", caPermHandler.Get)
 				r.Put("/ca/{id}/permissions", caPermHandler.Set)
 				r.Get("/audit", auditHandler.List)
+
+				r.Post("/notifications/test", notificationHandler.TestNotification)
+				r.Post("/notifications/test-email", func(w http.ResponseWriter, r *http.Request) {
+					var req struct {
+						Email string `json:"email"`
+					}
+					if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Email == "" {
+						http.Error(w, "email is required", http.StatusBadRequest)
+						return
+					}
+					if err := emailService.SendTestEmail(req.Email); err != nil {
+						http.Error(w, err.Error(), http.StatusInternalServerError)
+						return
+					}
+					w.Header().Set("Content-Type", "application/json")
+					json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+				})
 			})
 		})
 	})
