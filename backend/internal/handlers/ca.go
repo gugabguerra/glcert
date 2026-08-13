@@ -209,6 +209,11 @@ func (h *CAHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := validateEntityName(req.Name); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	// If creating an intermediate CA, fetch parent CA cert and key
 	var parentCertPEM, parentKeyPEM []byte
 	if req.ParentCAID != nil && *req.ParentCAID != "" {
@@ -431,6 +436,11 @@ func (h *CAHandler) Import(w http.ResponseWriter, r *http.Request) {
 
 	if req.Name == "" || req.CertPEM == "" || req.KeyPEM == "" {
 		http.Error(w, "name, certPem, and keyPem are required", http.StatusBadRequest)
+		return
+	}
+
+	if err := validateEntityName(req.Name); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 

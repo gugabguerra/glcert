@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -260,6 +261,11 @@ func (h *CertHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	if req.Name == "" || req.CommonName == "" || req.Type == "" {
 		http.Error(w, "name, commonName, and type are required", http.StatusBadRequest)
+		return
+	}
+
+	if err := validateEntityName(req.Name); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -905,6 +911,11 @@ func (h *CertHandler) ImportCert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := validateEntityName(req.Name); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	// Operators may only import certificates under CAs they have been granted.
 	if !h.auth.UserHasCAAccess(GetUserID(r.Context()), *req.CertificateAuthorityID) {
 		http.Error(w, "forbidden", http.StatusForbidden)
@@ -1006,6 +1017,18 @@ func (h *CertHandler) accessibleCAFilter(userID string) (string, []interface{}, 
 		args = append(args, id)
 	}
 	return "(certificate_authority_id IN (" + placeholders + ") OR certificate_authority_id IS NULL)", args, true
+}
+
+// validateEntityName rejects names that would allow path traversal when used
+// to build on-disk storage paths for certificates/CAs.
+func validateEntityName(name string) error {
+	if name == "" || len(name) > 128 {
+		return fmt.Errorf("invalid name")
+	}
+	if strings.Contains(name, "..") || strings.ContainsAny(name, "/\\") {
+		return fmt.Errorf("name cannot contain path separators or \"..\"")
+	}
+	return nil
 }
 
 func sanitizeFilename(name string) string {
