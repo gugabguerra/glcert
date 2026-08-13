@@ -213,7 +213,17 @@ func (s *AuthService) ChangePassword(userID, currentPassword, newPassword string
 		return fmt.Errorf("update password: %w", err)
 	}
 
+	s.InvalidateUserSessions(userID)
+
 	return nil
+}
+
+// InvalidateUserSessions revokes every active session for a user, so a
+// password change (self, admin reset, or forgotten-password reset) forces a
+// fresh login and drops any sessions an attacker may already hold.
+func (s *AuthService) InvalidateUserSessions(userID string) {
+	s.db.Exec("DELETE FROM sessions WHERE user_id = ?", userID)
+	s.db.Exec("DELETE FROM pending_sessions WHERE user_id = ?", userID)
 }
 
 func (s *AuthService) ValidatePassword(userID, password string) bool {
@@ -329,7 +339,12 @@ func (s *AuthService) ResetPassword(token, newPassword string) error {
 	}
 
 	_, err = s.db.Exec("DELETE FROM password_resets WHERE token = ?", token)
-	return err
+	if err != nil {
+		return err
+	}
+
+	s.InvalidateUserSessions(userID)
+	return nil
 }
 
 // --- User Management (admin only) ---
@@ -425,6 +440,8 @@ func (s *AuthService) AdminResetPassword(userID, newPassword string) error {
 	if err != nil {
 		return fmt.Errorf("update password: %w", err)
 	}
+
+	s.InvalidateUserSessions(userID)
 
 	return nil
 }
