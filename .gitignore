@@ -11,6 +11,11 @@ frontend/dist/
 backend/internal/embedded/static/
 dist/
 
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
 # Data (persistent volume)
 data/database.sqlite
 data/encryption.key

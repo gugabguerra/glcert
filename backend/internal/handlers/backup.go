@@ -45,6 +45,10 @@ func (h *BackupHandler) CreateBackup(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *BackupHandler) RestoreBackup(w http.ResponseWriter, r *http.Request) {
+	// Cap the restore upload so an oversized payload cannot exhaust
+	// memory or disk (backups are DB + certificate files).
+	r.Body = http.MaxBytesReader(w, r.Body, 128<<20)
+
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
 		http.Error(w, "invalid form data", http.StatusBadRequest)
 		return

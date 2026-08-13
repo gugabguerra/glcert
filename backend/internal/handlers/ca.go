@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/glcert/glcert/internal/models"
 	"github.com/glcert/glcert/internal/services"
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
@@ -160,17 +160,17 @@ func (h *CAHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type CAResponse struct {
-		ID               string  `json:"id"`
-		Name             string  `json:"name"`
-		Description      string  `json:"description"`
-		Subject          string  `json:"subject"`
-		CreatedAt        string  `json:"createdAt"`
-		ExpiresAt        string  `json:"expiresAt"`
-		CurrentVersion   int     `json:"currentVersion"`
-		HasPassphrase    bool    `json:"hasPassphrase"`
-		Imported         bool    `json:"imported"`
-		ParentCAID       *string `json:"parentCaId"`
-		ParentCAName     *string `json:"parentCaName"`
+		ID             string  `json:"id"`
+		Name           string  `json:"name"`
+		Description    string  `json:"description"`
+		Subject        string  `json:"subject"`
+		CreatedAt      string  `json:"createdAt"`
+		ExpiresAt      string  `json:"expiresAt"`
+		CurrentVersion int     `json:"currentVersion"`
+		HasPassphrase  bool    `json:"hasPassphrase"`
+		Imported       bool    `json:"imported"`
+		ParentCAID     *string `json:"parentCaId"`
+		ParentCAName   *string `json:"parentCaName"`
 	}
 
 	resp := CAResponse{
@@ -428,6 +428,8 @@ func (h *CAHandler) DownloadCABundle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CAHandler) Import(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	var req ImportCARequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)

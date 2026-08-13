@@ -1,0 +1,28 @@
+# GLCert Gitleaks configuration.
+# Extends the default rules; the allowlist covers only the low-entropy
+# credential literals that exist on purpose inside Go test fixtures, so the
+# scan stays green without masking real secrets in production code.
+title = "GLCert gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Credential literals used by Go tests (fixtures only)"
+regexes = [
+  "admin-password",
+  "admin-password123!",
+  "attacker-password",
+  "attacker-passphrase",
+  "brand-new-password456!",
+  "encryption-passphrase-123",
+  "operator-pass1",
+  "operator-reset-pass2",
+  "wrong-password",
+  "wrong-pass-456",
+  "whatever-pass-123",
+  "correct horse battery staple",
+  "top secret key material",
+  "private key material",
+  "plaintext secret",
+]

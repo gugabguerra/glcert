@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/glcert/glcert/internal/logger"
 	"github.com/glcert/glcert/internal/models"
 	"github.com/glcert/glcert/internal/services"
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
@@ -54,21 +54,21 @@ func (h *CertHandler) readCAWithPassphrase(caID string) ([]byte, []byte, error) 
 }
 
 type CreateCertRequest struct {
-	Name                  string   `json:"name"`
-	Description           string   `json:"description"`
-	CommonName            string   `json:"commonName"`
-	Type                  string   `json:"type"`
-	CertificateAuthorityID *string `json:"certificateAuthorityId"`
-	DNSNames              []string `json:"dnsNames"`
-	IPAddresses           []string `json:"ipAddresses"`
-	Organization          string   `json:"organization"`
-	Country               string   `json:"country"`
-	State                 string   `json:"state"`
-	City                  string   `json:"city"`
-	KeyAlgorithm          string   `json:"keyAlgorithm"`
-	RSAKeySize            int      `json:"rsaKeySize"`
-	ValidityDays          int      `json:"validityDays"`
-	GroupName             string   `json:"groupName"`
+	Name                   string   `json:"name"`
+	Description            string   `json:"description"`
+	CommonName             string   `json:"commonName"`
+	Type                   string   `json:"type"`
+	CertificateAuthorityID *string  `json:"certificateAuthorityId"`
+	DNSNames               []string `json:"dnsNames"`
+	IPAddresses            []string `json:"ipAddresses"`
+	Organization           string   `json:"organization"`
+	Country                string   `json:"country"`
+	State                  string   `json:"state"`
+	City                   string   `json:"city"`
+	KeyAlgorithm           string   `json:"keyAlgorithm"`
+	RSAKeySize             int      `json:"rsaKeySize"`
+	ValidityDays           int      `json:"validityDays"`
+	GroupName              string   `json:"groupName"`
 }
 
 func (h *CertHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -582,20 +582,25 @@ func (h *CertHandler) Regenerate(w http.ResponseWriter, r *http.Request) {
 	newVersion := currentVersion + 1
 
 	result, err := h.cert.GenerateCert(services.CreateCertInput{
-		Name:              name,
-		Description:       description,
-		CommonName:        commonName,
-		Type:              certType,
-		CertificateAuthID: func() *string { if caID.Valid { return &caID.String }; return nil }(),
-		DNSNames:          dnsNames,
-		IPAddresses:       ipAddresses,
-		Organization:      org,
-		Country:           country,
-		State:             state,
-		City:              city,
-		KeyAlgorithm:      "rsa",
-		RSAKeySize:        2048,
-		ValidityDays:      req.ValidityDays,
+		Name:        name,
+		Description: description,
+		CommonName:  commonName,
+		Type:        certType,
+		CertificateAuthID: func() *string {
+			if caID.Valid {
+				return &caID.String
+			}
+			return nil
+		}(),
+		DNSNames:     dnsNames,
+		IPAddresses:  ipAddresses,
+		Organization: org,
+		Country:      country,
+		State:        state,
+		City:         city,
+		KeyAlgorithm: "rsa",
+		RSAKeySize:   2048,
+		ValidityDays: req.ValidityDays,
 	}, caCertPEM, caKeyPEM)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -748,8 +753,8 @@ func (h *CertHandler) ListGroups(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	type Group struct {
-		Name   string `json:"name"`
-		Count  int    `json:"count"`
+		Name  string `json:"name"`
+		Count int    `json:"count"`
 	}
 	var groups []Group
 	for rows.Next() {
@@ -852,7 +857,7 @@ func (h *CertHandler) DownloadGroup(w http.ResponseWriter, r *http.Request) {
 }
 
 type UpdateGroupRequest struct {
-	GroupName   string `json:"groupName"`
+	GroupName   string  `json:"groupName"`
 	Description *string `json:"description,omitempty"`
 }
 
@@ -891,15 +896,17 @@ func (h *CertHandler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 }
 
 type ImportCertRequest struct {
-	Name                  string  `json:"name"`
-	Description           string  `json:"description"`
-	CertPEM               string  `json:"certPem"`
-	KeyPEM                string  `json:"keyPem"`
-	Passphrase            string  `json:"passphrase"`
+	Name                   string  `json:"name"`
+	Description            string  `json:"description"`
+	CertPEM                string  `json:"certPem"`
+	KeyPEM                 string  `json:"keyPem"`
+	Passphrase             string  `json:"passphrase"`
 	CertificateAuthorityID *string `json:"certificateAuthorityId"`
 }
 
 func (h *CertHandler) ImportCert(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	var req ImportCertRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
