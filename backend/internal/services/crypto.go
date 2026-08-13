@@ -176,7 +176,12 @@ func (s *CryptoService) ChangeAdminPassword(oldPassword, newPassword string) err
 }
 
 func (s *CryptoService) Encrypt(data []byte) ([]byte, error) {
-	if !s.enabled || s.gcm == nil {
+	if s.gcm == nil {
+		if s.HasPassphrase() {
+			// Encryption is configured but the passphrase has not been
+			// unlocked yet. Refuse rather than persist plaintext secrets.
+			return nil, fmt.Errorf("encryption is enabled but not unlocked; log in as admin to load the passphrase")
+		}
 		return data, nil
 	}
 
@@ -190,7 +195,10 @@ func (s *CryptoService) Encrypt(data []byte) ([]byte, error) {
 }
 
 func (s *CryptoService) Decrypt(data []byte) ([]byte, error) {
-	if !s.enabled || s.gcm == nil {
+	if s.gcm == nil {
+		if s.HasPassphrase() {
+			return nil, fmt.Errorf("encryption is enabled but not unlocked; log in as admin to load the passphrase")
+		}
 		return data, nil
 	}
 
