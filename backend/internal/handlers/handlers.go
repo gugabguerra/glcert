@@ -26,10 +26,10 @@ func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 }
 
 type DashboardStats struct {
-	CACount         int `json:"caCount"`
+	CACount          int `json:"caCount"`
 	CertificateCount int `json:"certificateCount"`
-	ExpiringSoon    int `json:"expiringSoon"`
-	Expired         int `json:"expired"`
+	ExpiringSoon     int `json:"expiringSoon"`
+	Expired          int `json:"expired"`
 }
 
 func (h *Handler) GetDashboardStats(w http.ResponseWriter, r *http.Request) {

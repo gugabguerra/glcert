@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/glcert/glcert/internal/logger"
 	"github.com/glcert/glcert/internal/models"
 	"github.com/glcert/glcert/internal/services"
 	"github.com/go-chi/chi/v5"
@@ -424,7 +425,9 @@ func (h *CAHandler) DownloadCABundle(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", BundleContentType(format))
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s%s\"", name, BundleExtension(format)))
-	WriteBundle(w, files, format)
+	if err := WriteBundle(w, files, format); err != nil {
+		logger.Errorf("Failed to write CA bundle stream: %v", err)
+	}
 }
 
 func (h *CAHandler) Import(w http.ResponseWriter, r *http.Request) {

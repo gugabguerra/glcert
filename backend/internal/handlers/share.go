@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/glcert/glcert/internal/logger"
 	"github.com/glcert/glcert/internal/services"
 	"github.com/go-chi/chi/v5"
 )
@@ -204,7 +205,9 @@ func (h *ShareHandler) serveCertFile(w http.ResponseWriter, r *http.Request, id 
 
 		w.Header().Set("Content-Type", BundleContentType(format))
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s%s\"", name, BundleExtension(format)))
-		WriteBundle(w, files, format)
+		if err := WriteBundle(w, files, format); err != nil {
+			logger.Errorf("Failed to write share bundle stream: %v", err)
+		}
 	}
 }
 
@@ -266,7 +269,9 @@ func (h *ShareHandler) serveCAFile(w http.ResponseWriter, r *http.Request, id st
 
 		w.Header().Set("Content-Type", BundleContentType(format))
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s%s\"", name, BundleExtension(format)))
-		WriteBundle(w, files, format)
+		if err := WriteBundle(w, files, format); err != nil {
+			logger.Errorf("Failed to write share bundle stream: %v", err)
+		}
 	}
 }
 

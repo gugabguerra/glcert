@@ -153,12 +153,12 @@ func (s *CertService) GenerateCert(input CreateCertInput, caCertPEM, caKeyPEM []
 	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privKey)})
 
 	cert := &models.Certificate{
-		Name:                  input.Name,
-		Description:           input.Description,
-		Type:                  input.Type,
+		Name:                   input.Name,
+		Description:            input.Description,
+		Type:                   input.Type,
 		CertificateAuthorityID: input.CertificateAuthID,
-		CreatedAt:             now,
-		UpdatedAt:             now,
+		CreatedAt:              now,
+		UpdatedAt:              now,
 	}
 
 	return &CertResult{
@@ -242,15 +242,15 @@ func (s *CertService) DeleteVersion(certType, name string, version int) error {
 }
 
 type ImportCertResult struct {
-	Type           string
-	CommonName     string
-	DNSNames       []string
-	IPAddresses    []string
-	SerialNumber   string
-	Fingerprint    string
-	SigAlgo        string
-	PubKeyAlgo     string
-	ExpiresAt      time.Time
+	Type         string
+	CommonName   string
+	DNSNames     []string
+	IPAddresses  []string
+	SerialNumber string
+	Fingerprint  string
+	SigAlgo      string
+	PubKeyAlgo   string
+	ExpiresAt    time.Time
 }
 
 func (s *CertService) ImportCert(certPEM, keyPEM []byte, passphrase string) (*ImportCertResult, *x509.Certificate, error) {

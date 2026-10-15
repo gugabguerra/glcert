@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/glcert/glcert/internal/models"
 	"github.com/glcert/glcert/internal/services"
+	"github.com/go-chi/chi/v5"
 )
 
 type UserHandler struct {

@@ -124,7 +124,9 @@ func (h *CertHandler) DownloadBundle(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", BundleContentType(format))
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s%s\"", name, BundleExtension(format)))
-	WriteBundle(w, files, format)
+	if err := WriteBundle(w, files, format); err != nil {
+		logger.Errorf("Failed to write bundle stream: %v", err)
+	}
 }
 
 func (h *CertHandler) DownloadGroup(w http.ResponseWriter, r *http.Request) {
@@ -206,5 +208,7 @@ func (h *CertHandler) DownloadGroup(w http.ResponseWriter, r *http.Request) {
 	safeName := sanitizeFilename(groupName)
 	w.Header().Set("Content-Type", BundleContentType(format))
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s%s\"", safeName, BundleExtension(format)))
-	WriteBundle(w, files, format)
+	if err := WriteBundle(w, files, format); err != nil {
+		logger.Errorf("Failed to write group bundle stream: %v", err)
+	}
 }

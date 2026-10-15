@@ -27,18 +27,18 @@ func NewCAService(dataDir string, crypto *CryptoService) *CAService {
 }
 
 type CreateCAInput struct {
-	Name           string  `json:"name"`
-	Description    string  `json:"description"`
-	CommonName     string  `json:"commonName"`
-	Organization   string  `json:"organization"`
-	Country        string  `json:"country"`
-	State          string  `json:"state"`
-	City           string  `json:"city"`
-	Email          string  `json:"email"`
-	KeyAlgorithm   string  `json:"keyAlgorithm"`
-	RSAKeySize     int     `json:"rsaKeySize"`
-	ValidityDays   int     `json:"validityDays"`
-	ParentCAID     *string `json:"parentCaId"`
+	Name         string  `json:"name"`
+	Description  string  `json:"description"`
+	CommonName   string  `json:"commonName"`
+	Organization string  `json:"organization"`
+	Country      string  `json:"country"`
+	State        string  `json:"state"`
+	City         string  `json:"city"`
+	Email        string  `json:"email"`
+	KeyAlgorithm string  `json:"keyAlgorithm"`
+	RSAKeySize   int     `json:"rsaKeySize"`
+	ValidityDays int     `json:"validityDays"`
+	ParentCAID   *string `json:"parentCaId"`
 }
 
 // GenerateCA creates a new CA certificate. If ParentCAID is set, it creates an

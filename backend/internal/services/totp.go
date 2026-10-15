@@ -17,7 +17,7 @@ import (
 )
 
 type TOTPService struct {
-	db    *sql.DB
+	db     *sql.DB
 	crypto *CryptoService
 }
 
@@ -26,8 +26,8 @@ func NewTOTPService(db *sql.DB, crypto *CryptoService) *TOTPService {
 }
 
 type TOTPSetupResult struct {
-	Secret    string `json:"secret"`
-	ImageData string `json:"imageData"`
+	Secret    string   `json:"secret"`
+	ImageData string   `json:"imageData"`
 	Codes     []string `json:"codes"`
 }
 

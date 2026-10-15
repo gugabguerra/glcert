@@ -14,14 +14,14 @@ func NewAuditService(db *sql.DB) *AuditService {
 }
 
 type AuditEntry struct {
-	ID        int64     `json:"id"`
-	UserID    *string   `json:"userId"`
-	UserEmail *string   `json:"userEmail"`
-	Action    string    `json:"action"`
-	EntityType *string  `json:"entityType"`
-	EntityID  *string   `json:"entityId"`
-	Details   string    `json:"details"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID         int64     `json:"id"`
+	UserID     *string   `json:"userId"`
+	UserEmail  *string   `json:"userEmail"`
+	Action     string    `json:"action"`
+	EntityType *string   `json:"entityType"`
+	EntityID   *string   `json:"entityId"`
+	Details    string    `json:"details"`
+	CreatedAt  time.Time `json:"createdAt"`
 }
 
 func (s *AuditService) Log(userID, userEmail, action, entityType, entityID, details string) {
