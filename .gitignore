@@ -40,3 +40,6 @@ Thumbs.db
 
 # Prompts
 PROMPTS/
+
+# Local scratch (planning notes, privacy policy) — never committed
+docs/local/
