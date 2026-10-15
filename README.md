@@ -2,7 +2,9 @@
 
 Self-hosted PKI manager for lab and private environments. Generate and manage TLS certificates without using OpenSSL.
 
-For technical details (database schema, API reference, project structure), see [TECH.md](TECH.md).
+For technical details see [docs/](docs/): [architecture](docs/architecture.md),
+[API reference](docs/api.md), [database schema](docs/schema.md), and the
+[security model](docs/SECURITY.md).
 
 ## Features
 
@@ -46,7 +48,7 @@ For technical details (database schema, API reference, project structure), see [
 
 | Layer | Technology |
 |---|---|
-| Backend | Go 1.24, Chi router, crypto/x509 |
+| Backend | Go 1.25, Chi router, crypto/x509 |
 | Frontend | React 19, TypeScript, Mantine UI v9, Vite |
 | Database | SQLite (pure-Go driver, no CGO required) |
 | Notifications | Shoutrrr (nicholas-fedor/shoutrrr v0.16.1) |
@@ -56,7 +58,7 @@ For technical details (database schema, API reference, project structure), see [
 
 ### Prerequisites
 
-- Go 1.24+
+- Go 1.25+
 - Node.js 20+
 - npm
 
@@ -138,6 +140,10 @@ See the full list at [shoutrrr.nickfedor.com](https://shoutrrr.nickfedor.com/ser
 - **Password manager prevention** -- All form inputs configured to disable browser autofill
 - **Audit trail** -- All administrative and certificate operations are logged with user attribution
 
+## Version history
+
+See [docs/CHANGELOG.md](docs/CHANGELOG.md); the current version lives in `VERSION`.
+
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE) (copyright holder: GLCert contributors).
