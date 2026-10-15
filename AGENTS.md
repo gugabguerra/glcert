@@ -45,7 +45,8 @@ implementation details → code comments and unit tests.
 - **Never commit without the user's explicit acknowledgement** — ask first, then wait. Keep
   AGENTS.md edits out of commit messages.
 - `main` is stable; never commit feature work directly to it unless the user explicitly asks
-  (minor change). One branch per change: `feature/<short-name>`, `fix/<short-name>`.
+  (minor change). One branch per change. During the v1 push every branch carries the `v1-`
+  prefix: `v1-feature/<short-name>`, `v1-fix/<short-name>` (drop the prefix after v1.0.0).
 - Conventional Commits (`feat:`, `fix:`, `refactor:`, `chore:`, `docs:`); squash-merge into `main`,
   then delete the branch. Tag stable checkpoints: `git tag -a vX.Y.Z -m "..."`.
 

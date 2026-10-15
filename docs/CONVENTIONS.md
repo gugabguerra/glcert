@@ -5,8 +5,9 @@ here; if the two ever disagree, fix both.
 
 ## Git workflow
 
-- `main` is stable. One branch per change: `feature/<short-name>`, `fix/<short-name>`.
-  Squash-merge into `main`, then delete the branch.
+- `main` is stable. One branch per change: `v1-feature/<short-name>`, `v1-fix/<short-name>` — the
+  `v1-` prefix marks the v1 push and stays until v1.0.0. Squash-merge into `main`, then delete the
+  branch.
 - Conventional Commits: `feat:`, `fix:`, `refactor:`, `chore:`, `docs:`. Subject in the imperative,
   lower-case, no trailing period.
 - Tag stable checkpoints: `git tag -a vX.Y.Z -m "..."`. The changelog's version section is added at
