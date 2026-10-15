@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/glcert/glcert/internal/logger"
-	"github.com/glcert/glcert/internal/models"
+	"github.com/gugabguerra/glcert/internal/logger"
+	"github.com/gugabguerra/glcert/internal/models"
 	"golang.org/x/crypto/bcrypt"
 )
 

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/glcert/glcert/internal/logger"
+	"github.com/gugabguerra/glcert/internal/logger"
 	"github.com/nicholas-fedor/shoutrrr"
 )
 

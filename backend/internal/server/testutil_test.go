@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/glcert/glcert/internal/config"
-	"github.com/glcert/glcert/internal/database"
-	"github.com/glcert/glcert/internal/services"
+	"github.com/gugabguerra/glcert/internal/config"
+	"github.com/gugabguerra/glcert/internal/database"
+	"github.com/gugabguerra/glcert/internal/services"
 )
 
 // newTestRouter builds a fully wired router backed by an isolated temp data dir.

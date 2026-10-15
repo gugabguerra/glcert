@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/glcert/glcert/internal/logger"
-	"github.com/glcert/glcert/internal/models"
-	"github.com/glcert/glcert/internal/services"
+	"github.com/gugabguerra/glcert/internal/logger"
+	"github.com/gugabguerra/glcert/internal/models"
+	"github.com/gugabguerra/glcert/internal/services"
 )
 
 type Handler struct {

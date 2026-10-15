@@ -43,12 +43,12 @@ linters:
         - "os.Remove"
         - "os.RemoveAll"
         # Notification and audit side effects that only log their failures.
-        - "(*github.com/glcert/glcert/internal/services.AuthService).SaveResetToken"
-        - "(*github.com/glcert/glcert/internal/services.AuthService).UpdateUserName"
-        - "(*github.com/glcert/glcert/internal/services.EmailService).SendPasswordResetEmail"
-        - "(*github.com/glcert/glcert/internal/services.CAService).DeleteCA"
-        - "(*github.com/glcert/glcert/internal/services.CertService).DeleteCert"
-        - "(*github.com/glcert/glcert/internal/services.CertService).DeleteVersion"
+        - "(*github.com/gugabguerra/glcert/internal/services.AuthService).SaveResetToken"
+        - "(*github.com/gugabguerra/glcert/internal/services.AuthService).UpdateUserName"
+        - "(*github.com/gugabguerra/glcert/internal/services.EmailService).SendPasswordResetEmail"
+        - "(*github.com/gugabguerra/glcert/internal/services.CAService).DeleteCA"
+        - "(*github.com/gugabguerra/glcert/internal/services.CertService).DeleteCert"
+        - "(*github.com/gugabguerra/glcert/internal/services.CertService).DeleteVersion"
     staticcheck:
       checks:
         - "all"

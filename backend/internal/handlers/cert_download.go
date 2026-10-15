@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/glcert/glcert/internal/logger"
 	"github.com/go-chi/chi/v5"
+	"github.com/gugabguerra/glcert/internal/logger"
 )
 
 func (h *CertHandler) DownloadCert(w http.ResponseWriter, r *http.Request) {

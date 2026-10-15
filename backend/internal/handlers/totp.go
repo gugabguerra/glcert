@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/glcert/glcert/internal/services"
+	"github.com/gugabguerra/glcert/internal/services"
 	"github.com/pquerna/otp/totp"
 )
 

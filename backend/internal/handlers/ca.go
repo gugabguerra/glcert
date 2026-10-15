@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/glcert/glcert/internal/logger"
-	"github.com/glcert/glcert/internal/models"
-	"github.com/glcert/glcert/internal/services"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/gugabguerra/glcert/internal/logger"
+	"github.com/gugabguerra/glcert/internal/models"
+	"github.com/gugabguerra/glcert/internal/services"
 )
 
 type CAHandler struct {

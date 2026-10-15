@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/glcert/glcert/internal/services"
+	"github.com/gugabguerra/glcert/internal/services"
 )
 
 // appBaseURL derives the externally reachable base URL for links embedded in

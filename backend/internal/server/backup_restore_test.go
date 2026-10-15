@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	zip "github.com/alexmullins/zip"
-	"github.com/glcert/glcert/internal/database"
+	"github.com/gugabguerra/glcert/internal/database"
 )
 
 // makeBackupZip builds a password-protected zip with the given entries.

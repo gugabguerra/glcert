@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/glcert/glcert/internal/services"
+	"github.com/gugabguerra/glcert/internal/services"
 )
 
 type NotificationHandler struct {

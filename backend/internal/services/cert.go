@@ -14,7 +14,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/glcert/glcert/internal/models"
+	"github.com/gugabguerra/glcert/internal/models"
 )
 
 type CertService struct {

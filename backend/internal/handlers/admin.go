@@ -7,8 +7,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/glcert/glcert/internal/logger"
-	"github.com/glcert/glcert/internal/services"
+	"github.com/gugabguerra/glcert/internal/logger"
+	"github.com/gugabguerra/glcert/internal/services"
 )
 
 type AdminHandler struct {

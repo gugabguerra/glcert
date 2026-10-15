@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/glcert/glcert/internal/models"
-	"github.com/glcert/glcert/internal/services"
 	"github.com/go-chi/chi/v5"
+	"github.com/gugabguerra/glcert/internal/models"
+	"github.com/gugabguerra/glcert/internal/services"
 )
 
 func (h *CertHandler) GetVersions(w http.ResponseWriter, r *http.Request) {

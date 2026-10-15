@@ -11,7 +11,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/glcert/glcert/internal/logger"
+	"github.com/gugabguerra/glcert/internal/logger"
 	"golang.org/x/crypto/pbkdf2"
 )
 

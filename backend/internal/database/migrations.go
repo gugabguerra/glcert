@@ -3,7 +3,7 @@ package database
 import (
 	"database/sql"
 
-	"github.com/glcert/glcert/internal/logger"
+	"github.com/gugabguerra/glcert/internal/logger"
 )
 
 func migrate(db *sql.DB) error {

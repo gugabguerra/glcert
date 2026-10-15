@@ -1,4 +1,4 @@
-module github.com/glcert/glcert
+module github.com/gugabguerra/glcert
 
 go 1.25.0
 

@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/glcert/glcert/internal/models"
+	"github.com/gugabguerra/glcert/internal/models"
 	pkcs8 "github.com/youmark/pkcs8"
 )
 

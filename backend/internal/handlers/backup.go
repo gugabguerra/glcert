@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/glcert/glcert/internal/backup"
-	"github.com/glcert/glcert/internal/logger"
+	"github.com/gugabguerra/glcert/internal/backup"
+	"github.com/gugabguerra/glcert/internal/logger"
 )
 
 type BackupHandler struct {
