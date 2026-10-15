@@ -19,9 +19,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { useState, useMemo } from 'react';
 import { IconTrash, IconPlus, IconDownload, IconLink, IconCertificate, IconUpload, IconShieldCheck } from '@tabler/icons-react';
-import { authFetch, authFetchJson, downloadFile } from '../api';
+import { authFetch, authFetchJson, downloadFile } from '../api/client';
 import { sanitizeFilename } from '../utils/clipboard';
-import { useAuth } from '../auth';
+import { useAuth } from '../hooks/useAuth';
 
 interface Certificate {
   id: string;

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Title, Text, TextInput, PasswordInput, PinInput, Button, Stack, Paper, Group, Anchor, Image, useComputedColorScheme } from '@mantine/core';
-import { useAuth, User } from '../auth';
+import { useAuth } from '../hooks/useAuth';
+import { User } from '../types/user';
 
 function Login() {
   const { login } = useAuth();

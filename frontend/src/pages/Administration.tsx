@@ -4,7 +4,7 @@ import {
   ActionIcon, Tooltip, Paper, Skeleton, Tabs, Pagination, FileInput, Divider,
 } from '@mantine/core';
 import { IconPlus, IconTrash, IconEdit, IconKey } from '@tabler/icons-react';
-import { authFetch, authFetchJson, authFetchDownload } from '../api';
+import { authFetch, authFetchJson, authFetchDownload } from '../api/client';
 import { PasswordStrengthIndicator } from '../components/PasswordStrengthIndicator';
 
 // ── Types ──────────────────────────────────────────────────────────────────

@@ -4,7 +4,7 @@ import { AppShell, Group, Box, NavLink, ActionIcon, useMantineColorScheme, useCo
 import { useMediaQuery } from '@mantine/hooks';
 import { Link } from 'react-router-dom';
 import { IconShield, IconCertificate, IconSettings, IconSun, IconMoon, IconDeviceDesktop, IconLogout, IconUser, IconAdjustments } from '@tabler/icons-react';
-import { AuthProvider, useAuth } from './auth';
+import { AuthProvider, useAuth } from './hooks/useAuth';
 import Login from './pages/Login';
 import Setup from './pages/Setup';
 import Dashboard from './pages/Dashboard';

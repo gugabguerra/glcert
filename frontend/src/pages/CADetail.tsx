@@ -1,12 +1,13 @@
-import { Title, Text, Button, Group, Stack, Badge, Divider, ActionIcon, Center, Loader, Tooltip, TextInput, Modal, Radio, Menu, Code, Box, Anchor, Checkbox } from '@mantine/core';
+import { Title, Text, Button, Group, Stack, Badge, Divider, ActionIcon, Center, Loader, Tooltip, Modal, Menu, Anchor, Checkbox } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { IconDownload, IconTrash, IconLink, IconClipboard, IconMail } from '@tabler/icons-react';
+import { IconDownload, IconTrash, IconLink } from '@tabler/icons-react';
 import { useState } from 'react';
 import { notifications } from '@mantine/notifications';
-import { authFetch, authFetchJson, downloadFile } from '../api';
-import { copyToClipboard, sanitizeFilename } from '../utils/clipboard';
-import { useAuth } from '../auth';
+import { authFetch, authFetchJson, downloadFile } from '../api/client';
+import { sanitizeFilename } from '../utils/clipboard';
+import { useAuth } from '../hooks/useAuth';
+import { ShareLinkDialog } from '../components/ShareLinkDialog';
 
 interface CertificateAuthority {
   id: string;
@@ -30,13 +31,6 @@ function CADetail() {
   const isAdmin = hasRole('admin');
   const [showDelete, setShowDelete] = useState(false);
   const [showShareDialog, setShowShareDialog] = useState(false);
-  const [shareFileType, setShareFileType] = useState<string>('bundle_zip');
-  const [showShareResult, setShowShareResult] = useState(false);
-  const [shareResult, setShareResult] = useState<{ url: string; fileType: string } | null>(null);
-  const [showEmailDialog, setShowEmailDialog] = useState(false);
-  const [showEmailConfirm, setShowEmailConfirm] = useState(false);
-  const [showEmailNotConfigured, setShowEmailNotConfigured] = useState(false);
-  const [emailAddress, setEmailAddress] = useState('');
 
   const { data: ca, isLoading } = useQuery<CertificateAuthority>({
     queryKey: ['ca', id],
@@ -85,41 +79,6 @@ function CADetail() {
     onError: () => {
       notifications.show({ message: 'Failed to delete CA', color: 'red' });
       setShowDelete(false);
-    },
-  });
-
-  const shareMutation = useMutation({
-    mutationFn: (fileType: string) =>
-      authFetchJson<{ token: string; expires_at: string; file_type: string }>(`/api/share/ca/${id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileType }),
-      }),
-    onSuccess: (data) => {
-      const url = `${window.location.origin}/api/share/${data.token}`;
-      setShareResult({ url, fileType: data.file_type });
-      setShowShareResult(true);
-    },
-  });
-
-  const emailMutation = useMutation({
-    mutationFn: (payload: { email: string; url: string; fileName: string; fileType: string }) =>
-      authFetchJson('/api/share/send-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      }),
-    onSuccess: () => {
-      notifications.show({ message: 'Share link sent!', color: 'teal' });
-      setShowEmailConfirm(false);
-      setShowEmailDialog(false);
-      setShowShareResult(false);
-      setShareResult(null);
-      setShowShareDialog(false);
-      setEmailAddress('');
-    },
-    onError: () => {
-      notifications.show({ message: 'Failed to send email', color: 'red' });
     },
   });
 
@@ -300,151 +259,24 @@ function CADetail() {
         </Group>
       </Modal>
 
-      <Modal opened={showShareDialog} onClose={() => setShowShareDialog(false)} title="Create Share Link">
-        <Stack gap="sm">
-          <Text size="sm" c="dimmed">Select what to share. The link expires in 15 minutes and can only be used once.</Text>
-          <Radio.Group value={shareFileType} onChange={setShareFileType}>
-            <Stack gap="xs" mt="xs">
-              <Radio value="certificate" label="CA Certificate (ca.crt)" />
-              <Radio value="key" label="CA Private Key (ca.key)" />
-              <Radio value="bundle_zip" label="Bundle (ZIP)" />
-              <Radio value="bundle_tgz" label="Bundle (Tarball)" />
-            </Stack>
-          </Radio.Group>
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => setShowShareDialog(false)}>Cancel</Button>
-            <Button loading={shareMutation.isPending} onClick={() => shareMutation.mutate(shareFileType)}>
-              Generate Link
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
-
-      <Modal opened={showShareResult} onClose={() => { setShowShareResult(false); setShareResult(null); }} title="Share Link Ready" size="lg">
-        {shareResult && (() => {
-          const dlName = shareResult.fileType.includes('bundle')
-            ? (shareResult.fileType.includes('tgz') ? `${safeName}-bundle.tar.gz` : `${safeName}-bundle.zip`)
-            : shareResult.fileType === 'certificate' ? `${safeName}-ca.crt` : `${safeName}-ca.key`;
-          const closeAll = () => { setShowShareResult(false); setShareResult(null); setShowShareDialog(false); setEmailAddress(''); };
-          return (
-            <Stack gap="md">
-              <TextInput
-                value={shareResult.url}
-                readOnly
-                onClick={(e) => (e.target as HTMLInputElement).select()}
-                rightSection={
-                  <ActionIcon variant="subtle" color="teal" onClick={async () => {
-                    const ok = await copyToClipboard(shareResult.url);
-                    notifications.show({ message: ok ? 'URL copied!' : 'Failed to copy', color: ok ? 'teal' : 'red' });
-                    if (ok) closeAll();
-                  }}>
-                    <IconClipboard size={16} />
-                  </ActionIcon>
-                }
-              />
-              <Box>
-                <Text size="xs" c="dimmed" mb={4}>wget command</Text>
-                <Group gap="xs">
-                  <Code flex={1} p="xs" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-                    {`wget -O ${dlName} "${shareResult.url}"`}
-                  </Code>
-                  <ActionIcon variant="subtle" color="teal" onClick={async () => {
-                    const cmd = `wget -O ${dlName} "${shareResult.url}"`;
-                    const ok = await copyToClipboard(cmd);
-                    notifications.show({ message: ok ? 'wget command copied!' : 'Failed to copy', color: ok ? 'teal' : 'red' });
-                    if (ok) closeAll();
-                  }}>
-                    <IconClipboard size={16} />
-                  </ActionIcon>
-                </Group>
-              </Box>
-              <Box>
-                <Text size="xs" c="dimmed" mb={4}>curl command</Text>
-                <Group gap="xs">
-                  <Code flex={1} p="xs" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-                    {`curl -L -o ${dlName} "${shareResult.url}"`}
-                  </Code>
-                  <ActionIcon variant="subtle" color="teal" onClick={async () => {
-                    const cmd = `curl -L -o ${dlName} "${shareResult.url}"`;
-                    const ok = await copyToClipboard(cmd);
-                    notifications.show({ message: ok ? 'curl command copied!' : 'Failed to copy', color: ok ? 'teal' : 'red' });
-                    if (ok) closeAll();
-                  }}>
-                    <IconClipboard size={16} />
-                  </ActionIcon>
-                </Group>
-              </Box>
-              <Button variant="light" leftSection={<IconMail size={16} />} onClick={() => settings?.smtpHost ? setShowEmailDialog(true) : setShowEmailNotConfigured(true)}>
-                Send via Email
-              </Button>
-              <Text size="xs" c="dimmed">This link expires in 15 minutes, can only be used once, and requires no authentication.</Text>
-            </Stack>
-          );
-        })()}
-      </Modal>
-
-      <Modal opened={showEmailDialog} onClose={() => { setShowEmailDialog(false); setEmailAddress(''); }} title="Send Share Link via Email">
-        <Stack gap="sm">
-          <Text size="sm" c="dimmed">Enter the recipient's email address. You will be asked to confirm before sending.</Text>
-          <TextInput
-            label="Email address"
-            placeholder="recipient@example.com"
-            type="email"
-            required
-            value={emailAddress}
-            onChange={(e) => setEmailAddress(e.currentTarget.value)}
-           
-          />
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => { setShowEmailDialog(false); setEmailAddress(''); }}>Cancel</Button>
-            <Button
-              disabled={!emailAddress || !emailAddress.includes('@')}
-              onClick={() => { setShowEmailDialog(false); setShowEmailConfirm(true); }}
-            >
-              Continue
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
-
-      <Modal opened={showEmailConfirm} onClose={() => setShowEmailConfirm(false)} title="Confirm Send">
-        <Stack gap="sm">
-          <Text>Send share link for <strong>{shareResult?.fileType}</strong> to:</Text>
-          <Text fw={500}>{emailAddress}</Text>
-          <Text size="sm" c="dimmed">This link expires in 15 minutes and can only be used once. Please verify the email address is correct.</Text>
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => setShowEmailConfirm(false)}>Cancel</Button>
-            <Button
-              loading={emailMutation.isPending}
-              onClick={() => {
-                if (shareResult) {
-                  const dlName = shareResult.fileType.includes('bundle')
-                    ? (shareResult.fileType.includes('tgz') ? `${safeName}-bundle.tar.gz` : `${safeName}-bundle.zip`)
-                    : shareResult.fileType === 'certificate' ? `${safeName}-ca.crt` : `${safeName}-ca.key`;
-                  emailMutation.mutate({
-                    email: emailAddress,
-                    url: shareResult.url,
-                    fileName: dlName,
-                    fileType: shareResult.fileType,
-                  });
-                }
-              }}
-            >
-              Confirm Send
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
-
-      <Modal opened={showEmailNotConfigured} onClose={() => setShowEmailNotConfigured(false)} title="Email Not Configured">
-        <Stack gap="sm">
-          <Text>SMTP email settings have not been configured. Please set up email in Settings before sending share links via email.</Text>
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => setShowEmailNotConfigured(false)}>Cancel</Button>
-            <Button onClick={() => { setShowEmailNotConfigured(false); navigate('/settings'); }}>Go to Settings</Button>
-          </Group>
-        </Stack>
-      </Modal>
+      <ShareLinkDialog
+        opened={showShareDialog}
+        onClose={() => setShowShareDialog(false)}
+        entityType="ca"
+        entityId={id!}
+        fileOptions={[
+          { value: 'certificate', label: 'CA Certificate (ca.crt)' },
+          { value: 'key', label: 'CA Private Key (ca.key)' },
+          { value: 'bundle_zip', label: 'Bundle (ZIP)' },
+          { value: 'bundle_tgz', label: 'Bundle (Tarball)' },
+        ]}
+        fileNameFor={(fileType) =>
+          fileType.includes('bundle')
+            ? (fileType.includes('tgz') ? `${safeName}-bundle.tar.gz` : `${safeName}-bundle.zip`)
+            : fileType === 'certificate' ? `${safeName}-ca.crt` : `${safeName}-ca.key`
+        }
+        emailEnabled={!!settings?.smtpHost}
+      />
     </Stack>
   );
 }

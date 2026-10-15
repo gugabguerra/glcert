@@ -18,8 +18,8 @@ import {
 } from '@mantine/core';
 import { useEffect, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { authFetchJson } from '../api';
-import { useAuth } from '../auth';
+import { authFetchJson } from '../api/client';
+import { useAuth } from '../hooks/useAuth';
 import { PasswordStrengthIndicator } from '../components/PasswordStrengthIndicator';
 
 function UserProfile() {

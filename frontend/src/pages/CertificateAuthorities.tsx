@@ -3,8 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useState, useMemo } from 'react';
 import { IconTrash, IconPlus, IconUpload, IconShieldCheck } from '@tabler/icons-react';
-import { authFetch, authFetchJson } from '../api';
-import { useAuth } from '../auth';
+import { authFetch, authFetchJson } from '../api/client';
+import { useAuth } from '../hooks/useAuth';
 
 interface CertificateAuthority {
   id: string;

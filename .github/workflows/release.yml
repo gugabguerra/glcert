@@ -1,0 +1,60 @@
+# Artifacts are built from the VERSION-injected source and published as release
+# assets — never committed.
+name: Release
+
+on:
+  push:
+    tags:
+      - v*
+
+permissions:
+  contents: write
+
+jobs:
+  desktop-linux-windows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache-dependency-path: backend/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+      - name: Build Linux and Windows desktops
+        run: make build-desktop-linux build-desktop-windows
+      - name: Publish release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/glcert-linux, dist/glcert-windows.exe
+
+  desktop-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache-dependency-path: backend/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+      # The macOS bundle is assembled by the Makefile's `build-macos-app` target
+      # (universal binary via lipo).
+      - name: Build macOS app
+        run: make build-macos-app
+      - name: Publish release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/GLCert-macos.zip

@@ -3,7 +3,7 @@ import { Title, TextInput, Select, NumberInput, Button, Stack, Group, Textarea, 
 import { useForm } from '@mantine/form';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { authFetchJson } from '../api';
+import { authFetchJson } from '../api/client';
 import { IconCertificate } from '@tabler/icons-react';
 
 interface CA {

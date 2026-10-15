@@ -1,15 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 
-const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
+import { User } from '../types/user';
 
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: 'admin' | 'operator' | 'viewer';
-  totpEnabled: boolean;
-  createdAt: string;
-}
+const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 
 interface AuthContextType {
   token: string | null;

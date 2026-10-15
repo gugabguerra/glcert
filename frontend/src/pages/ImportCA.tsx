@@ -4,7 +4,7 @@ import {
   Title, Text, TextInput, Textarea, Button, Stack, Group, FileInput, Paper, PasswordInput,
 } from '@mantine/core';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { authFetchJson } from '../api';
+import { authFetchJson } from '../api/client';
 
 function ImportCA() {
   const queryClient = useQueryClient();

@@ -2,7 +2,7 @@ import { Title, Text, SimpleGrid, Stack, Anchor, Table, Badge, Center, Loader, P
 import { IconShieldCheck, IconCertificate, IconClock, IconAlertTriangle } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { authFetchJson } from '../api';
+import { authFetchJson } from '../api/client';
 
 interface DashboardStats {
   caCount: number;

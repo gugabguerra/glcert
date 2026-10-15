@@ -16,7 +16,7 @@ import {
 import { useForm } from '@mantine/form';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { authFetchJson } from '../api';
+import { authFetchJson } from '../api/client';
 
 interface Settings {
   id: number;
