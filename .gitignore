@@ -1,5 +1,6 @@
 # Binaries
 backend/server
+backend/glcert
 *.exe
 
 # Dependencies
@@ -37,9 +38,6 @@ backend/data/
 # OS
 .DS_Store
 Thumbs.db
-
-# Prompts
-PROMPTS/
 
 # Local scratch (planning notes, privacy policy) — never committed
 docs/local/

@@ -43,16 +43,16 @@ build-macos-app: embed-frontend
 	# Generate icon
 	rm -rf /tmp/glcert.iconset /tmp/glcert.icns
 	mkdir -p /tmp/glcert.iconset
-	sips -z 16 16 ASSETS/IMG/glcert.png --out /tmp/glcert.iconset/icon_16x16.png
-	sips -z 32 32 ASSETS/IMG/glcert.png --out /tmp/glcert.iconset/icon_16x16@2x.png
-	sips -z 32 32 ASSETS/IMG/glcert.png --out /tmp/glcert.iconset/icon_32x32.png
-	sips -z 64 64 ASSETS/IMG/glcert.png --out /tmp/glcert.iconset/icon_32x32@2x.png
-	sips -z 128 128 ASSETS/IMG/glcert.png --out /tmp/glcert.iconset/icon_128x128.png
-	sips -z 256 256 ASSETS/IMG/glcert.png --out /tmp/glcert.iconset/icon_128x128@2x.png
-	sips -z 256 256 ASSETS/IMG/glcert.png --out /tmp/glcert.iconset/icon_256x256.png
-	sips -z 512 512 ASSETS/IMG/glcert.png --out /tmp/glcert.iconset/icon_256x256@2x.png
-	sips -z 512 512 ASSETS/IMG/glcert.png --out /tmp/glcert.iconset/icon_512x512.png
-	cp ASSETS/IMG/glcert.png /tmp/glcert.iconset/icon_512x512@2x.png
+	sips -z 16 16 assets/IMG/glcert.png --out /tmp/glcert.iconset/icon_16x16.png
+	sips -z 32 32 assets/IMG/glcert.png --out /tmp/glcert.iconset/icon_16x16@2x.png
+	sips -z 32 32 assets/IMG/glcert.png --out /tmp/glcert.iconset/icon_32x32.png
+	sips -z 64 64 assets/IMG/glcert.png --out /tmp/glcert.iconset/icon_32x32@2x.png
+	sips -z 128 128 assets/IMG/glcert.png --out /tmp/glcert.iconset/icon_128x128.png
+	sips -z 256 256 assets/IMG/glcert.png --out /tmp/glcert.iconset/icon_128x128@2x.png
+	sips -z 256 256 assets/IMG/glcert.png --out /tmp/glcert.iconset/icon_256x256.png
+	sips -z 512 512 assets/IMG/glcert.png --out /tmp/glcert.iconset/icon_256x256@2x.png
+	sips -z 512 512 assets/IMG/glcert.png --out /tmp/glcert.iconset/icon_512x512.png
+	cp assets/IMG/glcert.png /tmp/glcert.iconset/icon_512x512@2x.png
 	iconutil -c icns /tmp/glcert.iconset -o /tmp/glcert.icns
 	rm -rf /tmp/glcert.iconset
 
