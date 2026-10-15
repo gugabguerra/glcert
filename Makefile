@@ -1,6 +1,6 @@
 .PHONY: build-desktop build-macos-app build-desktop-macos-arm64 build-desktop-macos-x64 build-desktop-windows build-desktop-linux clean
 
-VERSION ?= 1.0.0
+VERSION ?= $(shell cat VERSION)
 
 build-desktop: build-desktop-macos-arm64
 
@@ -13,28 +13,28 @@ embed-frontend: build-frontend
 
 build-desktop-macos-arm64: embed-frontend
 	mkdir -p dist
-	cd backend && GOOS=darwin GOARCH=arm64 go build -tags desktop -o ../dist/glcert-macos-arm64 ./cmd/desktop
+	cd backend && GOOS=darwin GOARCH=arm64 go build -tags desktop -ldflags "-s -w -X main.version=$(VERSION)" -o ../dist/glcert-macos-arm64 ./cmd/desktop
 
 build-desktop-macos-x64: embed-frontend
 	mkdir -p dist
-	cd backend && GOOS=darwin GOARCH=amd64 go build -tags desktop -o ../dist/glcert-macos-x64 ./cmd/desktop
+	cd backend && GOOS=darwin GOARCH=amd64 go build -tags desktop -ldflags "-s -w -X main.version=$(VERSION)" -o ../dist/glcert-macos-x64 ./cmd/desktop
 
 build-desktop-windows: embed-frontend
 	mkdir -p dist
-	cd backend && GOOS=windows GOARCH=amd64 go build -tags desktop -o ../dist/glcert-windows.exe ./cmd/desktop
+	cd backend && GOOS=windows GOARCH=amd64 go build -tags desktop -ldflags "-s -w -X main.version=$(VERSION)" -o ../dist/glcert-windows.exe ./cmd/desktop
 
 build-desktop-linux: embed-frontend
 	mkdir -p dist
-	cd backend && GOOS=linux GOARCH=amd64 go build -tags desktop -o ../dist/glcert-linux ./cmd/desktop
+	cd backend && GOOS=linux GOARCH=amd64 go build -tags desktop -ldflags "-s -w -X main.version=$(VERSION)" -o ../dist/glcert-linux ./cmd/desktop
 
 build-macos-app: embed-frontend
 	mkdir -p dist
 
 	# Build arm64
-	cd backend && GOOS=darwin GOARCH=arm64 go build -tags desktop -o /tmp/glcert-arm64 ./cmd/desktop
+	cd backend && GOOS=darwin GOARCH=arm64 go build -tags desktop -ldflags "-s -w -X main.version=$(VERSION)" -o /tmp/glcert-arm64 ./cmd/desktop
 
 	# Build amd64
-	cd backend && GOOS=darwin GOARCH=amd64 go build -tags desktop -o /tmp/glcert-amd64 ./cmd/desktop
+	cd backend && GOOS=darwin GOARCH=amd64 go build -tags desktop -ldflags "-s -w -X main.version=$(VERSION)" -o /tmp/glcert-amd64 ./cmd/desktop
 
 	# Create universal binary
 	lipo -create /tmp/glcert-arm64 /tmp/glcert-amd64 -output /tmp/glcert-universal

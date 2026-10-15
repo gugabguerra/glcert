@@ -18,8 +18,12 @@ import (
 	"github.com/webview/webview_go"
 )
 
+// version is injected at build time via -ldflags "-X main.version=...".
+var version = "dev"
+
 func main() {
 	logger.Init()
+	logger.Infof("GLCert version %s", version)
 	cfg := config.Load()
 
 	db, err := database.New(cfg.DataDir)
