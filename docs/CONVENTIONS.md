@@ -45,10 +45,16 @@ here; if the two ever disagree, fix both.
 
 ## Configuration
 
-- Configuration comes from environment variables (`SCREAMING_SNAKE_CASE`) with defaults in
-  `backend/internal/config`; every variable is documented in the README's configuration table.
-- Fail fast on bad configuration; never fall back silently. Missing variables use their defaults,
-  but invalid values refuse to start.
+`defaults → config.json → .env → real environment` — rightmost wins.
+
+- `config.json` (working directory) is authoritative and **fail-fast**: bad JSON, a wrong type, or
+  an invalid value refuses to start. Unknown keys only warn. Point `CONFIG_FILE` elsewhere to load
+  a different file; an explicitly configured but missing file is an error.
+- The `.env` layer is **forgiving**: a bad line or an unknown key warns (naming the key, never
+  the value) and is skipped. Point `ENV_FILE` to load a different dotenv file.
+- Config keys are camelCase (`port`, `dataDir`, `logLevel`); each has a SCREAMING_SNAKE_CASE
+  environment override (`PORT`, `DATA_DIR`, `LOG_LEVEL`), and both are documented in the README's
+  configuration table. Missing settings use their defaults; invalid values refuse to start.
 - Duration settings are expressed in **hours** (fractions allowed) where the UI exposes them;
   timestamps are epoch milliseconds.
 

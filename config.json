@@ -1,0 +1,5 @@
+{
+  "port": 18080,
+  "dataDir": "data",
+  "logLevel": "info"
+}

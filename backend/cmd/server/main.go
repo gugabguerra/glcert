@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/glcert/glcert/internal/config"
@@ -17,9 +18,13 @@ import (
 var version = "dev"
 
 func main() {
-	logger.Init()
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "config: %v\n", err)
+		os.Exit(1)
+	}
+	logger.Init(cfg.LogLevel)
 	logger.Infof("GLCert version %s", version)
-	cfg := config.Load()
 
 	db, err := database.New(cfg.DataDir)
 	if err != nil {

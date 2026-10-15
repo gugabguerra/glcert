@@ -94,11 +94,31 @@ This builds and runs the application on port 8080 with a persistent Docker volum
 
 ## Configuration
 
-| Environment Variable | Default | Description |
+Settings come from a layered chain — **rightmost wins**:
+
+```
+defaults → config.json → .env → real environment
+```
+
+- **`config.json`** (working directory — the repo root when you start from there) holds the
+  tracked defaults. It is **fail-fast**: bad JSON, a wrong type, or an invalid value refuses to
+  start rather than falling back silently. Set `CONFIG_FILE` to load a different file; an
+  explicitly configured but missing file is an error.
+- **`.env`** (gitignored — see `.env.example`) holds values personal to your machine. It is
+  **forgiving**: a bad line or an unrecognized key warns and is skipped — the warning names the
+  key, never the value. Set `ENV_FILE` to load a different dotenv file.
+- Real environment variables always win, so a container can override one value without a rebuild.
+
+| Key (`config.json`) | Environment Variable | Default | Description |
+|---|---|---|---|
+| `port` | `PORT` | `18080` | HTTP server listen port |
+| `dataDir` | `DATA_DIR` | `./data` | Root directory for database and certificate storage |
+| `logLevel` | `LOG_LEVEL` | `info` | Log verbosity: `debug`, `info`, `warn`, `error`, `fatal` |
+
+| Loader variable | Default | Purpose |
 |---|---|---|
-| `PORT` | `18080` | HTTP server listen port |
-| `DATA_DIR` | `./data` | Root directory for database and certificate storage |
-| `LOG_LEVEL` | `info` | Log verbosity: `debug`, `info`, `warn`, `error`, `fatal` |
+| `CONFIG_FILE` | `./config.json` | Which config file to load |
+| `ENV_FILE` | `./.env` | Which dotenv file to load |
 
 ## Notifications
 

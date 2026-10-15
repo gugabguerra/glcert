@@ -51,13 +51,18 @@ expired sessions and pending TOTP sessions.
 
 ## Configuration
 
-Environment variables only, with defaults in `backend/internal/config`:
+Settings come from a layered chain, rightmost wins: built-in defaults → `config.json` (working
+directory) → `.env` → real environment variables. `config.json` is fail-fast (bad JSON, wrong types, or
+invalid values refuse to start); `.env` is forgiving (bad lines and unknown keys warn and are
+skipped). See `docs/CONVENTIONS.md` § Configuration and the README for the full rules.
 
-| Variable   | Default   | Purpose                    |
-| ---------- | --------- | -------------------------- |
-| `PORT`     | `18080`   | HTTP listen port           |
-| `DATA_DIR` | `./data`  | Mutable state location     |
-| `LOG_LEVEL`| `info`    | `DEBUG`/`INFO`/`WARN`/`ERROR`/`FATAL` |
+| Key (camelCase) | Env override  | Default   | Purpose                    |
+| --------------- | ------------- | --------- | -------------------------- |
+| `port`          | `PORT`        | `18080`   | HTTP listen port           |
+| `dataDir`       | `DATA_DIR`    | `./data`  | Mutable state location     |
+| `logLevel`      | `LOG_LEVEL`   | `info`    | `debug`/`info`/`warn`/`error`/`fatal` |
+
+`CONFIG_FILE` and `ENV_FILE` change which files the first two layers load.
 
 ## Logging
 

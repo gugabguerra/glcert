@@ -11,6 +11,9 @@ file.
 
 ### Changed
 
+- Configuration is now layered — built-in defaults → `config.json` → `.env` → real environment
+  (rightmost wins). A malformed `config.json` refuses to start; the `.env` layer warns and skips
+  bad lines and unknown keys.
 - Repository restructured for public release: technical documentation moved to `docs/`
   (architecture, API reference, database schema), `ASSETS/` renamed to `assets/`, and the
   project conventions adopted (`AGENTS.md`, `docs/CONVENTIONS.md`).

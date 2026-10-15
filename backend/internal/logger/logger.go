@@ -27,12 +27,14 @@ var levelNames = map[Level]string{
 
 var currentLevel Level = LevelInfo
 
-func Init() {
-	levelStr := os.Getenv("LOG_LEVEL")
-	if levelStr == "" {
-		levelStr = "info"
+// Init sets the log level from the already-resolved configuration. An empty
+// level behaves like "info"; the value is expected to come from config.Load,
+// which has validated it.
+func Init(level string) {
+	if level == "" {
+		level = "info"
 	}
-	currentLevel = parseLevel(strings.ToLower(levelStr))
+	currentLevel = parseLevel(strings.ToLower(level))
 	log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
 	Infof("log level set to %s", levelNames[currentLevel])
 }
