@@ -6,6 +6,14 @@ For technical details see [docs/](docs/): [architecture](docs/architecture.md),
 [API reference](docs/api.md), [database schema](docs/schema.md), and the
 [security model](docs/SECURITY.md).
 
+## Project status
+
+GLCert is a hobby project built for my own homelab, published as-is in case it is useful to
+someone else. There is **no support offered**: issues and pull requests may sit unanswered, and
+there are no release schedules or compatibility promises. Forking is not just allowed — it is
+the recommended path if you want changes (MIT licensed). I maintain GLCert as my own needs
+dictate, nothing more.
+
 ## Features
 
 - **Multi-User Support** -- Admin, Operator, and Viewer roles. Admins manage users and system settings. Operators create and manage certificates under assigned CAs. Viewers have read-only access with share link capabilities.

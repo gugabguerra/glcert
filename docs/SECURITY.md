@@ -55,6 +55,9 @@ full version of the README's security notes.
 
 ## Reporting a problem
 
-Open an issue in the repository (or a private security advisory when enabled). Include the
-version from `docs/CHANGELOG.md` and log output at `LOG_LEVEL` — logs contain no secrets, so they
-are safe to share.
+Use GitHub's **private vulnerability reporting** on the repository — it keeps the report out of
+the public issue tracker and needs no email contact. Responses are **best-effort with no service
+level**: this project is maintained for personal use (see README § Project status), so a fix may
+be slow or never come. Include the version from `docs/CHANGELOG.md` and log output at
+`LOG_LEVEL` — logs contain no secrets, so they are safe to share. If you depend on GLCert
+seriously, maintain your own fork.
