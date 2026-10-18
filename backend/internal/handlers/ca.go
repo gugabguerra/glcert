@@ -88,7 +88,12 @@ func (h *CAHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Filter by permissions for non-admins
 	if userID != "" {
 		accessibleIDs, err := h.auth.GetAccessibleCAIDs(userID)
-		if err == nil && accessibleIDs != nil {
+		if err != nil {
+			logger.Errorf("resolve accessible CAs: %v", err)
+			http.Error(w, "Failed to load permissions", http.StatusInternalServerError)
+			return
+		}
+		if accessibleIDs != nil {
 			if len(accessibleIDs) == 0 {
 				w.Header().Set("Content-Type", "application/json")
 				json.NewEncoder(w).Encode([]CAResponse{})

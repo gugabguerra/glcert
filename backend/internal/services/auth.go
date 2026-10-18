@@ -526,15 +526,24 @@ func (s *AuthService) GetAccessibleCAIDs(userID string) ([]string, error) {
 		return nil, nil // nil means no filter
 	}
 
+	// Assigned CAs plus every descendant, matching the parent-chain walk in
+	// UserHasCAAccess. UNION (not UNION ALL) stops on parent cycles.
 	rows, err := s.db.Query(`
-		SELECT DISTINCT ca_id FROM ca_permissions WHERE user_id = ?
+		WITH RECURSIVE accessible(id) AS (
+			SELECT ca_id FROM ca_permissions WHERE user_id = ?
+			UNION
+			SELECT ca.id FROM certificate_authorities ca
+			JOIN accessible a ON ca.parent_ca_id = a.id
+		)
+		SELECT id FROM accessible
 	`, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var ids []string
+	// Non-nil even when empty: nil means "admin, no filter" to callers.
+	ids := []string{}
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {

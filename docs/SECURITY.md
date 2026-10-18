@@ -8,7 +8,9 @@ full version of the README's security notes.
 
 - **Accounts** — passwords are bcrypt hashes; roles are admin / operator / viewer, with per-CA
   grants for the latter two (child CAs included through chain traversal). Authorization is
-  enforced server-side on every request; the UI only hides what is already refused.
+  enforced server-side on every request; the UI only hides what is already refused. Lists and
+  dashboard counts are scoped the same way, so totals never reveal CAs or certificates outside
+  a user's grants.
 - **Sessions** — random bearer tokens, 24-hour expiry, cleared on every restart. Changing a
   password invalidates **all** sessions. Login and password-reset endpoints are rate-limited and
   never reveal whether an account exists.

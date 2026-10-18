@@ -44,7 +44,7 @@ Errors return a plain-text body with an appropriate HTTP status (`400`, `401`, `
 | POST   | /api/totp/disable             | Disable TOTP             |
 | GET    | /api/users/me                 | Get current user profile |
 | PUT    | /api/users/me                 | Update current user name |
-| GET    | /api/dashboard                | Dashboard stats          |
+| GET    | /api/dashboard                | Dashboard stats (scoped) |
 | POST   | /api/notifications/test       | Send test notification   |
 | POST   | /api/notifications/test-email | Send test email          |
 | POST   | /api/share/{type}/{id}        | Generate share link      |

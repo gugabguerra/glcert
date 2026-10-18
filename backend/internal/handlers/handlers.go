@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gugabguerra/glcert/internal/logger"
@@ -14,10 +15,11 @@ import (
 type Handler struct {
 	db     *sql.DB
 	crypto *services.CryptoService
+	auth   *services.AuthService
 }
 
-func New(db *sql.DB, crypto *services.CryptoService) *Handler {
-	return &Handler{db: db, crypto: crypto}
+func New(db *sql.DB, crypto *services.CryptoService, auth *services.AuthService) *Handler {
+	return &Handler{db: db, crypto: crypto, auth: auth}
 }
 
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
@@ -32,28 +34,75 @@ type DashboardStats struct {
 	Expired          int `json:"expired"`
 }
 
+// dashboardScope returns SQL conditions restricting the dashboard counts to
+// the CAs the user may access, mirroring the CA and certificate list
+// handlers: CAs by id, certificates by issuing CA or unassigned. Admins get
+// "1 = 1" (no filter). A permission lookup error is returned so the caller
+// fails closed instead of reporting global totals.
+func (h *Handler) dashboardScope(userID string) (caCond, certCond string, args []interface{}, err error) {
+	if userID == "" {
+		return "1 = 0", "1 = 0", nil, nil
+	}
+	ids, err := h.auth.GetAccessibleCAIDs(userID)
+	if err != nil {
+		return "", "", nil, err
+	}
+	if ids == nil {
+		return "1 = 1", "1 = 1", nil, nil
+	}
+	if len(ids) == 0 {
+		return "1 = 0", "c.certificate_authority_id IS NULL", nil, nil
+	}
+	placeholders := strings.TrimSuffix(strings.Repeat("?, ", len(ids)), ", ")
+	args = make([]interface{}, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	return "id IN (" + placeholders + ")",
+		"(c.certificate_authority_id IN (" + placeholders + ") OR c.certificate_authority_id IS NULL)",
+		args, nil
+}
+
 func (h *Handler) GetDashboardStats(w http.ResponseWriter, r *http.Request) {
 	var stats DashboardStats
 
-	h.db.QueryRow("SELECT COUNT(*) FROM certificate_authorities").Scan(&stats.CACount)
-	h.db.QueryRow("SELECT COUNT(*) FROM certificates").Scan(&stats.CertificateCount)
+	caCond, certCond, args, err := h.dashboardScope(GetUserID(r.Context()))
+	if err != nil {
+		logger.Errorf("dashboard: resolve accessible CAs: %v", err)
+		http.Error(w, "Failed to load dashboard", http.StatusInternalServerError)
+		return
+	}
 
-	thirtyDays := time.Now().AddDate(0, 0, 30)
 	now := time.Now()
+	thirtyDays := now.AddDate(0, 0, 30)
 
-	h.db.QueryRow(`
-		SELECT COUNT(*) FROM certificate_versions cv
-		JOIN certificates c ON cv.certificate_id = c.id
-		WHERE cv.version = c.current_version
-			AND cv.expires_at > ? AND cv.expires_at <= ?
-	`, now, thirtyDays).Scan(&stats.ExpiringSoon)
-
-	h.db.QueryRow(`
-		SELECT COUNT(*) FROM certificate_versions cv
-		JOIN certificates c ON cv.certificate_id = c.id
-		WHERE cv.version = c.current_version
-			AND cv.expires_at <= ?
-	`, now).Scan(&stats.Expired)
+	queries := []struct {
+		dest  *int
+		query string
+		args  []interface{}
+	}{
+		{&stats.CACount, "SELECT COUNT(*) FROM certificate_authorities WHERE " + caCond, args},
+		{&stats.CertificateCount, "SELECT COUNT(*) FROM certificates c WHERE " + certCond, args},
+		{&stats.ExpiringSoon, `
+			SELECT COUNT(*) FROM certificate_versions cv
+			JOIN certificates c ON cv.certificate_id = c.id
+			WHERE cv.version = c.current_version
+				AND cv.expires_at > ? AND cv.expires_at <= ?
+				AND ` + certCond, append([]interface{}{now, thirtyDays}, args...)},
+		{&stats.Expired, `
+			SELECT COUNT(*) FROM certificate_versions cv
+			JOIN certificates c ON cv.certificate_id = c.id
+			WHERE cv.version = c.current_version
+				AND cv.expires_at <= ?
+				AND ` + certCond, append([]interface{}{now}, args...)},
+	}
+	for _, q := range queries {
+		if err := h.db.QueryRow(q.query, q.args...).Scan(q.dest); err != nil {
+			logger.Errorf("dashboard: count query: %v", err)
+			http.Error(w, "Failed to load dashboard", http.StatusInternalServerError)
+			return
+		}
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(stats)

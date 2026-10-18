@@ -40,7 +40,7 @@ func SetupRouter(db *sql.DB, crypto *services.CryptoService, cfg *config.Config,
 	auditHandler := handlers.NewAuditHandler(auditService)
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
 	shareHandler := handlers.NewShareHandler(db, certService, caService, crypto, emailService, auth)
-	h := handlers.New(db, crypto)
+	h := handlers.New(db, crypto, auth)
 
 	r.Route("/api", func(r chi.Router) {
 		// --- Public routes ---

@@ -3,6 +3,18 @@
 All notable changes to GLCert. Newest first; versions match the git tags and the root `VERSION`
 file.
 
+## [Unreleased]
+
+### Fixed
+
+- Dashboard counts (CAs, certificates, expiring, expired) are now limited to the CAs an operator
+  or viewer is granted, instead of showing totals for every CA.
+- Operators with no CA grants no longer see every CA and certificate in the lists, and child CAs
+  of a granted CA now appear in the CA and certificate lists as they already did for direct
+  access.
+- CA and certificate lists (including groups and group downloads) now fail closed when a user's
+  permissions cannot be loaded, instead of returning unfiltered results.
+
 ## [1.0.0-rc.1] — 2026-10-18
 
 ### Added

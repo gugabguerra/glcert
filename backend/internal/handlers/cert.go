@@ -91,7 +91,12 @@ func (h *CertHandler) List(w http.ResponseWriter, r *http.Request) {
 	userID := GetUserID(r.Context())
 	if userID != "" {
 		accessibleIDs, err := h.auth.GetAccessibleCAIDs(userID)
-		if err == nil && accessibleIDs != nil {
+		if err != nil {
+			logger.Errorf("resolve accessible CAs: %v", err)
+			http.Error(w, "Failed to load permissions", http.StatusInternalServerError)
+			return
+		}
+		if accessibleIDs != nil {
 			if len(accessibleIDs) == 0 {
 				w.Header().Set("Content-Type", "application/json")
 				json.NewEncoder(w).Encode([]interface{}{})
@@ -483,16 +488,20 @@ func parseCert(pemBytes []byte) (*x509.Certificate, error) {
 }
 
 // accessibleCAFilter returns a SQL condition and args restricting certificate
-// queries to the CAs the given user may access. Admins (and any unexpected
-// lookup errors) are treated as unfiltered. If the user has no accessible CAs
-// the condition is impossible so no certificates leak.
+// queries to the CAs the given user may access. Admins are unfiltered. If the
+// user has no accessible CAs, or the lookup fails, the condition is
+// impossible so no certificates leak.
 func (h *CertHandler) accessibleCAFilter(userID string) (string, []interface{}, bool) {
 	if userID == "" {
 		return "", nil, false
 	}
 	ids, err := h.auth.GetAccessibleCAIDs(userID)
-	if err != nil || ids == nil {
-		return "", nil, false // admin (nil) or lookup error → unfiltered
+	if err != nil {
+		logger.Errorf("resolve accessible CAs: %v", err)
+		return "1 = 0", nil, true // fail closed
+	}
+	if ids == nil {
+		return "", nil, false // admin
 	}
 	if len(ids) == 0 {
 		return "1 = 0", nil, true
