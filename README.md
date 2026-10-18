@@ -1,177 +1,173 @@
 # GLCert
 
-Self-hosted PKI manager for lab and private environments. Generate and manage TLS certificates without using OpenSSL.
+Self-hosted PKI manager for lab and private environments. Create certificate authorities, issue and
+manage TLS certificates, and control access from a web interface — without using OpenSSL.
 
-For technical details see [docs/](docs/): [architecture](docs/architecture.md),
-[API reference](docs/api.md), [database schema](docs/schema.md), and the
-[security model](docs/SECURITY.md).
+> **Deployment note:** GLCert serves plain HTTP. Put it behind a TLS reverse proxy before using it
+> across an untrusted network, and do not expose its application port directly to the internet.
+> See the [security model](docs/SECURITY.md) for deployment assumptions and hardening steps.
 
-## Project status
+## Screenshots
 
-GLCert is a hobby project built for my own homelab, published as-is in case it is useful to
-someone else. There is **no support offered**: issues and pull requests may sit unanswered, and
-there are no release schedules or compatibility promises. Forking is not just allowed — it is
-the recommended path if you want changes (MIT licensed). I maintain GLCert as my own needs
-dictate, nothing more.
+Screenshots are coming soon. Replace each placeholder below with an image when they are ready.
+
+| Dashboard | Certificate authorities |
+|---|---|
+| *Screenshot placeholder* | *Screenshot placeholder* |
+
+| Certificate details | User administration |
+|---|---|
+| *Screenshot placeholder* | *Screenshot placeholder* |
 
 ## Features
 
-- **Multi-User Support** -- Admin, Operator, and Viewer roles. Admins manage users and system settings. Operators create and manage certificates under assigned CAs. Viewers have read-only access with share link capabilities.
-- **Role-Based Access Control** -- Per-CA permission assignment. Operators only see CAs they have been granted access to (including child CAs via automatic chain traversal).
-- **Administration Panel** -- Centralized admin page with user management, audit log, and system operations (backup, restore, factory reset).
-- **User Management** -- Create users with role assignment and CA access. Admins can reset passwords and change roles. Password strength indicator on all password fields.
-- **Audit Log** -- Track all system activity: CA/certificate operations, user changes, settings updates, logins. Filterable by action type.
-- **CA Management** -- Create or import certificate authorities with RSA, ECDSA, or Ed25519 keys. Support for passphrase-protected private keys (PKCS#8 and legacy PEM). Create intermediate CAs signed by a parent CA with automatic chain management. Download CA certificates and private keys individually or as ZIP bundles.
-- **Certificate Management** -- Generate server, client, server+client, or self-signed certificates. Regenerate with custom validity periods. Full version history with restore capability.
-- **Download Bundles** -- Download certificates, private keys, CA certs, or complete ZIP/TGZ bundles with a single click.
-- **Temporary Share Links** -- Generate time-limited, single-use URLs for sharing certificates, keys, or bundles via wget/curl. Send share links via email. No authentication required for the download link.
-- **MFA / TOTP** -- Two-factor authentication with QR code setup, 6-digit TOTP codes, and single-use backup codes. Encrypted secret storage at rest.
-- **Backup & Restore** -- Password-encrypted ZIP backup of all data. Restore merges into existing data without overwriting.
-- **Email Integration** -- SMTP support for password reset and expiration alerts. Configure in Settings with a test button.
-- **Expiration Notifications** -- Get notified via Discord, Slack, Telegram, email (SMTP), or 20+ other services when certificates or CAs are close to expiration. Configurable threshold and webhook URL.
-- **Dashboard** -- Overview of all CAs, certificates, expiring soon, and expired counts. Visible to admin and operator roles.
-- **Dark / Light / System Theme** -- Full theme support with instant switching.
-- **Responsive Design** -- Mobile-friendly with hamburger menu on small screens.
-- **Password Reset** -- Forgot your password? Reset via email link (requires SMTP configured).
-- **Setup Wizard** -- Guided initial setup for admin credentials and encryption passphrase.
-- **Factory Reset** -- Complete data wipe with confirmation dialog (admin only).
+- **Certificate authorities:** Create or import root and intermediate CAs with RSA, ECDSA, or
+  Ed25519 keys. Manage parent-child chains and download certificates and private keys.
+- **Certificate lifecycle:** Issue server, client, combined, or self-signed certificates. Set
+  validity periods, regenerate certificates, and restore earlier versions.
+- **Role-based access:** Admin, Operator, and Viewer roles, with per-CA permissions enforced by
+  the server.
+- **Downloads and sharing:** Download individual files or ZIP/TGZ bundles. Create single-use,
+  time-limited links for sharing certificates, keys, or bundles.
+- **Administration:** Manage users, review a filterable audit log, configure system settings, and
+  perform backup, restore, or factory reset operations.
+- **Multi-factor authentication:** Optional TOTP with encrypted secret storage and single-use
+  backup codes.
+- **Notifications:** Send CA and certificate expiration alerts through SMTP or supported webhook
+  services. Configure a threshold and send a test notification.
+- **Backup and restore:** Create password-encrypted ZIP backups. Restoring merges data without
+  overwriting existing records.
+- **Responsive interface:** Use the dashboard on desktop or mobile, with dark, light, and system
+  theme options.
 
-## Role Permissions
+## Quick start
 
-| Action | Admin | Operator | Viewer |
-|--------|:-----:|:--------:|:------:|
-| View Dashboard | Yes | Yes | No |
-| View / Download CAs | Yes | Assigned CAs | No |
-| View / Download Certificates | Yes | Assigned CAs | Yes (shared) |
-| Create / Delete CAs | Yes | No | No |
-| Import CAs | Yes | No | No |
-| Create / Delete Certificates | Yes | Assigned CAs | No |
-| Manage Users | Yes | No | No |
-| View Audit Log | Yes | No | No |
-| Backup / Restore / Factory Reset | Yes | No | No |
-| System Settings | Yes | No | No |
-| Create Share Links | Yes | Yes | Yes |
+### Docker Compose
 
-## Tech Stack
+With Docker Compose installed, run this from the repository root:
 
-| Layer | Technology |
-|---|---|
-| Backend | Go 1.25, Chi router, crypto/x509 |
-| Frontend | React 19, TypeScript, Mantine UI v9, Vite |
-| Database | SQLite (pure-Go driver, no CGO required) |
-| Notifications | Shoutrrr (nicholas-fedor/shoutrrr v0.16.1) |
-| Deployment | Docker (multi-stage build), Docker Compose |
+```sh
+docker compose up -d --build
+```
 
-## Getting Started
+Open [http://localhost:8080](http://localhost:8080) and complete the setup wizard. Compose stores
+application data in the persistent `glcert-data` volume, so the data survives container restarts.
 
-### Prerequisites
+### Local development
 
-- Go 1.25+
-- Node.js 20+
-- npm
+Prerequisites: Go 1.25+, Node.js 20+, and npm.
 
-### Local Development
+Start the backend:
 
-**Backend:**
-
-```bash
+```sh
 cd backend
 go mod download
 go run ./cmd/server
 ```
 
-The server starts on `http://localhost:18080`.
+The API is available at `http://localhost:18080`. In another terminal, start the frontend:
 
-**Frontend:**
-
-```bash
+```sh
 cd frontend
 npm install
 npm run dev
 ```
 
-The dev server starts on `http://localhost:3000` with a proxy to the backend.
+The frontend runs at `http://localhost:3000` and proxies API requests to the backend.
 
-### Docker Deployment
+## Role permissions
 
-```bash
-docker compose up -d
-```
+| Action | Admin | Operator | Viewer |
+|---|:---:|:---:|:---:|
+| View dashboard | Yes | Yes | No |
+| View or download CAs | Yes | Assigned CAs | No |
+| View or download certificates | Yes | Assigned CAs | Shared certificates |
+| Create or delete CAs | Yes | No | No |
+| Import CAs | Yes | No | No |
+| Create or delete certificates | Yes | Assigned CAs | No |
+| Manage users | Yes | No | No |
+| View audit log | Yes | No | No |
+| Backup, restore, or factory reset | Yes | No | No |
+| System settings | Yes | No | No |
+| Create share links | Yes | Yes | Yes |
 
-This builds and runs the application on port 8080 with a persistent Docker volume for data.
+The server checks CA permissions on every operation. Access checks also follow the parent CA chain
+when an operation addresses a child CA.
 
 ## Configuration
 
-Settings come from a layered chain — **rightmost wins**:
+Configuration is layered, with values on the right taking precedence:
 
+```text
+defaults → config.json → .env → real environment variables
 ```
-defaults → config.json → .env → real environment
-```
 
-- **`config.json`** (working directory — the repo root when you start from there) holds the
-  tracked defaults. It is **fail-fast**: bad JSON, a wrong type, or an invalid value refuses to
-  start rather than falling back silently. Set `CONFIG_FILE` to load a different file; an
-  explicitly configured but missing file is an error.
-- **`.env`** (gitignored — see `.env.example`) holds values personal to your machine. It is
-  **forgiving**: a bad line or an unrecognized key warns and is skipped — the warning names the
-  key, never the value. Set `ENV_FILE` to load a different dotenv file.
-- Real environment variables always win, so a container can override one value without a rebuild.
+`config.json` is read from the working directory by default. Set `CONFIG_FILE` to load another
+file. Invalid JSON, types, or values stop startup. The optional, gitignored `.env` file is loaded
+next; malformed lines and unknown keys are skipped with a warning. Set `ENV_FILE` to load another
+dotenv file. Real environment variables take precedence over both files.
 
-| Key (`config.json`) | Environment Variable | Default | Description |
-|---|---|---|---|
+| `config.json` key | Environment variable | Default | Description |
+|---|---|---:|---|
 | `port` | `PORT` | `18080` | HTTP server listen port |
-| `dataDir` | `DATA_DIR` | `./data` | Root directory for database and certificate storage |
-| `logLevel` | `LOG_LEVEL` | `info` | Log verbosity: `debug`, `info`, `warn`, `error`, `fatal` |
+| `dataDir` | `DATA_DIR` | `./data` | Database and certificate storage directory |
+| `logLevel` | `LOG_LEVEL` | `info` | Log verbosity: `debug`, `info`, `warn`, `error`, or `fatal` |
 
 | Loader variable | Default | Purpose |
 |---|---|---|
-| `CONFIG_FILE` | `./config.json` | Which config file to load |
-| `ENV_FILE` | `./.env` | Which dotenv file to load |
+| `CONFIG_FILE` | `./config.json` | Selects the JSON configuration file |
+| `ENV_FILE` | `./.env` | Selects the dotenv file |
+
+Docker Compose overrides the port to `8080` and stores data in `/data`.
 
 ## Notifications
 
-GLCert can notify you when certificates or CAs are close to expiration via webhooks. Supported services include Discord, Slack, Telegram, email (SMTP), and 20+ others via [Shoutrrr](https://shoutrrr.nickfedor.com/).
+Expiration notifications can be sent through SMTP or through [Shoutrrr-supported
+services](https://shoutrrr.nickfedor.com/services/overview/), including Discord, Slack, Telegram,
+and Gotify. Configure the destination and alert threshold in **Settings → Notifications**. You can
+send a test notification from the same page.
 
-### Discord Setup
-
-1. In your Discord server, go to **Server Settings > Integrations > Webhooks**
-2. Click **New Webhook**, name it, choose the channel, and copy the URL
-3. Convert the URL to Shoutrrr format: `discord://token@webhookid`
-   - From `https://discord.com/api/webhooks/WEBHOOK_ID/TOKEN`, extract the token (after last `/`) and the webhook ID (the number before the last `/`)
-4. In GLCert, go to **Settings > Notifications**
-5. Paste the URL, set your preferred threshold (default 30 days), and enable
-6. Click **Send Test Notification** to verify
-
-### Other Services
-
-| Service | URL Format |
-|---|---|
-| Slack | `slack://token-a/token-b/token-c` |
-| Telegram | `telegram://token@telegram?chats=@channel` |
-| Email | `smtp://user:pass@host:port/?from=addr&to=recipient` |
-| Gotify | `gotify://host/token` |
-
-Alternatively, configure built-in SMTP in Settings for password reset and email alerts without a webhook URL.
-
-See the full list at [shoutrrr.nickfedor.com](https://shoutrrr.nickfedor.com/services/overview/).
+GLCert also supports SMTP for password-reset and expiration-alert email. Treat webhook URLs and
+SMTP credentials as secrets; keep them out of tracked files.
 
 ## Security
 
-- **Multi-user access control** -- Role-based permissions with per-CA access assignment for operators
-- **Encryption at rest** -- Private keys are encrypted using AES-256-GCM before being stored on disk
-- **Key derivation** -- The encryption passphrase is derived from the admin password using PBKDF2 with SHA-256
-- **Session management** -- Random hex tokens with 24-hour expiry, 30-minute idle timeout, and global session clearing on server restart
-- **MFA / TOTP** -- Optional two-factor authentication with encrypted secret storage and single-use backup codes
-- **Share links** -- Single-use, 15-minute expiry, cryptographically random 32-char tokens
-- **Password hashing** -- bcrypt with automatic salting
-- **Password strength enforcement** -- Visual strength indicator with minimum length requirements
-- **Password manager prevention** -- All form inputs configured to disable browser autofill
-- **Audit trail** -- All administrative and certificate operations are logged with user attribution
+- Private keys are encrypted at rest. Restrict access to the data directory, which also contains
+  the encryption key material.
+- The database is not encrypted at rest, and the server uses plain HTTP. Use a TLS reverse proxy,
+  protect the data directory, and keep encrypted backups in a separate secure location.
+- Sessions expire after 24 hours and are cleared on server restart. Password changes invalidate
+  all sessions.
+- MFA is available for accounts. Share links are single-use and expire after 15 minutes.
 
-## Version history
+Read [docs/SECURITY.md](docs/SECURITY.md) before deploying. It documents the security boundaries,
+hardening checklist, and vulnerability reporting process.
 
-See [docs/CHANGELOG.md](docs/CHANGELOG.md); the current version lives in `VERSION`.
+## Project status
+
+GLCert is maintained as a personal homelab project. There is no support service, response-time
+commitment, release schedule, or compatibility guarantee. Issues and pull requests may go
+unanswered. Forking and maintaining your own copy is encouraged; contributions are welcome on a
+best-effort basis. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+
+## Documentation
+
+- [Architecture](docs/architecture.md)
+- [API reference](docs/api.md)
+- [Database schema](docs/schema.md)
+- [Security model](docs/SECURITY.md)
+- [Changelog](docs/CHANGELOG.md)
+
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| Backend | Go 1.25, Chi, `crypto/x509` |
+| Frontend | React 19, TypeScript, Mantine v9, Vite |
+| Database | SQLite with a pure-Go driver (no CGO required) |
+| Notifications | Shoutrrr |
+| Deployment | Docker and Docker Compose |
 
 ## License
 
-MIT — see [LICENSE](LICENSE) (copyright holder: GLCert contributors).
+MIT — see [LICENSE](LICENSE).
