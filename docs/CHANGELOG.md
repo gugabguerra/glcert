@@ -3,7 +3,7 @@
 All notable changes to GLCert. Newest first; versions match the git tags and the root `VERSION`
 file.
 
-## [Unreleased]
+## [1.0.0] — 2026-10-21
 
 ### Fixed
 
