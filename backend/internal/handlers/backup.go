@@ -37,9 +37,11 @@ func (h *BackupHandler) CreateBackup(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	name := backup.GenerateBackupName()
+	recordAudit(h.db, r, "backup.create", "backup", name, name)
 
 	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", "attachment; filename=\""+backup.GenerateBackupName()+"\"")
+	w.Header().Set("Content-Disposition", "attachment; filename=\""+name+"\"")
 
 	io.Copy(w, reader)
 }
@@ -128,10 +130,13 @@ func (h *BackupHandler) RestoreBackup(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	stamp := meta.Timestamp.Format("2006-01-02 15:04:05")
+	recordAudit(h.db, r, "backup.restore", "backup", "", "Backup from "+stamp)
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
 		"status":  "ok",
-		"message": "Backup restored from " + meta.Timestamp.Format("2006-01-02 15:04:05"),
+		"message": "Backup restored from " + stamp,
 	})
 }
 

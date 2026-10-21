@@ -174,6 +174,7 @@ func (h *CertHandler) Regenerate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	recordAudit(h.db, r, "certificate.regenerate", "certificate", id, fmt.Sprintf("%s (v%d)", name, newVersion))
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]int{"version": newVersion})

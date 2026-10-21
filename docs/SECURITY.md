@@ -18,6 +18,12 @@ full version of the README's security notes.
 - **Password reset** — single-use, one-hour tokens delivered by email; links are built from a
   validated base URL.
 - **Share links** — single-use, 15-minute, unauthenticated download tokens for exactly one file.
+- **Audit log** — every successful state change to CAs, certificates, CA grants, users, settings
+  and backups, and every factory reset, writes an `audit_log` row with the acting user's id and
+  email, the action, the affected entity and a short subject (a name or an email). Rows never
+  hold passwords, tokens, keys or other free text. A factory reset wipes the log and then
+  records itself as the first entry of the new one. Share-link generation, downloads, logins and
+  self-service account changes are not audited.
 
 ## What is encrypted
 
@@ -37,7 +43,7 @@ full version of the README's security notes.
 - **Bearer tokens** — a stolen token is a full session until expiry; there is no device
   binding. *Mitigation:* log out on shared machines; restarts clear all sessions.
 - **Share links** — anyone holding the URL can download the file once, within 15 minutes.
-  *Mitigation:* share only when needed; links self-expire; activity appears in the audit log.
+  *Mitigation:* share only when needed; links are single-use and self-expire.
 - **Operator access** — operators can download private keys for CAs they are granted.
   *Mitigation:* grant narrowly, review `ca.permissions.update` audit entries, revoke by deleting
   the grant or the user.

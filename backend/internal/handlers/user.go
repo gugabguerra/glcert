@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -57,6 +58,7 @@ func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	recordAudit(h.auth.DB(), r, "user.create", "user", user.ID, fmt.Sprintf("%s (%s)", user.Email, user.Role))
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -88,9 +90,14 @@ func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "role must be admin, operator, or viewer", http.StatusBadRequest)
 			return
 		}
+		oldRole, _ := h.auth.GetUserRole(userID)
 		if err := h.auth.UpdateUserRole(userID, req.Role); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
+		}
+		if oldRole != req.Role {
+			email, _ := h.auth.GetUserEmail(userID)
+			recordAudit(h.auth.DB(), r, "user.role_change", "user", userID, fmt.Sprintf("%s: %s → %s", email, oldRole, req.Role))
 		}
 	}
 
@@ -117,10 +124,12 @@ func (h *UserHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	email, _ := h.auth.GetUserEmail(userID)
 	if err := h.auth.DeleteUser(userID); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	recordAudit(h.auth.DB(), r, "user.delete", "user", userID, email)
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -149,6 +158,8 @@ func (h *UserHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	email, _ := h.auth.GetUserEmail(userID)
+	recordAudit(h.auth.DB(), r, "user.password_reset", "user", userID, email)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})

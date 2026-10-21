@@ -197,6 +197,7 @@ func (h *Handler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 			h.db.Exec("UPDATE settings SET smtp_password = ? WHERE id = 1", body.SMTPPassword)
 		}
 	}
+	recordAudit(h.db, r, "settings.update", "settings", "1", "Settings updated")
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(s)

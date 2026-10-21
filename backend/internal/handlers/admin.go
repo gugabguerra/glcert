@@ -22,6 +22,12 @@ func NewAdminHandler(db *sql.DB, dataDir string, crypto *services.CryptoService)
 }
 
 func (h *AdminHandler) FactoryReset(w http.ResponseWriter, r *http.Request) {
+	// The reset clears audit_log and users, so resolve the actor now and
+	// write the factory_reset row after the commit: it becomes the first
+	// entry of the fresh log.
+	actorID := GetUserID(r.Context())
+	email := actorEmail(h.db, actorID)
+
 	tx, err := h.db.Begin()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -60,6 +66,7 @@ func (h *AdminHandler) FactoryReset(w http.ResponseWriter, r *http.Request) {
 	os.Remove(filepath.Join(h.dataDir, "encryption.key"))
 
 	h.crypto.Reset()
+	recordAuditAs(h.db, actorID, email, "factory_reset", "", "", "All data erased")
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})

@@ -3,6 +3,8 @@ package services
 import (
 	"database/sql"
 	"time"
+
+	"github.com/gugabguerra/glcert/internal/logger"
 )
 
 type AuditService struct {
@@ -38,10 +40,12 @@ func (s *AuditService) Log(userID, userEmail, action, entityType, entityID, deta
 	if entityID != "" {
 		eid = sql.NullString{String: entityID, Valid: true}
 	}
-	s.db.Exec(`INSERT INTO audit_log (user_id, user_email, action, entity_type, entity_id, details)
+	if _, err := s.db.Exec(`INSERT INTO audit_log (user_id, user_email, action, entity_type, entity_id, details)
 		VALUES (?, ?, ?, ?, ?, ?)`,
 		uid, uemail, action, et, eid, details,
-	)
+	); err != nil {
+		logger.Errorf("audit: record %s: %v", action, err)
+	}
 }
 
 func (s *AuditService) List(page, limit int, actionFilter string) ([]AuditEntry, int, error) {

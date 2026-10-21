@@ -7,6 +7,9 @@ file.
 
 ### Fixed
 
+- The audit log now records CA, certificate, CA-permission, user, settings, backup and
+  factory-reset operations with the acting user; previously nothing was ever written, so the
+  audit page stayed empty.
 - New CAs and certificates now use the requested `keyAlgorithm` (`rsa`, `ecdsa` with an optional
   `ecdsaCurve`, or `ed25519`) instead of always generating RSA keys, and regenerating a
   certificate keeps its algorithm, size and curve. Certificates can now also be issued under

@@ -108,17 +108,19 @@ Composite primary key on (ca_id, user_id).
 
 ## audit_log
 
-Immutable audit trail of all administrative and certificate operations.
+Append-only audit trail of administrative and certificate operations, written by the handlers
+after each successful change. A factory reset clears the table and then writes its own
+`factory_reset` row, so that entry starts the new log.
 
 | Column      | Type           | Notes              |
 | ----------- | -------------- | ------------------ |
 | id          | INTEGER PK     | AUTOINCREMENT      |
-| user_id     | TEXT           | nullable           |
+| user_id     | TEXT           | nullable (no user during a setup-time restore) |
 | user_email  | TEXT           | nullable, snapshot |
 | action      | TEXT NOT NULL  | see [Actions](#actions) |
-| entity_type | TEXT           | e.g. 'ca', 'certificate', 'user' |
-| entity_id   | TEXT           | UUID of entity     |
-| details     | TEXT           | Free-text description |
+| entity_type | TEXT           | 'ca', 'certificate', 'user', 'settings' or 'backup' |
+| entity_id   | TEXT           | id of the entity (backup file name for `backup.create`) |
+| details     | TEXT           | short subject: entity name or user email; never secrets |
 | created_at  | DATETIME       |                    |
 
 ## certificate_authorities

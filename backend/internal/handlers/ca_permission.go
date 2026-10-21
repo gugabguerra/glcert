@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -46,6 +47,10 @@ func (h *CAPermissionHandler) Set(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	db := h.auth.DB()
+	var caName string
+	_ = db.QueryRow("SELECT name FROM certificate_authorities WHERE id = ?", caID).Scan(&caName)
+	recordAudit(db, r, "ca.permissions.update", "ca", caID, fmt.Sprintf("%s: %d user(s) granted", caName, len(req.UserIDs)))
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }

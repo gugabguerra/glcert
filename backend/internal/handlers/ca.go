@@ -313,6 +313,7 @@ func (h *CAHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	caModel.ID = id
+	recordAudit(h.db, r, "ca.create", "ca", id, caModel.Name)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -345,6 +346,7 @@ func (h *CAHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.ca.DeleteCA(name)
+	recordAudit(h.db, r, "ca.delete", "ca", id, name)
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -496,6 +498,7 @@ func (h *CAHandler) Import(w http.ResponseWriter, r *http.Request) {
 	}
 
 	caModel.ID = id
+	recordAudit(h.db, r, "ca.import", "ca", id, caModel.Name)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)

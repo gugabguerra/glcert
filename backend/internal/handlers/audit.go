@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -34,4 +35,27 @@ func (h *AuditHandler) List(w http.ResponseWriter, r *http.Request) {
 		"entries": entries,
 		"total":   total,
 	})
+}
+
+// recordAudit writes an audit_log row attributed to the requesting user (if
+// any). Callers pass only identifiers and names in details — never secrets,
+// passwords, tokens, key material or other user-typed free text.
+func recordAudit(db *sql.DB, r *http.Request, action, entityType, entityID, details string) {
+	userID := GetUserID(r.Context())
+	recordAuditAs(db, userID, actorEmail(db, userID), action, entityType, entityID, details)
+}
+
+// recordAuditAs is recordAudit for callers that resolved the actor up front,
+// e.g. because the operation removes the user row.
+func recordAuditAs(db *sql.DB, userID, userEmail, action, entityType, entityID, details string) {
+	services.NewAuditService(db).Log(userID, userEmail, action, entityType, entityID, details)
+}
+
+func actorEmail(db *sql.DB, userID string) string {
+	if userID == "" {
+		return ""
+	}
+	var email string
+	_ = db.QueryRow("SELECT email FROM users WHERE id = ?", userID).Scan(&email)
+	return email
 }

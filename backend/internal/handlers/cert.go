@@ -349,6 +349,7 @@ func (h *CertHandler) Create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	recordAudit(h.db, r, "certificate.create", "certificate", certID, req.Name)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -380,6 +381,7 @@ func (h *CertHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.cert.DeleteCert(certType, name)
+	recordAudit(h.db, r, "certificate.delete", "certificate", id, name)
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -482,6 +484,7 @@ func (h *CertHandler) ImportCert(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	recordAudit(h.db, r, "certificate.import", "certificate", certID, req.Name)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
