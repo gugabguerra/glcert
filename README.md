@@ -21,25 +21,38 @@ Screenshots are coming soon. Replace each placeholder below with an image when t
 
 ## Features
 
+- **Validity timeline:** The home screen puts every authority and certificate on one time axis
+  (18 months or 6 years), with today and the 30-day alert window marked. Expiry is written out and
+  coloured only when close, and the part of a certificate that outlives its authority is hatched.
+  Pick a row to download, share, regenerate, or delete it from a details panel.
+- **Certificate list:** Certificates grouped by authority, each with a validity bar, filterable by
+  type, group, and name, with the same details panel and per-group bundle downloads.
 - **Certificate authorities:** Create or import root and intermediate CAs with RSA, ECDSA, or
-  Ed25519 keys. Manage parent-child chains and download certificates and private keys.
+  Ed25519 keys. Manage parent-child chains and download certificates and private keys. Each
+  authority's page shows its certificates on a timeline that marks where the authority ends, and
+  lists who can use it.
 - **Certificate lifecycle:** Issue server, client, combined, or self-signed certificates with
   RSA, ECDSA (P-256, P-384, P-521), or Ed25519 keys. Set validity periods, regenerate
-  certificates (keeping their key algorithm), and restore earlier versions.
+  certificates (keeping their key algorithm), and restore earlier versions. The new-certificate
+  form previews the validity against its authority and offers a fix when it would outlive it.
 - **Role-based access:** Admin, Operator, and Viewer roles, with per-CA permissions enforced by
   the server.
 - **Downloads and sharing:** Download individual files or ZIP/TGZ bundles. Create single-use,
-  time-limited links for sharing certificates, keys, or bundles.
-- **Administration:** Manage users, review a filterable audit log, configure system settings, and
-  perform backup, restore, or factory reset operations.
+  15-minute links for one file at a time, with a live countdown, ready-made wget and curl
+  commands, and an email option.
+- **Administration:** Manage users and the authorities each can use, review the audit log by
+  kind, person and day, configure system settings, and back up, restore, or factory reset from
+  Settings.
 - **Multi-factor authentication:** Optional TOTP with encrypted secret storage and single-use
-  backup codes.
+  backup codes, set up in three steps from your account page, with a reminder after sign-in for
+  accounts that do not use it yet.
 - **Notifications:** Send CA and certificate expiration alerts through SMTP or supported webhook
   services. Configure a threshold and send a test notification.
 - **Backup and restore:** Create password-encrypted ZIP backups. Restoring merges data without
   overwriting existing records.
-- **Responsive interface:** Use the dashboard on desktop or mobile, with dark, light, and system
-  theme options.
+- **Responsive interface:** A sidebar with your certificate authorities, their certificate counts,
+  and a warning when a certificate outlives its authority. It folds into an icon rail on narrower
+  windows and opens from a menu on phones. Dark, light, and system theme options.
 
 ## Quick start
 

@@ -1,644 +1,413 @@
-import {
-  Title,
-  Table,
-  Button,
-  Group,
-  Badge,
-  ActionIcon,
-  Modal,
-  Text,
-  Stack,
-  Box,
-  Select,
-  Center,
-  Loader,
-  Tooltip,
-  Menu,
-} from '@mantine/core';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate } from 'react-router-dom';
-import { useState, useMemo } from 'react';
-import { IconTrash, IconPlus, IconDownload, IconLink, IconCertificate, IconUpload, IconShieldCheck } from '@tabler/icons-react';
-import { authFetch, authFetchJson, downloadFile } from '../api/client';
-import { sanitizeFilename } from '../utils/clipboard';
+import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Button, NativeSelect, TextInput } from '@mantine/core';
+import { useQuery } from '@tanstack/react-query';
+import { notifications } from '@mantine/notifications';
+import { IconDownload, IconPlus, IconSearch, IconUpload } from '@tabler/icons-react';
+import { authFetchJson, downloadFile } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
+import { buildAuthorityTree, outlivesAuthority } from '../utils/validity';
+import {
+  clamp01,
+  daysUntil,
+  expiryTone,
+  expiryWords,
+  formatDate,
+  percent,
+  toneColor,
+} from '../utils/timeline';
+import type { AuthorityListItem, CertificateListItem } from '../types/pki';
+import { DetailsPanel } from '../components/timeline/DetailsPanel';
+import type { Selection } from '../components/timeline/TimelineChart';
+import classes from './Certificates.module.css';
 
-interface Certificate {
-  id: string;
+const TYPES = [
+  { value: 'all', label: 'All', none: 'certificates' },
+  { value: 'server', label: 'Server', none: 'server certificates' },
+  { value: 'client', label: 'Client', none: 'client certificates' },
+  { value: 'serverclient', label: 'Server and client', none: 'server and client certificates' },
+  { value: 'selfsigned', label: 'Self-signed', none: 'self-signed certificates' },
+] as const;
+
+const SHORT_TYPE: Record<string, string> = {
+  server: 'Server',
+  client: 'Client',
+  serverclient: 'Server and client',
+  selfsigned: 'Self-signed',
+};
+
+type Sort = 'expiry' | 'name' | 'newest';
+const ALL_GROUPS = '\u0000all';
+const NO_GROUP = '\u0000none';
+
+interface Section {
+  key: string;
   name: string;
-  description: string;
-  type: string;
-  certificateAuthorityId: string | null;
-  currentVersion: number;
-  createdAt: string;
-  updatedAt: string;
-  caName: string;
-  caSubject: string;
-  expiresAt: string | null;
-  groupName: string;
+  authority: AuthorityListItem | undefined;
+  rows: CertificateListItem[];
 }
 
-interface CertificateAuthority {
-  id: string;
-  name: string;
-  subject: string;
-  createdAt: string;
-  expiresAt: string;
-  currentVersion: number;
-  parentCaId?: string | null;
-}
-
-interface CertGroup {
-  name: string;
-  count: number;
-}
-
-interface CertTreeNode {
-  kind: 'ca' | 'cert';
-  id: string;
-  name: string;
-  prefix: string;
-  depth: number;
-  children: CertTreeNode[];
-  ca?: CertificateAuthority;
-  cert?: Certificate;
-}
-
-function buildCertTree(cas: CertificateAuthority[], certs: Certificate[]): CertTreeNode[] {
-  const caChildrenMap = new Map<string, CertificateAuthority[]>();
-  const roots: CertificateAuthority[] = [];
-  const certsByCaId = new Map<string, Certificate[]>();
-  const orphanCerts: Certificate[] = [];
-
-  for (const ca of cas) {
-    if (ca.parentCaId) {
-      const siblings = caChildrenMap.get(ca.parentCaId) || [];
-      siblings.push(ca);
-      caChildrenMap.set(ca.parentCaId, siblings);
-    } else {
-      roots.push(ca);
-    }
-  }
-
-  for (const cert of certs) {
-    if (cert.certificateAuthorityId) {
-      const list = certsByCaId.get(cert.certificateAuthorityId) || [];
-      list.push(cert);
-      certsByCaId.set(cert.certificateAuthorityId, list);
-    } else {
-      orphanCerts.push(cert);
-    }
-  }
-
-  function buildCaNodes(nodes: CertificateAuthority[], depth: number, parentPrefix: string): CertTreeNode[] {
-    return nodes.map((ca, i) => {
-      const last = i === nodes.length - 1;
-      const connector = last ? '└── ' : '├── ';
-      const prefix = depth === 0 ? '' : parentPrefix + connector;
-      const childPrefix = depth === 0 ? '' : parentPrefix + (last ? '    ' : '│   ');
-
-      const childCAs = caChildrenMap.get(ca.id) || [];
-      const caCerts = certsByCaId.get(ca.id) || [];
-
-      const children: CertTreeNode[] = [
-        ...buildCaNodes(childCAs, depth + 1, childPrefix),
-        ...caCerts.map((cert, j) => {
-          const certLast = j === caCerts.length - 1 && childCAs.length === 0;
-          const certConnector = certLast ? '└── ' : '├── ';
-          return {
-            kind: 'cert' as const,
-            id: cert.id,
-            name: cert.name,
-            prefix: childPrefix + certConnector,
-            depth: depth + 1,
-            children: [],
-            cert,
-          };
-        }),
-      ];
-
-      return {
-        kind: 'ca' as const,
-        id: ca.id,
-        name: ca.name,
-        prefix,
-        depth,
-        children,
-        ca,
-      };
-    });
-  }
-
-  const caRoots = buildCaNodes(roots, 0, '');
-
-  const orphanNodes: CertTreeNode[] = orphanCerts.map((cert) => ({
-    kind: 'cert' as const,
-    id: cert.id,
-    name: cert.name,
-    prefix: '',
-    depth: 0,
-    children: [],
-    cert,
-  }));
-
-  return [...caRoots, ...orphanNodes];
-}
-
-function CertTreeRow({
-  node,
-  onDelete,
-  isExpired,
-  isExpiringSoon,
-  bundleMutation,
-  bundleMenuId,
-  setBundleMenuId,
-  navigate,
-  canWrite,
-}: {
-  node: CertTreeNode;
-  onDelete: (id: string) => void;
-  isExpired: (expiresAt: string | null) => boolean;
-  isExpiringSoon: (expiresAt: string | null) => boolean;
-  bundleMutation: any;
-  bundleMenuId: string | null;
-  setBundleMenuId: (id: string | null) => void;
-  navigate: (path: string) => void;
-  canWrite: boolean;
-}) {
-  if (node.kind === 'ca') {
-    const ca = node.ca!;
-    const expExpired = new Date(ca.expiresAt) < new Date();
-    const daysLeft = Math.ceil((new Date(ca.expiresAt).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-    const expExpiringSoon = !expExpired && daysLeft <= 30;
-
-    return (
-      <>
-        <Table.Tr>
-          <Table.Td colSpan={4}>
-            <span style={{ fontFamily: 'monospace', whiteSpace: 'pre', fontSize: '18px', paddingLeft: '4px' }}>{node.prefix}</span>
-            <Box style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'gray', textDecoration: 'none' }}>
-              <IconShieldCheck size={16} />
-              {ca.name}
-            </Box>
-            {node.depth > 0 && (
-              <Badge color='violet' variant='light' size='xs' ml='xs'>Intermediate</Badge>
-            )}
-          </Table.Td>
-          <Table.Td>v{ca.currentVersion}</Table.Td>
-          <Table.Td>{new Date(ca.expiresAt).toLocaleDateString()}</Table.Td>
-          <Table.Td>
-            {expExpired ? (
-              <Badge color='red'>Expired</Badge>
-            ) : expExpiringSoon ? (
-              <Badge color='yellow'>Expiring Soon</Badge>
-            ) : (
-              <Badge color='green'>Active</Badge>
-            )}
-          </Table.Td>
-          <Table.Td />
-        </Table.Tr>
-        {node.children.map((child) => (
-          <CertTreeRow
-            key={child.id}
-            node={child}
-            onDelete={onDelete}
-            isExpired={isExpired}
-            isExpiringSoon={isExpiringSoon}
-            bundleMutation={bundleMutation}
-            bundleMenuId={bundleMenuId}
-            setBundleMenuId={setBundleMenuId}
-            navigate={navigate}
-            canWrite={canWrite}
-          />
-        ))}
-      </>
-    );
-  }
-
-  const cert = node.cert!;
-  return (
-    <Table.Tr>
-      <Table.Td colSpan={4}>
-        <span style={{ fontFamily: 'monospace', whiteSpace: 'pre', fontSize: '18px', paddingLeft: '4px' }}>{node.prefix}</span>
-        <Box component={Link} to={`/certificates/${cert.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--mantine-color-teal-6)', textDecoration: 'none' }}>
-          <IconCertificate size={16} />
-          {cert.name}
-        </Box>
-      </Table.Td>
-      <Table.Td>v{cert.currentVersion}</Table.Td>
-      <Table.Td>
-        {cert.expiresAt ? new Date(cert.expiresAt).toLocaleDateString() : '—'}
-      </Table.Td>
-      <Table.Td>
-        {cert.expiresAt &&
-          (isExpired(cert.expiresAt) ? (
-            <Badge color='red'>Expired</Badge>
-          ) : isExpiringSoon(cert.expiresAt) ? (
-            <Badge color='yellow'>Expiring Soon</Badge>
-          ) : (
-            <Badge color='green'>Active</Badge>
-          ))}
-      </Table.Td>
-      <Table.Td>
-        <Group gap={4}>
-          <Menu shadow='md' width={180} opened={bundleMenuId === cert.id} onChange={(open) => !open && setBundleMenuId(null)}>
-            <Menu.Target>
-              <Tooltip label='Download bundle'>
-                <ActionIcon variant='subtle' onClick={() => setBundleMenuId(cert.id)}>
-                  <IconDownload size={16} />
-                </ActionIcon>
-              </Tooltip>
-            </Menu.Target>
-            <Menu.Dropdown>
-              <Menu.Item onClick={() => bundleMutation.mutate({ id: cert.id, format: 'zip' })}>
-                ZIP (.zip)
-              </Menu.Item>
-              <Menu.Item onClick={() => bundleMutation.mutate({ id: cert.id, format: 'tgz' })}>
-                Tarball (.tar.gz)
-              </Menu.Item>
-            </Menu.Dropdown>
-          </Menu>
-          <Tooltip label='Temporary share link'>
-            <ActionIcon variant='subtle' onClick={() => navigate(`/certificates/${cert.id}`)}>
-              <IconLink size={16} />
-            </ActionIcon>
-          </Tooltip>
-          {canWrite && (
-            <Tooltip label='Delete certificate'>
-              <ActionIcon color='red' variant='subtle' onClick={() => onDelete(cert.id)}>
-                <IconTrash size={16} />
-              </ActionIcon>
-            </Tooltip>
-          )}
-        </Group>
-      </Table.Td>
-    </Table.Tr>
-  );
-}
-
+/** Every certificate the user can see, grouped by issuing authority, with a details panel. */
 function Certificates() {
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
   const { hasRole } = useAuth();
   const canWrite = hasRole('admin', 'operator');
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [typeFilter, setTypeFilter] = useState<string | null>(null);
-  const [groupFilter, setGroupFilter] = useState<string | null>(null);
-  const [bundleMenuId, setBundleMenuId] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [type, setType] = useState<(typeof TYPES)[number]['value']>('all');
+  const [group, setGroup] = useState(ALL_GROUPS);
+  const [sort, setSort] = useState<Sort>('expiry');
+  const [selected, setSelected] = useState<Selection | null>(null);
+  const today = useMemo(() => new Date(), []);
 
-  const { data: groups = [] } = useQuery<CertGroup[]>({
-    queryKey: ['certGroups'],
-    queryFn: () => authFetchJson('/api/certificates/groups'),
+  // Shared cache with the sidebar and the timeline. Viewers cannot list authorities, so their
+  // sections come from each certificate's issuer name instead.
+  const { data: certificates = [], isLoading } = useQuery<CertificateListItem[]>({
+    queryKey: ['certificates'],
+    queryFn: () => authFetchJson('/api/certificates'),
   });
-
-  const { data: certs = [], isLoading } = useQuery<Certificate[]>({
-    queryKey: ['certificates', groupFilter],
-    queryFn: () => {
-      const url = groupFilter ? `/api/certificates?group=${encodeURIComponent(groupFilter)}` : '/api/certificates';
-      return authFetchJson(url);
-    },
-  });
-
-  const { data: cas = [] } = useQuery<CertificateAuthority[]>({
+  const { data: authorities = [] } = useQuery<AuthorityListItem[]>({
     queryKey: ['cas'],
     queryFn: () => authFetchJson('/api/ca'),
+    enabled: !hasRole('viewer'),
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => authFetch(`/api/certificates/${id}`, { method: 'DELETE' }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['certificates'] });
-      queryClient.invalidateQueries({ queryKey: ['certGroups'] });
-      setDeleteId(null);
-    },
-  });
+  const groupNames = useMemo(
+    () => [...new Set(certificates.map((c) => c.groupName).filter(Boolean))].sort(),
+    [certificates],
+  );
 
-  const bundleMutation = useMutation({
-    mutationFn: ({ id, format }: { id: string; format: string }) => {
-      const cert = certs.find((c) => c.id === id);
-      const safeName = sanitizeFilename(cert?.name || 'certificate');
-      const ext = format === 'tgz' ? 'tar.gz' : 'zip';
-      return downloadFile(
-        `/api/certificates/${id}/download/bundle?format=${format}`,
-        `${safeName}-bundle.${ext}`,
-      );
-    },
-    onSettled: () => setBundleMenuId(null),
-  });
+  const typeCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: certificates.length };
+    for (const c of certificates) counts[c.type] = (counts[c.type] ?? 0) + 1;
+    return counts;
+  }, [certificates]);
 
-  const isTreeMode = !typeFilter && !groupFilter;
+  const sections = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    const visible = certificates.filter(
+      (c) =>
+        (type === 'all' || c.type === type) &&
+        (group === ALL_GROUPS || (group === NO_GROUP ? !c.groupName : c.groupName === group)) &&
+        (!needle ||
+          c.name.toLowerCase().includes(needle) ||
+          c.caName.toLowerCase().includes(needle)),
+    );
+    const order = (a: CertificateListItem, b: CertificateListItem) =>
+      sort === 'name'
+        ? a.name.localeCompare(b.name)
+        : sort === 'newest'
+          ? (b.issuedAt ?? b.createdAt).localeCompare(a.issuedAt ?? a.createdAt)
+          : (a.expiresAt ?? '￿').localeCompare(b.expiresAt ?? '￿');
 
-  const filteredCerts = typeFilter ? certs.filter((c) => c.type === typeFilter) : certs;
-
-  const [sortKey, setSortKey] = useState<string>('expires');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-
-  const toggleSort = (key: string) => {
-    if (sortKey === key) {
-      setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortKey(key);
-      setSortDirection('asc');
+    const byAuthority = new Map<string, CertificateListItem[]>();
+    for (const c of visible) {
+      const key = c.certificateAuthorityId ?? '';
+      byAuthority.set(key, [...(byAuthority.get(key) ?? []), c]);
     }
-  };
 
-  const isExpired = (expiresAt: string | null) =>
-    expiresAt ? new Date(expiresAt) < new Date() : false;
-  const isExpiringSoon = (expiresAt: string | null) => {
-    if (!expiresAt) return false;
-    const expiry = new Date(expiresAt);
-    const now = new Date();
-    const thirtyDays = 30 * 24 * 60 * 60 * 1000;
-    return expiry > now && expiry.getTime() - now.getTime() < thirtyDays;
-  };
-
-  const getStatusPriority = (expiresAt: string | null) => {
-    if (isExpired(expiresAt)) return 2;
-    if (isExpiringSoon(expiresAt)) return 1;
-    return 0;
-  };
-
-  const sortedData = useMemo(() => {
-    return [...filteredCerts].sort((a, b) => {
-      let aVal: string | number;
-      let bVal: string | number;
-      switch (sortKey) {
-        case 'name':
-          aVal = a.name;
-          bVal = b.name;
-          break;
-        case 'type':
-          aVal = a.type;
-          bVal = b.type;
-          break;
-        case 'group':
-          aVal = a.groupName || '';
-          bVal = b.groupName || '';
-          break;
-        case 'issuer':
-          aVal = a.caName || a.caSubject || 'Self-Signed';
-          bVal = b.caName || b.caSubject || 'Self-Signed';
-          break;
-        case 'version':
-          aVal = a.currentVersion;
-          bVal = b.currentVersion;
-          break;
-        case 'expires':
-          aVal = a.expiresAt ? new Date(a.expiresAt).getTime() : 0;
-          bVal = b.expiresAt ? new Date(b.expiresAt).getTime() : 0;
-          break;
-        case 'status':
-          aVal = getStatusPriority(a.expiresAt);
-          bVal = getStatusPriority(b.expiresAt);
-          break;
-        default:
-          aVal = a.expiresAt ? new Date(a.expiresAt).getTime() : 0;
-          bVal = b.expiresAt ? new Date(b.expiresAt).getTime() : 0;
+    // Authorities in sidebar order, then any issuer the user cannot list, then no authority.
+    const result: Section[] = [];
+    const seen = new Set<string>();
+    for (const { authority } of buildAuthorityTree(authorities, certificates)) {
+      const rows = byAuthority.get(authority.id);
+      seen.add(authority.id);
+      if (rows?.length) {
+        result.push({
+          key: authority.id,
+          name: authority.name,
+          authority: authorities.find((a) => a.id === authority.id),
+          rows: rows.sort(order),
+        });
       }
-      const dir = sortDirection === 'asc' ? 1 : -1;
-      if (aVal < bVal) return -dir;
-      if (aVal > bVal) return dir;
-      return 0;
-    });
-  }, [filteredCerts, sortKey, sortDirection]);
+    }
+    const others = [...byAuthority.entries()]
+      .filter(([key]) => key && !seen.has(key))
+      .sort(([, a], [, b]) => a[0].caName.localeCompare(b[0].caName));
+    for (const [key, rows] of others) {
+      result.push({
+        key,
+        name: rows[0].caName || 'Unknown authority',
+        authority: undefined,
+        rows: rows.sort(order),
+      });
+    }
+    const none = byAuthority.get('');
+    if (none?.length)
+      result.push({
+        key: 'none',
+        name: 'No authority',
+        authority: undefined,
+        rows: none.sort(order),
+      });
+    return result;
+  }, [certificates, authorities, query, type, group, sort]);
 
-  const tree = useMemo(() => {
-    if (!isTreeMode) return [];
-    return buildCertTree(cas, certs);
-  }, [cas, certs, isTreeMode]);
+  const shown = sections.reduce((sum, s) => sum + s.rows.length, 0);
+  const filtered = !!query.trim() || type !== 'all' || group !== ALL_GROUPS;
+  const typeNone = TYPES.find((t) => t.value === type)!.none;
 
-  const typeColors: Record<string, string> = {
-    server: 'blue',
-    client: 'green',
-    serverclient: 'purple',
-    selfsigned: 'orange',
-  };
-
-  const typeLabels: Record<string, string> = {
-    server: 'Server',
-    client: 'Client',
-    serverclient: 'Server + Client',
-    selfsigned: 'Self-Signed',
+  const downloadGroup = () => {
+    const name = group;
+    downloadFile(
+      `/api/certificates/download/group?name=${encodeURIComponent(name)}&format=zip`,
+      `${name}.zip`,
+    ).catch(() => notifications.show({ color: 'red', message: `Could not download ${name}.` }));
   };
 
   return (
-    <Stack>
-      <Group justify='space-between'>
-        <Title>Certificates</Title>
-        <Group>
-          <Select
-            placeholder='Filter by type'
-            data={[
-              { value: 'server', label: 'Server' },
-              { value: 'client', label: 'Client' },
-              { value: 'serverclient', label: 'Server + Client' },
-              { value: 'selfsigned', label: 'Self-Signed' },
-            ]}
-            value={typeFilter}
-            onChange={setTypeFilter}
-            clearable
-            w={160}
+    <div className={classes.workbench}>
+      <div className={classes.main}>
+        <div className={classes.header}>
+          <h1 className={classes.title}>Certificates</h1>
+          <span className="gl-literal gl-tnum" style={{ color: 'var(--gl-text-muted)' }}>
+            {filtered ? `${shown} of ${certificates.length}` : certificates.length}
+          </span>
+          <div style={{ flexGrow: 1 }} />
+          <TextInput
+            className={classes.search}
+            type="search"
+            placeholder="Filter"
+            aria-label="Filter by name or authority"
+            leftSection={<IconSearch size={16} stroke={1.8} />}
+            value={query}
+            onChange={(e) => setQuery(e.currentTarget.value)}
           />
-          {groups.length > 0 && (
-            <Select
-              placeholder='Filter by group'
-              data={groups.map((g) => ({ value: g.name, label: `${g.name} (${g.count})` }))}
-              value={groupFilter}
-              onChange={setGroupFilter}
-              clearable
-              w={180}
-            />
-          )}
-          {groupFilter && (
-            <Tooltip label='Download all certificates in this group'>
-              <ActionIcon variant='light' color='teal' size='lg' onClick={() => {
-                const name = encodeURIComponent(groupFilter);
-                downloadFile(`/api/certificates/download/group?name=${name}&format=zip`, `${groupFilter}.zip`);
-              }}>
-                <IconDownload size={20} />
-              </ActionIcon>
-            </Tooltip>
-          )}
           {canWrite && (
             <>
-              <Button component={Link} to='/certificates/import' variant='light' leftSection={<IconUpload size={16} />}>
+              <Button
+                component={Link}
+                to="/certificates/import"
+                variant="default"
+                leftSection={<IconUpload size={16} stroke={1.8} />}
+              >
                 Import
               </Button>
-              <Button component={Link} to='/certificates/new' leftSection={<IconPlus size={16} />}>
-                New Certificate
+              <Button
+                component={Link}
+                to="/certificates/new"
+                leftSection={<IconPlus size={16} stroke={1.8} />}
+              >
+                New certificate
               </Button>
             </>
           )}
-        </Group>
-      </Group>
+        </div>
 
-      {isLoading ? (
-        <Center py={80}>
-          <Loader />
-        </Center>
-      ) : certs.length === 0 ? (
-        <Text c='dimmed'>No certificates yet.</Text>
-      ) : isTreeMode ? (
-        <Table striped highlightOnHover>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Name</Table.Th>
-              <Table.Th>Group</Table.Th>
-              <Table.Th>Type</Table.Th>
-              <Table.Th>Issuer</Table.Th>
-              <Table.Th>Version</Table.Th>
-              <Table.Th>Expires</Table.Th>
-              <Table.Th>Status</Table.Th>
-              <Table.Th>Actions</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {tree.map((node) => (
-              <CertTreeRow
-                key={node.id}
-                node={node}
-                onDelete={(id) => { setDeleteId(id); }}
-                isExpired={isExpired}
-                isExpiringSoon={isExpiringSoon}
-                bundleMutation={bundleMutation}
-                bundleMenuId={bundleMenuId}
-                setBundleMenuId={setBundleMenuId}
-                navigate={navigate}
-                canWrite={canWrite}
+        <div role="toolbar" aria-label="Filters" className={classes.toolbar}>
+          <div role="group" aria-label="Type" className={classes.segments}>
+            {TYPES.map((t) => (
+              <button
+                key={t.value}
+                type="button"
+                className={classes.segment}
+                aria-pressed={type === t.value}
+                onClick={() => setType(t.value)}
+              >
+                {t.label}
+                <span className={classes.segmentCount}>{typeCounts[t.value] ?? 0}</span>
+              </button>
+            ))}
+          </div>
+          <div style={{ flexGrow: 1 }} />
+          {groupNames.length > 0 && (
+            <label className={classes.labelled}>
+              Group
+              <NativeSelect
+                value={group}
+                onChange={(e) => setGroup(e.currentTarget.value)}
+                data={[
+                  { value: ALL_GROUPS, label: 'All groups' },
+                  { value: NO_GROUP, label: 'No group' },
+                  ...groupNames.map((g) => ({ value: g, label: g })),
+                ]}
               />
-            ))}
-          </Table.Tbody>
-        </Table>
-      ) : (
-        <Table striped highlightOnHover>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th style={{ cursor: 'pointer' }} onClick={() => toggleSort('name')}>
-                Name {sortKey === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
-              </Table.Th>
-              <Table.Th style={{ cursor: 'pointer' }} onClick={() => toggleSort('group')}>
-                Group {sortKey === 'group' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
-              </Table.Th>
-              <Table.Th style={{ cursor: 'pointer' }} onClick={() => toggleSort('type')}>
-                Type {sortKey === 'type' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
-              </Table.Th>
-              <Table.Th style={{ cursor: 'pointer' }} onClick={() => toggleSort('issuer')}>
-                Issuer {sortKey === 'issuer' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
-              </Table.Th>
-              <Table.Th style={{ cursor: 'pointer' }} onClick={() => toggleSort('version')}>
-                Version {sortKey === 'version' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
-              </Table.Th>
-              <Table.Th style={{ cursor: 'pointer' }} onClick={() => toggleSort('expires')}>
-                Expires {sortKey === 'expires' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
-              </Table.Th>
-              <Table.Th style={{ cursor: 'pointer' }} onClick={() => toggleSort('status')}>
-                Status {sortKey === 'status' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
-              </Table.Th>
-              <Table.Th>Actions</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {sortedData.map((cert) => (
-              <Table.Tr key={cert.id}>
-                <Table.Td>
-                  <Box component={Link} to={`/certificates/${cert.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--mantine-color-teal-6)', textDecoration: 'none' }}>
-                      <IconCertificate size={16} />
-                      {cert.name}
-                  </Box>
-                </Table.Td>
-                <Table.Td>
-                  {cert.groupName ? <Badge variant='light'>{cert.groupName}</Badge> : '—'}
-                </Table.Td>
-                <Table.Td>
-                  <Badge color={typeColors[cert.type] || 'gray'}>{typeLabels[cert.type] || cert.type}</Badge>
-                </Table.Td>
-                <Table.Td>
-                  {cert.caName || cert.caSubject ? (
-                    <Group gap={4}>
-                      {cert.caName || cert.caSubject}
-                      {!cert.caName && cert.caSubject && (
-                        <Badge size='xs' color='gray' variant='light'>
-                          Orphan
-                        </Badge>
-                      )}
-                    </Group>
-                  ) : (
-                    'Self-Signed'
-                  )}
-                </Table.Td>
-                <Table.Td>v{cert.currentVersion}</Table.Td>
-                <Table.Td>
-                  {cert.expiresAt ? new Date(cert.expiresAt).toLocaleDateString() : '—'}
-                </Table.Td>
-                <Table.Td>
-                  {cert.expiresAt &&
-                    (isExpired(cert.expiresAt) ? (
-                      <Badge color='red'>Expired</Badge>
-                    ) : isExpiringSoon(cert.expiresAt) ? (
-                      <Badge color='yellow'>Expiring Soon</Badge>
-                    ) : (
-                      <Badge color='green'>Active</Badge>
-                    ))}
-                </Table.Td>
-                <Table.Td>
-                  <Group gap={4}>
-                    <Menu shadow="md" width={180} opened={bundleMenuId === cert.id} onChange={(open) => !open && setBundleMenuId(null)}>
-                      <Menu.Target>
-                        <Tooltip label='Download bundle'>
-                          <ActionIcon variant='subtle' onClick={() => setBundleMenuId(cert.id)}>
-                            <IconDownload size={16} />
-                          </ActionIcon>
-                        </Tooltip>
-                      </Menu.Target>
-                      <Menu.Dropdown>
-                        <Menu.Item onClick={() => bundleMutation.mutate({ id: cert.id, format: 'zip' })}>
-                          ZIP (.zip)
-                        </Menu.Item>
-                        <Menu.Item onClick={() => bundleMutation.mutate({ id: cert.id, format: 'tgz' })}>
-                          Tarball (.tar.gz)
-                        </Menu.Item>
-                      </Menu.Dropdown>
-                    </Menu>
-                    <Tooltip label='Temporary share link'>
-                      <ActionIcon variant='subtle' onClick={() => navigate(`/certificates/${cert.id}`)}>
-                        <IconLink size={16} />
-                      </ActionIcon>
-                    </Tooltip>
-                    {canWrite && (
-                      <Tooltip label='Delete certificate'>
-                        <ActionIcon color='red' variant='subtle' onClick={() => setDeleteId(cert.id)}>
-                          <IconTrash size={16} />
-                        </ActionIcon>
-                      </Tooltip>
-                    )}
-                  </Group>
-                </Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-      )}
+            </label>
+          )}
+          {group !== ALL_GROUPS && group !== NO_GROUP && (
+            <Button
+              variant="default"
+              leftSection={<IconDownload size={16} stroke={1.8} />}
+              onClick={downloadGroup}
+            >
+              Download group
+            </Button>
+          )}
+          <label className={classes.labelled}>
+            Sort
+            <NativeSelect
+              value={sort}
+              onChange={(e) => setSort(e.currentTarget.value as Sort)}
+              data={[
+                { value: 'expiry', label: 'Expiry' },
+                { value: 'name', label: 'Name' },
+                { value: 'newest', label: 'Newest' },
+              ]}
+            />
+          </label>
+        </div>
 
-      <Modal
-        opened={deleteId !== null}
-        onClose={() => setDeleteId(null)}
-        title='Delete Certificate'
+        {isLoading ? (
+          <div className={classes.loading} aria-label="Loading" />
+        ) : shown === 0 ? (
+          <div className={classes.empty}>
+            <span>
+              {certificates.length === 0
+                ? 'No certificates yet.'
+                : filtered && (query.trim() || group !== ALL_GROUPS)
+                  ? `No ${typeNone} match these filters.`
+                  : `No ${typeNone} yet.`}
+            </span>
+            {canWrite && (
+              <Link to="/certificates/new" style={{ alignSelf: 'flex-start' }}>
+                New certificate
+              </Link>
+            )}
+          </div>
+        ) : (
+          sections.map((section) => (
+            <CertificateSection
+              key={section.key}
+              section={section}
+              today={today}
+              selectedId={selected?.kind === 'cert' ? selected.id : null}
+              onSelect={(id) => setSelected({ kind: 'cert', id })}
+            />
+          ))
+        )}
+      </div>
+
+      <DetailsPanel
+        selection={selected}
+        authorities={authorities}
+        certificates={certificates}
+        today={today}
+        onClose={() => setSelected(null)}
+        emptyText="Pick a certificate to see its details."
+      />
+    </div>
+  );
+}
+
+function CertificateSection({
+  section,
+  today,
+  selectedId,
+  onSelect,
+}: {
+  section: Section;
+  today: Date;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}) {
+  const { authority } = section;
+  const caDays = authority ? daysUntil(authority.expiresAt, today) : null;
+  const meta = authority
+    ? caDays! < 0
+      ? 'Authority expired'
+      : `Authority ends ${formatDate(authority.expiresAt)}`
+    : section.key === 'none'
+      ? 'Self-signed or imported'
+      : '';
+
+  return (
+    <section aria-label={section.name} className={classes.group}>
+      <div className={classes.groupHeader}>
+        <h2 className="gl-section-label">{section.name}</h2>
+        <span className={classes.rule} />
+        <span
+          className={classes.groupMeta}
+          style={{
+            color:
+              caDays !== null && caDays <= 30
+                ? toneColor[expiryTone(caDays)]
+                : 'var(--gl-text-muted)',
+          }}
+        >
+          {meta}
+        </span>
+      </div>
+      <div className={classes.rows}>
+        {section.rows.map((cert) => (
+          <CertificateRow
+            key={cert.id}
+            cert={cert}
+            authority={authority}
+            today={today}
+            pressed={cert.id === selectedId}
+            onSelect={() => onSelect(cert.id)}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function CertificateRow({
+  cert,
+  authority,
+  today,
+  pressed,
+  onSelect,
+}: {
+  cert: CertificateListItem;
+  authority: AuthorityListItem | undefined;
+  today: Date;
+  pressed: boolean;
+  onSelect: () => void;
+}) {
+  const days = cert.expiresAt ? daysUntil(cert.expiresAt, today) : null;
+  const tone = days === null ? 'muted' : expiryTone(days);
+  const outlives = !!authority && outlivesAuthority(cert.expiresAt, authority.expiresAt);
+
+  // Share of the validity already used, and where the authority ends within it.
+  const start = cert.issuedAt ? Date.parse(cert.issuedAt) : null;
+  const end = cert.expiresAt ? Date.parse(cert.expiresAt) : null;
+  const span = start !== null && end !== null ? end - start : 0;
+  const used = span > 0 ? clamp01((today.getTime() - start!) / span) : null;
+  const caEnd =
+    outlives && span > 0 ? clamp01((Date.parse(authority!.expiresAt) - start!) / span) : null;
+
+  return (
+    <button type="button" className={classes.row} aria-pressed={pressed} onClick={onSelect}>
+      <span className={classes.nameBlock}>
+        <span className={classes.name}>{cert.name}</span>
+        <span className={classes.meta}>
+          <span>
+            {SHORT_TYPE[cert.type] ?? cert.type} · v{cert.currentVersion}
+            {cert.groupName ? ` · ${cert.groupName}` : ''}
+          </span>
+          {outlives && <span style={{ color: 'var(--gl-warning)' }}>outlives its authority</span>}
+        </span>
+      </span>
+      <span
+        className={classes.bar}
+        role="img"
+        aria-label={
+          used === null ? 'Validity unknown' : `${Math.round(used * 100)}% of validity used`
+        }
       >
-        <Text>Are you sure you want to delete this certificate?</Text>
-        <Group justify='flex-end' mt='md'>
-          <Button variant='default' onClick={() => setDeleteId(null)}>
-            Cancel
-          </Button>
-          <Button
-            color='red'
-            loading={deleteMutation.isPending}
-            onClick={() => deleteId && deleteMutation.mutate(deleteId)}
-          >
-            Delete
-          </Button>
-        </Group>
-      </Modal>
-    </Stack>
+        {used !== null && (
+          <span
+            className={classes.used}
+            style={{
+              width: percent(used),
+              background: tone === 'muted' ? 'var(--gl-text-muted)' : toneColor[tone],
+            }}
+          />
+        )}
+        {caEnd !== null && (
+          <span className={`${classes.out} gl-hatch`} style={{ left: percent(caEnd) }} />
+        )}
+      </span>
+      <span className={classes.expiry}>
+        <span
+          className={classes.words}
+          style={{ color: tone === 'muted' ? 'var(--gl-text-soft)' : toneColor[tone] }}
+        >
+          {days === null ? 'unknown' : expiryWords(days)}
+        </span>
+        <span className={classes.date}>{cert.expiresAt ? formatDate(cert.expiresAt) : ''}</span>
+      </span>
+    </button>
   );
 }
 

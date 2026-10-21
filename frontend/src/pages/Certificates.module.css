@@ -1,0 +1,248 @@
+/* Certificates list from the redesign's FCertificates screen: grouped by authority, a small
+   validity bar per row, details panel on the right. */
+
+.workbench {
+  composes: workbench from '../components/timeline/Timeline.module.css';
+}
+
+.main {
+  flex: 999 1 560px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--page-pad-top);
+  padding-bottom: var(--page-pad-bottom);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 0 var(--page-pad-x) 14px;
+  border-bottom: 1px solid var(--gl-border);
+}
+
+.title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 500;
+  color: var(--gl-text);
+}
+
+.search {
+  width: 200px;
+  max-width: 100%;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px var(--page-pad-x);
+}
+
+.segments {
+  composes: segments from '../components/timeline/Timeline.module.css';
+  flex-wrap: wrap;
+}
+
+.segment {
+  composes: segment from '../components/timeline/Timeline.module.css';
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.segmentCount {
+  font-family: var(--gl-font-mono);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--gl-text-muted);
+}
+
+.segment[aria-pressed='true'] .segmentCount {
+  color: var(--gl-accent);
+}
+
+.labelled {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--gl-text-muted);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 12px;
+}
+
+.groupHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px var(--page-pad-x) 8px;
+}
+
+.rule {
+  flex-grow: 1;
+  height: 1px;
+  background: var(--gl-border);
+}
+
+.groupMeta {
+  font-size: 12px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 calc(var(--page-pad-x) - 12px);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 140px 92px;
+  align-items: center;
+  gap: 20px;
+  width: 100%;
+  min-height: 52px;
+  margin: 0;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: var(--gl-r-control);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.row:hover {
+  background: var(--gl-fill-soft);
+}
+
+.row[aria-pressed='true'] {
+  background: var(--gl-accent-soft);
+}
+
+.nameBlock {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.name {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--gl-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row[aria-pressed='true'] .name {
+  font-weight: 500;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 8px;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 300;
+  color: var(--gl-text-muted);
+}
+
+.bar {
+  position: relative;
+  display: block;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--gl-fill-soft);
+}
+
+.used {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 3px;
+}
+
+.out {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 0 3px 3px 0;
+}
+
+.expiry {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  white-space: nowrap;
+}
+
+.words {
+  font-size: 12px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.date {
+  font-family: var(--gl-font-mono);
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--gl-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.empty {
+  margin: 8px var(--page-pad-x);
+  padding: 28px;
+  border: 2px dashed var(--gl-border);
+  border-radius: var(--gl-r-card);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--gl-text-soft);
+}
+
+.loading {
+  margin: 8px var(--page-pad-x);
+  height: 240px;
+  border-radius: var(--gl-r-card);
+  background: var(--gl-fill-soft);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Phones: drop the bar column so names keep their room. */
+@media (max-width: 600px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .bar {
+    display: none;
+  }
+}

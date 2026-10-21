@@ -1,159 +1,224 @@
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { Title, Text, TextInput, PasswordInput, PinInput, Button, Stack, Paper, Group, Anchor, Image, useComputedColorScheme } from '@mantine/core';
+import { useState, type FormEvent } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Button, PasswordInput, PinInput, TextInput } from '@mantine/core';
+import { IconAlertTriangle } from '@tabler/icons-react';
 import { useAuth } from '../hooks/useAuth';
-import { User } from '../types/user';
+import { AuthLayout, authClasses as classes } from '../components/AuthLayout';
+import type { User } from '../types/user';
 
+// Plain HTTP is fine on this machine; anywhere else, passwords cross the network in the clear.
+const insecure =
+  window.location.protocol === 'http:' &&
+  !['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname);
+
+/** Sign in, then the two-factor check when the account has it on. */
 function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const computedColorScheme = useComputedColorScheme('light');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [partialToken, setPartialToken] = useState('');
-  const [totpCode, setTotpCode] = useState('');
+  const [code, setCode] = useState('');
+  const [useBackup, setUseBackup] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleCredentialsSubmit = async (e: React.FormEvent) => {
+  const signIn = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-
+      // Never say which part was wrong: that would reveal whether the account exists.
       if (!res.ok) {
-        setError('Invalid email or password');
-        setLoading(false);
+        setError(
+          res.status === 429
+            ? 'Too many attempts. Wait a moment and try again.'
+            : 'That email and password do not match.',
+        );
         return;
       }
-
       const data = await res.json();
-
       if (data.partialToken) {
         setPartialToken(data.partialToken);
-        setLoading(false);
         return;
       }
-
       login(data.token, data.user as User);
       navigate('/');
     } catch {
-      setError('Connection failed');
+      setError('Could not reach the server.');
+    } finally {
       setLoading(false);
     }
   };
 
-  const handleTOTPSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const verify = async (e?: FormEvent) => {
+    e?.preventDefault();
     setError('');
     setLoading(true);
-
     try {
       const res = await fetch('/api/totp/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ partialToken, code: totpCode }),
+        body: JSON.stringify({ partialToken, code: code.trim() }),
       });
-
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setError(data.error || 'Invalid code');
-        setLoading(false);
+        setError(
+          res.status === 429
+            ? 'Too many attempts. Wait a moment and try again.'
+            : useBackup
+              ? 'That backup code does not work. Each one works once.'
+              : 'That code does not match. Codes change every 30 seconds.',
+        );
         return;
       }
-
       const data = await res.json();
       login(data.token, data.user as User);
       navigate('/');
     } catch {
-      setError('Connection failed');
+      setError('Could not reach the server.');
+    } finally {
       setLoading(false);
     }
   };
 
+  const startOver = () => {
+    setPartialToken('');
+    setCode('');
+    setUseBackup(false);
+    setPassword('');
+    setError('');
+  };
+
   if (partialToken) {
     return (
-      <Paper shadow="md" p="xl" m="auto" maw={400} mt={120}>
-        <Group justify="center" mb="md">
-          <Image
-            src={computedColorScheme === 'dark' ? '/glcert-logo-dark.png' : '/glcert-logo-light.png'}
-            h={64}
-            fit="contain"
-          />
-        </Group>
-        <Title order={2} ta="center" mb="xs">Two-Factor Authentication</Title>
-        <Text c="dimmed" ta="center" mb="lg">Enter the 6-digit code from your authenticator app</Text>
-
-        <form onSubmit={handleTOTPSubmit}>
-          <Stack gap="md">
-            <Group justify="center">
-              <PinInput
-                length={6}
-                value={totpCode}
-                onChange={setTotpCode}
-                size="lg"
-              />
-            </Group>
-            {error && <Text c="red" size="sm" ta="center">{error}</Text>}
-            <Button type="submit" fullWidth loading={loading} disabled={totpCode.length !== 6}>
-              Verify
-            </Button>
-            <Anchor component="button" onClick={() => { setPartialToken(''); setTotpCode(''); }} size="sm" ta="center">
-              Back to login
-            </Anchor>
-          </Stack>
+      <AuthLayout
+        footnote={
+          <>
+            Signed in as <span className="gl-literal">{email}</span>. This step times out after 5
+            minutes.
+          </>
+        }
+      >
+        <form className={classes.card} onSubmit={verify}>
+          <h1 className={classes.title}>{useBackup ? 'Use a backup code' : 'Enter your code'}</h1>
+          <p className={classes.lead}>
+            {useBackup
+              ? 'Type one of the backup codes you saved when you set up two-factor.'
+              : 'Open your authenticator app and type the 6-digit code for GLCert.'}
+          </p>
+          {useBackup ? (
+            <TextInput
+              label="Backup code"
+              autoComplete="one-time-code"
+              autoFocus
+              value={code}
+              onChange={(e) => setCode(e.currentTarget.value)}
+              styles={{ input: { fontFamily: 'var(--gl-font-mono)' } }}
+            />
+          ) : (
+            <PinInput
+              length={6}
+              placeholder=""
+              type="number"
+              oneTimeCode
+              autoFocus
+              aria-label="Six-digit code"
+              value={code}
+              onChange={setCode}
+              size="lg"
+              gap={8}
+              style={{ justifyContent: 'center' }}
+            />
+          )}
+          {error && (
+            <p className={classes.error} role="alert">
+              {error}
+            </p>
+          )}
+          <Button
+            type="submit"
+            fullWidth
+            loading={loading}
+            disabled={useBackup ? !code.trim() : code.length !== 6}
+          >
+            Verify
+          </Button>
+          <div className={classes.links}>
+            <button
+              type="button"
+              className={classes.linkButton}
+              onClick={() => {
+                setUseBackup(!useBackup);
+                setCode('');
+                setError('');
+              }}
+            >
+              {useBackup ? 'Use the app instead' : 'Use a backup code'}
+            </button>
+            <button type="button" className={classes.linkButton} onClick={startOver}>
+              Start over
+            </button>
+          </div>
         </form>
-      </Paper>
+      </AuthLayout>
     );
   }
 
   return (
-    <Paper shadow="md" p="xl" m="auto" maw={400} mt={120}>
-      <Group justify="center" mb="md">
-        <Image
-          src={computedColorScheme === 'dark' ? '/glcert-logo-dark.png' : '/glcert-logo-light.png'}
-          h={64}
-          fit="contain"
+    <AuthLayout footnote="You stay signed in for 24 hours, or until 30 minutes without activity.">
+      <form className={classes.card} onSubmit={signIn}>
+        <h1 className={classes.title}>Sign in</h1>
+        <p className={classes.lead}>To manage your authorities and certificates.</p>
+        {insecure && (
+          <div role="note" className={classes.note}>
+            <span className={classes.noteIcon}>
+              <IconAlertTriangle size={16} stroke={1.8} aria-hidden="true" />
+            </span>
+            This connection is not encrypted. Put GLCert behind a TLS proxy before you sign in from
+            another network.
+          </div>
+        )}
+        <TextInput
+          label="Email"
+          type="email"
+          autoComplete="username"
+          placeholder="you@example.com"
+          required
+          withAsterisk={false}
+          value={email}
+          onChange={(e) => setEmail(e.currentTarget.value)}
         />
-      </Group>
-      <Title order={2} ta="center" mb="xs">GLCert</Title>
-      <Text c="dimmed" ta="center" mb="lg">Sign in to manage your certificates</Text>
-
-      <form onSubmit={handleCredentialsSubmit}>
-        <Stack gap="md">
-          <TextInput
-            label="Email"
-            placeholder="admin@example.com"
-            type="email"
-            value={email}
-            onChange={e => setEmail(e.currentTarget.value)}
-           
-            required
-          />
-          <PasswordInput
-            label="Password"
-            placeholder="Your password"
-            value={password}
-            onChange={e => setPassword(e.currentTarget.value)}
-           
-            required
-          />
-          <Anchor component={Link} to="/forgot-password" size="sm">
-            Forgot Password?
-          </Anchor>
-          {error && <Text c="red" size="sm">{error}</Text>}
-          <Button type="submit" fullWidth loading={loading}>
-            Sign In
-          </Button>
-        </Stack>
+        <PasswordInput
+          label={
+            <span className={classes.passwordLabel}>
+              Password
+              <Link to="/forgot-password" style={{ fontSize: 12 }}>
+                Forgot it?
+              </Link>
+            </span>
+          }
+          labelProps={{ style: { width: '100%' } }}
+          autoComplete="current-password"
+          required
+          withAsterisk={false}
+          value={password}
+          onChange={(e) => setPassword(e.currentTarget.value)}
+        />
+        {error && (
+          <p className={classes.error} role="alert">
+            {error}
+          </p>
+        )}
+        <Button type="submit" fullWidth loading={loading} disabled={!email || !password}>
+          Sign in
+        </Button>
       </form>
-    </Paper>
+    </AuthLayout>
   );
 }
 

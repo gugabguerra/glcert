@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 
 import { User } from '../types/user';
+import { markSignedIn } from '../utils/twoFactorReminder';
 
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 
@@ -32,8 +33,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     fetch('/api/auth/status')
-      .then(res => res.json())
-      .then(data => {
+      .then((res) => res.json())
+      .then((data) => {
         setSetupComplete(data.setupComplete);
         setLoading(false);
       })
@@ -70,17 +71,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!token) return;
 
     const events = ['mousedown', 'keydown', 'touchstart', 'scroll'];
-    events.forEach(e => document.addEventListener(e, resetIdleTimer, { passive: true }));
+    events.forEach((e) => document.addEventListener(e, resetIdleTimer, { passive: true }));
     resetIdleTimer();
 
     return () => {
-      events.forEach(e => document.removeEventListener(e, resetIdleTimer));
+      events.forEach((e) => document.removeEventListener(e, resetIdleTimer));
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     };
   }, [token, resetIdleTimer]);
 
   const login = useCallback((newToken: string, newUser?: User) => {
     localStorage.setItem('auth_token', newToken);
+    // Lets the signed-in shell show the two-factor reminder once for this sign-in.
+    markSignedIn();
     setToken(newToken);
     if (newUser) {
       localStorage.setItem('auth_user', JSON.stringify(newUser));
@@ -88,10 +91,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const hasRole = useCallback((...roles: string[]) => {
-    if (!user) return false;
-    return roles.includes(user.role);
-  }, [user]);
+  const hasRole = useCallback(
+    (...roles: string[]) => {
+      if (!user) return false;
+      return roles.includes(user.role);
+    },
+    [user],
+  );
+
+  // Keep the stored copy in step, so a renamed user or a two-factor change survives a reload.
+  const updateUser = useCallback((next: User) => {
+    localStorage.setItem('auth_user', JSON.stringify(next));
+    setUser(next);
+  }, []);
 
   const value = {
     token,
@@ -100,7 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isSetupComplete,
     login,
     logout,
-    setUser,
+    setUser: updateUser,
     setSetupComplete,
     hasRole,
   };

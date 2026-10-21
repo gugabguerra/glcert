@@ -54,7 +54,7 @@ Errors return a plain-text body with an appropriate HTTP status (`400`, `401`, `
 | GET    | /api/ca/{id}/download/cert    | Download CA cert         |
 | GET    | /api/ca/{id}/download/key     | Download CA key          |
 | GET    | /api/ca/{id}/download/bundle  | Download CA bundle       |
-| GET    | /api/certificates             | List certificates (filtered by permissions for non-admins) |
+| GET    | /api/certificates             | List certificates with `expiresAt` and `issuedAt` of the current version (filtered by permissions for non-admins) |
 | GET    | /api/certificates/groups      | List certificate groups  |
 | GET    | /api/certificates/download/group | Download group as ZIP |
 | GET    | /api/certificates/{id}        | Get certificate          |

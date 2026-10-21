@@ -1,352 +1,357 @@
+import { useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import {
-  Title,
+  Button,
+  Modal,
   PasswordInput,
   PinInput,
-  Select,
-  Button,
   Stack,
-  Group,
   Text,
-  Modal,
+  TextInput,
   useMantineColorScheme,
-  Paper,
-  Divider,
-  Image,
-  CopyButton,
-  Tooltip,
-  Center,
 } from '@mantine/core';
-import { useEffect, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { notifications } from '@mantine/notifications';
+import { IconDeviceDesktop, IconMoon, IconSun } from '@tabler/icons-react';
 import { authFetchJson } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 import { PasswordStrengthIndicator } from '../components/PasswordStrengthIndicator';
+import type { User } from '../types/user';
+import classes from './Admin.module.css';
+import s from './Settings.module.css';
 
+function Section({
+  id,
+  title,
+  note,
+  children,
+}: {
+  id: string;
+  title: string;
+  note: string;
+  children: ReactNode;
+}) {
+  return (
+    <section aria-labelledby={id} className={s.section}>
+      <div className={s.side}>
+        <h2 id={id}>{title}</h2>
+        <p>{note}</p>
+      </div>
+      <div className={s.card}>{children}</div>
+    </section>
+  );
+}
+
+const SCHEMES = [
+  { value: 'auto', label: 'Match system', Icon: IconDeviceDesktop },
+  { value: 'light', label: 'Light', Icon: IconSun },
+  { value: 'dark', label: 'Dark', Icon: IconMoon },
+] as const;
+
+/** Your account: profile, appearance, password, two-factor and sessions. Only you see it. */
 function UserProfile() {
-  const { logout } = useAuth();
-  const { setColorScheme, colorScheme } = useMantineColorScheme();
-
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const { user, setUser, logout } = useAuth();
+  const { colorScheme, setColorScheme } = useMantineColorScheme();
+  const [name, setName] = useState(user?.name ?? '');
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [again, setAgain] = useState('');
   const [passwordError, setPasswordError] = useState('');
-  const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [turningOff, setTurningOff] = useState(false);
 
-  const [totpEnabled, setTotpEnabled] = useState(false);
-  const [showTOTPSetup, setShowTOTPSetup] = useState(false);
-  const [totpSetupData, setTotpSetupData] = useState<{ secret: string; imageData: string; codes: string[] } | null>(null);
-  const [totpVerifyCode, setTotpVerifyCode] = useState('');
-  const [totpStatus, setTotpStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [showDisableTOTP, setShowDisableTOTP] = useState(false);
-  const [disablePassword, setDisablePassword] = useState('');
-  const [disableCode, setDisableCode] = useState('');
-  const [disableStatus, setDisableStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const { data: totp, refetch: refetchTotp } = useQuery<{ enabled: boolean }>({
+    queryKey: ['totpStatus'],
+    queryFn: () => authFetchJson('/api/totp/status'),
+  });
+  const twoFactorOn = totp?.enabled ?? user?.totpEnabled ?? false;
 
-  useEffect(() => {
-    authFetchJson('/api/totp/status').then((data: any) => {
-      setTotpEnabled(data.enabled);
-    }).catch(() => {});
-  }, []);
+  const saveName = useMutation({
+    mutationFn: () =>
+      authFetchJson<User>('/api/users/me', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim() }),
+      }),
+    onSuccess: (updated) => {
+      if (user) setUser({ ...user, name: updated?.name ?? name.trim() });
+      notifications.show({ message: 'Name saved.' });
+    },
+    onError: () => notifications.show({ color: 'red', message: 'Could not save your name.' }),
+  });
 
-  const passwordMutation = useMutation({
-    mutationFn: (values: { currentPassword: string; newPassword: string }) =>
+  // The server ends every session on a password change, this one included, so sign out here too.
+  const changePassword = useMutation({
+    mutationFn: () =>
       authFetchJson('/api/auth/password', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values),
+        body: JSON.stringify({ currentPassword: current, newPassword: next }),
       }),
     onSuccess: () => {
-      setPasswordError('');
-      setPasswordSuccess('Password changed successfully');
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
+      notifications.show({ message: 'Password changed. Sign in with the new one.' });
+      logout();
     },
-    onError: () => {
-      setPasswordSuccess('');
-      setPasswordError('Invalid current password');
-    },
+    onError: () => setPasswordError('Your current password is not right.'),
   });
 
-  const handlePasswordSubmit = () => {
+  const submitPassword = () => {
     setPasswordError('');
-    setPasswordSuccess('');
-
-    if (!currentPassword || !newPassword || !confirmPassword) {
-      setPasswordError('All fields are required');
-      return;
-    }
-    if (newPassword.length < 6) {
-      setPasswordError('New password must be at least 6 characters');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setPasswordError('New passwords do not match');
-      return;
-    }
-    if (currentPassword === newPassword) {
-      setPasswordError('New password must differ from current password');
-      return;
-    }
-
-    passwordMutation.mutate({ currentPassword, newPassword });
+    if (next.length < 6) return setPasswordError('Use at least 6 characters.');
+    if (next !== again) return setPasswordError('The new passwords do not match.');
+    if (next === current)
+      return setPasswordError('The new password is the same as the current one.');
+    changePassword.mutate();
   };
 
+  if (!user) return null;
+  const roleWord = user.role.charAt(0).toUpperCase() + user.role.slice(1);
+
   return (
-    <Stack gap='xl'>
-      <Title>User Profile</Title>
-
-      <Paper withBorder p='lg' style={{ borderLeft: '3px solid var(--mantine-color-teal-5)' }}>
-        <Title order={5} mb='md'>Appearance</Title>
-        <Select
-          label='Theme'
-          data={[
-            { value: 'light', label: 'Light' },
-            { value: 'dark', label: 'Dark' },
-            { value: 'auto', label: 'System' },
-          ]}
-          value={colorScheme}
-          onChange={(value) => {
-            if (value) {
-              setColorScheme(value as 'light' | 'dark' | 'auto');
-              localStorage.setItem('glcert-color-scheme', value);
-            }
-          }}
-        />
-      </Paper>
-
-      <Paper withBorder p='lg' style={{ borderLeft: '3px solid var(--mantine-color-teal-5)' }}>
-        <Title order={5} mb='md'>Security</Title>
-        <Stack gap='md'>
-          <PasswordInput
-            label='Current Password'
-            value={currentPassword}
-            onChange={(e) => setCurrentPassword(e.currentTarget.value)}
-          />
-          <PasswordInput
-            label='New Password'
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.currentTarget.value)}
-          />
-          <PasswordStrengthIndicator password={newPassword} />
-          <PasswordInput
-            label='Confirm New Password'
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.currentTarget.value)}
-          />
-          {passwordError && <Text c='red' size='sm'>{passwordError}</Text>}
-          {passwordSuccess && <Text c='green' size='sm'>{passwordSuccess}</Text>}
-          <Group justify='flex-end'>
-            <Button variant='filled' color='blue' loading={passwordMutation.isPending} onClick={handlePasswordSubmit}>
-              Change Password
-            </Button>
-          </Group>
-
-          <Divider my='md' />
-
-          <Group justify='space-between' align='center'>
-            <div>
-              <Text fw={500}>Two-Factor Authentication</Text>
-              <Text size='sm' c='dimmed'>
-                {totpEnabled ? '2FA is enabled for your account' : 'Add an extra layer of security'}
-              </Text>
-            </div>
-            <Group>
-              {totpEnabled && (
-                <Button variant='subtle' color='red' onClick={() => {
-                  setDisablePassword('');
-                  setDisableCode('');
-                  setDisableStatus('idle');
-                  setShowDisableTOTP(true);
-                }}>
-                  Disable
-                </Button>
-              )}
-              <Button
-                variant={totpEnabled ? 'outline' : 'filled'}
-                color='teal'
-                onClick={() => {
-                  setTotpVerifyCode('');
-                  setTotpStatus('idle');
-                  authFetchJson('/api/totp/setup').then((data: any) => {
-                    setTotpSetupData(data);
-                    setShowTOTPSetup(true);
-                  });
-                }}
-              >
-                {totpEnabled ? 'Reconfigure' : 'Enable 2FA'}
-              </Button>
-            </Group>
-          </Group>
-        </Stack>
-      </Paper>
-
-      <Group justify='flex-end'>
-        <Button color='red' variant='filled' onClick={logout}>
-          Sign Out
+    <div className={classes.page}>
+      <div className={classes.header}>
+        <div>
+          <h1 className={classes.title}>Your account</h1>
+          <div className="gl-second-line">Only you see these</div>
+        </div>
+        <Button variant="default" onClick={logout}>
+          Sign out
         </Button>
-      </Group>
+      </div>
 
-      <Modal
-        opened={showTOTPSetup}
-        onClose={() => setShowTOTPSetup(false)}
-        title='Enable Two-Factor Authentication'
-        centered
-        size='md'
-      >
-        <Stack gap='md'>
-          {totpSetupData && (
-            <>
-              <Text size='sm' c='dimmed'>
-                Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)
-              </Text>
-              <Center>
-                <Image
-                  src={`data:image/png;base64,${totpSetupData.imageData}`}
-                  maw={200}
-                  alt='TOTP QR Code'
-                />
-              </Center>
-              <Text size='xs' c='dimmed' ta='center'>
-                Or enter this secret manually: {totpSetupData.secret}
-              </Text>
-
-              <Divider />
-
-              <Text size='sm' fw={500}>Backup Codes</Text>
-              <Text size='xs' c='dimmed'>
-                Save these codes somewhere safe. Each can be used once if you lose access to your authenticator.
-              </Text>
-              <Paper withBorder p='sm'>
-                <Group gap='xs' justify='center' wrap='wrap'>
-                  {totpSetupData.codes.map((code, i) => (
-                    <CopyButton key={i} value={code}>
-                      {({ copied, copy }) => (
-                        <Tooltip label={copied ? 'Copied!' : 'Click to copy'}>
-                          <Text
-                            size='sm'
-                            ff='monospace'
-                            style={{ cursor: 'pointer' }}
-                            c={copied ? 'teal' : undefined}
-                            onClick={copy}
-                          >
-                            {code}
-                          </Text>
-                        </Tooltip>
-                      )}
-                    </CopyButton>
-                  ))}
-                </Group>
-              </Paper>
-              <Button
-                variant='subtle'
-                size='xs'
-                onClick={() => {
-                  navigator.clipboard.writeText(totpSetupData.codes.join('\n'));
-                }}
+      <div className={s.sections}>
+        <Section id="profile-h" title="Profile" note="Your email is how you sign in.">
+          <div className={s.grid}>
+            <TextInput label="Name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
+            <div className={s.field}>
+              <span className={s.caption}>Email</span>
+              <span
+                className="gl-literal"
+                style={{ fontSize: 14, lineHeight: '32px', color: 'var(--gl-text-soft)' }}
               >
-                Copy All Codes
-              </Button>
+                {user.email}
+              </span>
+            </div>
+          </div>
+          <div className={s.field}>
+            <span className={s.caption}>Role</span>
+            <span style={{ fontSize: 14, color: 'var(--gl-text-soft)' }}>{roleWord}</span>
+            <span className="gl-second-line">
+              {user.role === 'admin' ? 'Another admin can change it.' : 'An admin can change it.'}
+            </span>
+          </div>
+          <Button
+            variant="default"
+            style={{ alignSelf: 'flex-start' }}
+            disabled={name.trim() === (user.name ?? '')}
+            loading={saveName.isPending}
+            onClick={() => saveName.mutate()}
+          >
+            Save name
+          </Button>
+        </Section>
 
-              <Divider />
+        <Section id="appearance-h" title="Appearance" note="Saved in this browser.">
+          <div
+            role="radiogroup"
+            aria-labelledby="appearance-h"
+            className={classes.segments}
+            style={{ alignSelf: 'flex-start' }}
+          >
+            {SCHEMES.map(({ value, label, Icon }) => (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={colorScheme === value}
+                className={classes.segment}
+                onClick={() => setColorScheme(value)}
+              >
+                <Icon size={14} stroke={1.8} aria-hidden="true" />
+                {label}
+              </button>
+            ))}
+          </div>
+        </Section>
 
-              <Text size='sm' fw={500}>Verify Setup</Text>
-              <Text size='xs' c='dimmed'>
-                Enter the 6-digit code from your authenticator app to confirm setup.
-              </Text>
-              <Group justify='center'>
-                <PinInput
-                  length={6}
-                  value={totpVerifyCode}
-                  onChange={setTotpVerifyCode}
-                  size='lg'
-                />
-              </Group>
-              {totpStatus === 'error' && <Text c='red' size='sm' ta='center'>Invalid code. Try again.</Text>}
-              <Group justify='flex-end'>
-                <Button variant='default' onClick={() => setShowTOTPSetup(false)}>Cancel</Button>
-                <Button
-                  loading={totpStatus === 'loading'}
-                  disabled={totpVerifyCode.length !== 6}
-                  onClick={() => {
-                    setTotpStatus('loading');
-                    authFetchJson('/api/totp/verify-setup', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        secret: totpSetupData.secret,
-                        code: totpVerifyCode,
-                        codes: totpSetupData.codes,
-                      }),
-                    }).then(() => {
-                      setTotpStatus('success');
-                      setTotpEnabled(true);
-                      setShowTOTPSetup(false);
-                    }).catch(() => {
-                      setTotpStatus('error');
-                    });
-                  }}
-                >
-                  Verify & Enable
+        <Section
+          id="password-h"
+          title="Password"
+          note="Changing it signs you out on every device, this one included."
+        >
+          <PasswordInput
+            label="Current password"
+            autoComplete="current-password"
+            value={current}
+            onChange={(e) => setCurrent(e.currentTarget.value)}
+          />
+          <PasswordInput
+            label="New password"
+            autoComplete="new-password"
+            value={next}
+            onChange={(e) => setNext(e.currentTarget.value)}
+          />
+          <PasswordInput
+            label="Type it again"
+            autoComplete="new-password"
+            value={again}
+            onChange={(e) => setAgain(e.currentTarget.value)}
+          />
+          {next && <PasswordStrengthIndicator password={next} />}
+          <p className={classes.muted}>Strength shows as you type. Longer beats clever.</p>
+          {passwordError && <p className={classes.error}>{passwordError}</p>}
+          <Button
+            variant="default"
+            style={{ alignSelf: 'flex-start' }}
+            disabled={!current || !next || !again}
+            loading={changePassword.isPending}
+            onClick={submitPassword}
+          >
+            Change password
+          </Button>
+        </Section>
+
+        <Section
+          id="two-factor-h"
+          title="Two-factor"
+          note="A code from your authenticator app, asked after your password."
+        >
+          <div className={s.opRow}>
+            <div className={s.opText}>
+              <span
+                className={s.switchTitle}
+                style={{ color: twoFactorOn ? 'var(--gl-success)' : 'var(--gl-text)' }}
+              >
+                {twoFactorOn ? 'On' : 'Off'}
+              </span>
+              <span className="gl-second-line">
+                {twoFactorOn
+                  ? 'Authenticator app, with single-use backup codes'
+                  : 'Only your password protects this account.'}
+              </span>
+            </div>
+            <Button
+              component={Link}
+              to="/profile/two-factor"
+              variant={twoFactorOn ? 'default' : 'filled'}
+            >
+              {twoFactorOn ? 'Set up again' : 'Set up two-factor'}
+            </Button>
+          </div>
+          {twoFactorOn && (
+            <>
+              <p className={classes.muted}>
+                Setting up again replaces your authenticator and gives you new backup codes.
+              </p>
+              <div className={s.divider} />
+              <div className={s.opRow}>
+                <div className={s.opText}>
+                  <span className={s.switchTitle}>Turn off two-factor</span>
+                  <span className="gl-second-line">
+                    Your password alone will open this account.
+                  </span>
+                </div>
+                <Button color="red" variant="outline" onClick={() => setTurningOff(true)}>
+                  Turn off
                 </Button>
-              </Group>
+              </div>
             </>
           )}
-        </Stack>
-      </Modal>
+        </Section>
 
-      <Modal
-        opened={showDisableTOTP}
-        onClose={() => setShowDisableTOTP(false)}
-        title='Disable Two-Factor Authentication'
-        centered
-      >
-        <Stack gap='md'>
-          <Text size='sm' c='dimmed'>
-            Enter your password and a valid TOTP code to disable 2FA.
-          </Text>
-          <PasswordInput
-            label='Password'
-            value={disablePassword}
-            onChange={e => setDisablePassword(e.currentTarget.value)}
-           
+        <Section id="sessions-h" title="Sessions" note="How long you stay signed in.">
+          <p className={classes.body}>
+            A session lasts 24 hours, and ends after 30 minutes without activity. Restarting the
+            server or changing your password ends every session.
+          </p>
+        </Section>
+      </div>
+
+      <TurnOffDialog
+        opened={turningOff}
+        onClose={() => setTurningOff(false)}
+        onDone={() => {
+          setTurningOff(false);
+          refetchTotp();
+          setUser({ ...user, totpEnabled: false });
+          notifications.show({ message: 'Two-factor is off.' });
+        }}
+      />
+    </div>
+  );
+}
+
+function TurnOffDialog({
+  opened,
+  onClose,
+  onDone,
+}: {
+  opened: boolean;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
+  const [error, setError] = useState('');
+  const off = useMutation({
+    mutationFn: () =>
+      authFetchJson('/api/totp/disable', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password, code }),
+      }),
+    onSuccess: () => {
+      setPassword('');
+      setCode('');
+      onDone();
+    },
+    onError: () => setError('The password or the code is not right.'),
+  });
+
+  return (
+    <Modal opened={opened} onClose={onClose} title="Turn off two-factor?" size={420}>
+      <Stack>
+        <Text size="sm" c="var(--gl-text-soft)" fw={300}>
+          Confirm with your password and a current code from your authenticator app.
+        </Text>
+        <PasswordInput
+          label="Password"
+          autoComplete="current-password"
+          value={password}
+          onChange={(e) => setPassword(e.currentTarget.value)}
+        />
+        <div className={s.field}>
+          <span className={s.caption}>Six-digit code</span>
+          <PinInput
+            length={6}
+            placeholder=""
+            type="number"
+            oneTimeCode
+            aria-label="Six-digit code"
+            value={code}
+            onChange={setCode}
+            gap={8}
           />
-          <Group justify='center'>
-            <PinInput
-              length={6}
-              value={disableCode}
-              onChange={setDisableCode}
-              size='lg'
-            />
-          </Group>
-          {disableStatus === 'error' && <Text c='red' size='sm' ta='center'>Invalid password or code.</Text>}
-          <Group justify='flex-end'>
-            <Button variant='default' onClick={() => setShowDisableTOTP(false)}>Cancel</Button>
-            <Button
-              color='red'
-              loading={disableStatus === 'loading'}
-              disabled={!disablePassword || disableCode.length !== 6}
-              onClick={() => {
-                setDisableStatus('loading');
-                authFetchJson('/api/totp/disable', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ password: disablePassword, code: disableCode }),
-                }).then(() => {
-                  setDisableStatus('success');
-                  setTotpEnabled(false);
-                  setShowDisableTOTP(false);
-                }).catch(() => {
-                  setDisableStatus('error');
-                });
-              }}
-            >
-              Disable 2FA
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
-    </Stack>
+        </div>
+        {error && <p className={classes.error}>{error}</p>}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <Button variant="default" onClick={onClose} data-autofocus>
+            Cancel
+          </Button>
+          <Button
+            color="red"
+            variant="outline"
+            disabled={!password || code.length !== 6}
+            loading={off.isPending}
+            onClick={() => {
+              setError('');
+              off.mutate();
+            }}
+          >
+            Turn off
+          </Button>
+        </div>
+      </Stack>
+    </Modal>
   );
 }
 

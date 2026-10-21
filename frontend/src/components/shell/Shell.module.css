@@ -1,0 +1,326 @@
+/* App shell from the redesign's "F · Timeline workbench" screens: a 240px sidebar that becomes a
+   64px icon rail ([data-rail]), and on phones a top bar that opens the sidebar as a drawer. */
+
+.layout {
+  display: flex;
+  min-height: 100vh;
+  background: var(--gl-bg);
+  color: var(--gl-text);
+}
+
+.main {
+  /* Pages that bleed to the edges (the Timeline workbench) read these. */
+  --page-pad-top: 24px;
+  --page-pad-x: 28px;
+  --page-pad-bottom: 40px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: var(--page-pad-top) var(--page-pad-x) var(--page-pad-bottom);
+}
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  flex: 0 0 240px;
+  height: 100vh;
+  min-width: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 12px 12px 16px;
+  border-right: 1px solid var(--gl-border);
+}
+
+.sidebar[data-drawer] {
+  position: static;
+  height: auto;
+  min-height: 100dvh;
+  border-right: 0;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding-left: 6px;
+}
+
+.brandLink {
+  display: flex;
+  color: var(--gl-text);
+}
+
+.wordmark {
+  flex-grow: 1;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+}
+
+.iconButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: var(--gl-r-control);
+  background: transparent;
+  color: var(--gl-text-muted);
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease,
+    border-color 150ms ease;
+}
+
+.iconButton:hover {
+  background: var(--gl-fill);
+  color: var(--gl-text);
+}
+
+.iconButton[data-bordered] {
+  border: 1px solid var(--gl-border);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 24px;
+  padding: 0 4px 4px 10px;
+}
+
+.addButton {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--gl-r-sm);
+}
+
+.divider {
+  display: none;
+  width: 24px;
+  height: 1px;
+  margin: 2px auto 6px;
+  background: var(--gl-border);
+}
+
+.nav {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: var(--gl-r-control);
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--gl-text-soft);
+  text-decoration: none;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.nav:hover {
+  background: var(--gl-fill-soft);
+  color: var(--gl-text);
+}
+
+.nav[aria-current='page'],
+.nav[aria-current='page']:hover {
+  font-weight: 500;
+  color: var(--gl-accent);
+  background: var(--gl-accent-soft);
+}
+
+.label {
+  flex-grow: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.count {
+  font-family: var(--gl-font-mono);
+  font-size: 12px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  color: var(--gl-text-muted);
+}
+
+.nav[aria-current='page'] .count {
+  color: var(--gl-accent);
+}
+
+/* Authority icon in the tree: the brand colour marks authorities (design system). */
+.caIcon {
+  position: relative;
+  display: flex;
+  flex: none;
+  color: var(--gl-brand);
+}
+
+.warning {
+  display: flex;
+  color: var(--gl-warning);
+}
+
+.warningDot {
+  display: none;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  padding: 12px 0 0 2px;
+  border-top: 1px solid var(--gl-border);
+}
+
+.account {
+  flex-grow: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px;
+  border-radius: var(--gl-r-control);
+  color: inherit;
+  text-decoration: none;
+  transition: background-color 150ms ease;
+}
+
+.account:hover {
+  background: var(--gl-fill-soft);
+}
+
+.account[aria-current='page'] {
+  background: var(--gl-accent-soft);
+}
+
+.avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 999px;
+  background: var(--gl-fill);
+  color: var(--gl-text-soft);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.who {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--gl-text);
+}
+
+/* Rail: labels become tooltips, section titles become dividers, warnings become a dot. */
+
+.sidebar[data-rail] {
+  flex-basis: 64px;
+  padding: 12px 10px 16px;
+  align-items: center;
+}
+
+.sidebar[data-rail] [data-label] {
+  display: none;
+}
+
+.sidebar[data-rail] .brand {
+  flex-direction: column;
+  gap: 12px;
+  padding-left: 0;
+}
+
+.sidebar[data-rail] .nav {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  justify-content: center;
+}
+
+.sidebar[data-rail] .section {
+  align-items: center;
+}
+
+.sidebar[data-rail] .divider {
+  display: block;
+}
+
+.sidebar[data-rail] .warningDot {
+  display: block;
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--gl-warning);
+}
+
+.sidebar[data-rail] .footer {
+  flex-direction: column;
+  padding: 12px 0 0;
+}
+
+.sidebar[data-rail] .account {
+  flex-grow: 0;
+}
+
+/* Phones: a slim top bar instead of the sidebar. */
+
+.topBar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--gl-border);
+  background: var(--gl-bg);
+}
+
+.layout[data-mobile] {
+  flex-direction: column;
+}
+
+.layout[data-mobile] .main {
+  --page-pad-top: 16px;
+  --page-pad-x: 16px;
+  --page-pad-bottom: 32px;
+}
+
+.who > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

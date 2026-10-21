@@ -1,0 +1,136 @@
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.chartSection {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.days {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 52px;
+  border-bottom: 1px solid var(--gl-border-strong);
+}
+
+.day {
+  flex: 1 1 0;
+  min-width: 2px;
+  border-radius: 2px 2px 0 0;
+}
+
+.day:hover {
+  outline: 2px solid var(--gl-accent);
+  outline-offset: 1px;
+}
+
+.axis {
+  display: flex;
+  justify-content: space-between;
+  color: var(--gl-text-muted);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto 14px;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 40px;
+  margin: 0;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--gl-r-control);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.row:hover {
+  background: var(--gl-fill-soft);
+}
+
+.row[aria-expanded='true'] {
+  background: var(--gl-accent-soft);
+}
+
+.icon {
+  display: flex;
+  color: var(--gl-text-muted);
+}
+
+.sentence {
+  min-width: 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--gl-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail {
+  font-weight: 300;
+  color: var(--gl-text-muted);
+}
+
+.chevron {
+  color: var(--gl-text-muted);
+  transition: transform 150ms ease;
+}
+
+.row[aria-expanded='true'] .chevron {
+  transform: rotate(180deg);
+}
+
+.facts {
+  margin: 4px 0 8px 46px;
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr);
+  gap: 6px 12px;
+  align-items: baseline;
+}
+
+.facts dt {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--gl-text-muted);
+}
+
+.facts dd {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--gl-text-soft);
+  overflow-wrap: anywhere;
+}
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--gl-border);
+}
+
+@media (max-width: 600px) {
+  .facts {
+    margin-left: 10px;
+  }
+}

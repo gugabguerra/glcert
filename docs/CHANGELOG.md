@@ -3,6 +3,68 @@
 All notable changes to GLCert. Newest first; versions match the git tags and the root `VERSION`
 file.
 
+## [Unreleased]
+
+### Added
+
+- Validity timeline as the home screen, replacing the dashboard: authorities and certificates on
+  a shared 18-month or 6-year axis, a banner when certificates outlive their authority, and a
+  details panel with downloads, share links, regenerate and delete.
+- Certificates page redesigned: grouped by issuing authority with a small validity bar per row,
+  type counts, group and sort selects, a name filter, and the same details panel as the timeline.
+- Authority page redesigned: days left at a glance, a timeline of its certificates with the date
+  the authority ends, a warning when certificates outlive it, and a "Who can use it" list where
+  admins grant or remove access. The delete note now says what actually happens: issued
+  certificates are kept and intermediates become roots.
+- New certificate form redesigned with a live preview: the new certificate's validity against
+  its authority's, a warning when it would outlive the authority with "Shorten to N days" and
+  "Use <longer authority>" fixes, the first alert date, and the subject as it will be issued.
+  It defaults to the longest-lasting authority and takes all alternative names in one field.
+- Share link dialog redesigned: pick one file (with a warning when it is the private key), create
+  the link, copy it or a ready-made wget or curl command, watch a live 15-minute countdown, and
+  email it in the same dialog. Choosing another file asks for a new link, since each link carries
+  exactly one file.
+- Users page: everyone who can sign in with their role, two-factor status and the authorities
+  they can use, add and edit dialogs that set role, authorities and password together, and the
+  role permission table.
+- Audit log page: filter by kind of change, person and text, a changes-per-day chart for the last
+  90 days, entries grouped by day in plain language, expandable details, and "Show all time".
+- Account page: name, appearance (match system, light or dark), password change, two-factor
+  status with set up again or turn off, and how sessions end.
+- Two-factor setup as three steps: scan the QR code or type the key, check a code, then see the
+  backup codes once.
+- A reminder to turn on two-factor appears after signing in to an account without it. "Remind
+  me in a week" puts it off for seven days in that browser; closing it lasts until the next
+  sign-in.
+- `GET /api/certificates` returns `issuedAt`, when each certificate's current version was issued.
+
+### Changed
+
+- The interface adopts the GL Design System: slate palette, emerald brand, a cyan accent used only
+  for state, self-hosted Oxanium and IBM Plex Mono, and matching dark and light themes. Existing
+  screens pick up the new colours and controls ahead of their redesign.
+- The top navigation bar is replaced by a sidebar: workspace links, an authority tree with
+  certificate counts and an "outlives its authority" warning, an admin group, and an account
+  footer with the theme switch and sign out. It collapses to an icon rail below 1200px (or on
+  demand) and opens as a drawer on phones. Your profile now opens as a page, not a drawer.
+- Administration is split into Users and Audit log pages, and backup, restore and factory reset
+  move into Settings. Old `/admin` links redirect. Settings now save as one form with "Save
+  changes" and "Discard changes", and field labels across the app use the smaller muted style.
+- Sign in and the two-factor check are redesigned: a warning when the page is served over plain
+  HTTP from another machine, six code boxes, an inline backup code option, and wording that
+  never reveals whether an account exists.
+- The sidebar's account row shows only the role, and authorities in the sidebar tree show a shield
+  icon.
+
+### Fixed
+
+- "Forgot password" and the emailed reset link work while signed out; before, every signed-out
+  address showed the sign-in form.
+- A changed name or two-factor status now survives a page reload.
+- Saving one Settings section no longer sends stale values for the others: the page keeps one
+  draft of the whole record, which the server replaces on every save.
+- Signing in no longer changes the hook order of the app's router component.
+
 ## [1.0.0] — 2026-10-21
 
 ### Fixed

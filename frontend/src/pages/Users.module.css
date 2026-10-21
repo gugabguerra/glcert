@@ -1,0 +1,119 @@
+.table {
+  overflow-x: auto;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(220px, 2fr) 100px 100px minmax(160px, 2fr) 96px;
+  align-items: center;
+  gap: 12px;
+  min-width: 720px;
+  min-height: 56px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--gl-border);
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--gl-text-soft);
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
+.head {
+  min-height: 0;
+  padding-top: 12px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--gl-text-muted);
+  border-bottom-color: var(--gl-border-strong);
+}
+
+.person {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.who {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.name {
+  color: var(--gl-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.authorities {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.hint {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px;
+  border: 2px dashed var(--gl-border);
+  border-radius: var(--gl-r-card);
+}
+
+.matrixWrap {
+  overflow-x: auto;
+}
+
+.matrix {
+  min-width: 560px;
+}
+
+.matrixRow {
+  display: grid;
+  grid-template-columns: minmax(200px, 1.6fr) repeat(3, minmax(110px, 1fr));
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--gl-border);
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--gl-text-soft);
+}
+
+.matrixRow:last-child {
+  border-bottom: 0;
+}
+
+.matrixHead {
+  display: flex;
+  flex-direction: column;
+  color: var(--gl-text);
+}
+
+.matrixCell {
+  display: flex;
+  align-items: center;
+  color: var(--gl-text-soft);
+}
+
+.matrixCell[data-no] {
+  color: var(--gl-text-muted);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

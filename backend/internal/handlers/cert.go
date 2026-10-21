@@ -80,7 +80,8 @@ func (h *CertHandler) List(w http.ResponseWriter, r *http.Request) {
 			COALESCE(ca.name, '') as ca_name,
 			COALESCE(c.ca_subject, ''),
 			COALESCE(c.group_name, ''),
-			cv.expires_at
+			cv.expires_at,
+			cv.created_at
 		FROM certificates c
 		LEFT JOIN certificate_authorities ca ON c.certificate_authority_id = ca.id
 		LEFT JOIN certificate_versions cv ON cv.certificate_id = c.id AND cv.version = c.current_version
@@ -142,13 +143,15 @@ func (h *CertHandler) List(w http.ResponseWriter, r *http.Request) {
 		models.Certificate
 		CAName    string     `json:"caName"`
 		ExpiresAt *time.Time `json:"expiresAt"`
+		// IssuedAt is when the current version was created, so the timeline can draw its span.
+		IssuedAt *time.Time `json:"issuedAt"`
 	}
 
 	var certs []CertWithCA
 	for rows.Next() {
 		var c CertWithCA
 		if err := rows.Scan(&c.ID, &c.Name, &c.Description, &c.Type, &c.CertificateAuthorityID,
-			&c.CurrentVersion, &c.CreatedAt, &c.UpdatedAt, &c.CAName, &c.CASubject, &c.GroupName, &c.ExpiresAt); err != nil {
+			&c.CurrentVersion, &c.CreatedAt, &c.UpdatedAt, &c.CAName, &c.CASubject, &c.GroupName, &c.ExpiresAt, &c.IssuedAt); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}

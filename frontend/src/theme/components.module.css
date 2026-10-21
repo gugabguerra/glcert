@@ -1,0 +1,35 @@
+/* Theme-level overrides for Mantine components. Selectors carry the colour-scheme attribute so they
+   match the specificity of Mantine's own scheme rules and win by loading after them. */
+
+.button {
+  font-weight: 400;
+}
+
+.button[data-variant='filled'] {
+  font-weight: 500;
+}
+
+.anchor {
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+[data-mantine-color-scheme] .dropdown {
+  --popover-border-color: var(--gl-border);
+}
+
+[data-mantine-color-scheme] .paper {
+  --paper-border-color: var(--gl-border);
+}
+
+.dialog {
+  box-shadow: none;
+}
+
+.fieldLabel {
+  margin-bottom: 4px;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+  color: var(--gl-text-muted);
+}

@@ -1,25 +1,23 @@
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
-  Title,
-  TextInput,
-  PasswordInput,
-  Select,
-  NumberInput,
   Button,
+  FileInput,
+  Modal,
+  NumberInput,
+  PasswordInput,
   Stack,
-  Group,
-  Center,
-  Loader,
-  Text,
-  Paper,
   Switch,
+  Text,
+  TextInput,
 } from '@mantine/core';
-import { useForm } from '@mantine/form';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
-import { authFetchJson } from '../api/client';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { notifications } from '@mantine/notifications';
+import { authFetch, authFetchDownload, authFetchJson } from '../api/client';
+import { formatDate } from '../utils/timeline';
+import classes from './Admin.module.css';
+import s from './Settings.module.css';
 
-interface Settings {
-  id: number;
+interface SettingsData {
   organization: string;
   country: string;
   state: string;
@@ -40,263 +38,642 @@ interface Settings {
   emailNotificationsEnabled: boolean;
 }
 
+const BLANK: SettingsData = {
+  organization: '',
+  country: '',
+  state: '',
+  city: '',
+  email: '',
+  defaultKeyAlgorithm: 'rsa',
+  defaultRSAKeySize: 2048,
+  defaultECDSACurve: 'P-256',
+  defaultValidityDays: 365,
+  notificationsEnabled: false,
+  notificationWebhookUrl: '',
+  notificationThresholdDays: 30,
+  smtpHost: '',
+  smtpPort: 587,
+  smtpUsername: '',
+  smtpFromEmail: '',
+  smtpFromName: 'GLCert',
+  emailNotificationsEnabled: false,
+};
+
+function pick(data: Partial<SettingsData>): SettingsData {
+  const out = { ...BLANK };
+  for (const key of Object.keys(BLANK) as (keyof SettingsData)[]) {
+    if (data[key] !== undefined && data[key] !== null)
+      (out as Record<string, unknown>)[key] = data[key];
+  }
+  return out;
+}
+
+function Section({
+  id,
+  title,
+  note,
+  children,
+}: {
+  id: string;
+  title: string;
+  note: string;
+  children: ReactNode;
+}) {
+  return (
+    <section aria-labelledby={id} className={s.section}>
+      <div className={s.side}>
+        <h2 id={id}>{title}</h2>
+        <p>{note}</p>
+      </div>
+      <div className={s.card}>{children}</div>
+    </section>
+  );
+}
+
+function Segments<T extends string | number>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div role="group" aria-label={label} className={s.field}>
+      <span className={s.caption}>{label}</span>
+      <div className={classes.segments} style={{ alignSelf: 'flex-start' }}>
+        {options.map((o) => (
+          <button
+            key={String(o.value)}
+            type="button"
+            className={classes.segment}
+            aria-pressed={value === o.value}
+            onClick={() => onChange(o.value)}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Instance settings, saved together. The server replaces every field on save, so the page keeps one
+ * draft of the whole record rather than saving sections separately.
+ */
 function SettingsPage() {
   const queryClient = useQueryClient();
-
-  const form = useForm({
-    initialValues: {
-      organization: '',
-      country: '',
-      state: '',
-      city: '',
-      email: '',
-      defaultKeyAlgorithm: 'rsa',
-      defaultRSAKeySize: 2048,
-      defaultECDSACurve: 'P-256',
-      defaultValidityDays: 365,
-    },
-  });
-
-  const { data: settingsData, isLoading } = useQuery<Settings>({
+  const { data, isLoading } = useQuery<SettingsData>({
     queryKey: ['settings'],
     queryFn: () => authFetchJson('/api/settings'),
   });
+  const saved = useMemo(() => (data ? pick(data) : null), [data]);
+  const [draft, setDraft] = useState<SettingsData>(BLANK);
+  const [smtpPassword, setSmtpPassword] = useState('');
 
   useEffect(() => {
-    if (settingsData) {
-      form.setValues(settingsData);
-      setNotificationsEnabled(settingsData.notificationsEnabled ?? false);
-      setWebhookUrl(settingsData.notificationWebhookUrl ?? '');
-      setThresholdDays(settingsData.notificationThresholdDays ?? 30);
-      setSmtpHost(settingsData.smtpHost ?? '');
-      setSmtpPort(settingsData.smtpPort ?? 587);
-      setSmtpUsername(settingsData.smtpUsername ?? '');
-      setSmtpFromEmail(settingsData.smtpFromEmail ?? '');
-      setSmtpFromName(settingsData.smtpFromName ?? 'GLCert');
-      setEmailNotificationsEnabled(settingsData.emailNotificationsEnabled ?? false);
-    }
-  }, [settingsData]);
+    if (saved) setDraft(saved);
+  }, [saved]);
 
-  const mutation = useMutation({
-    mutationFn: (values: Record<string, unknown>) =>
+  const set = <K extends keyof SettingsData>(key: K, value: SettingsData[K]) =>
+    setDraft((d) => ({ ...d, [key]: value }));
+  const dirty = !!saved && (JSON.stringify(saved) !== JSON.stringify(draft) || smtpPassword !== '');
+
+  const save = useMutation({
+    mutationFn: () =>
       authFetchJson('/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values),
+        body: JSON.stringify({ ...draft, smtpPassword }),
       }),
     onSuccess: () => {
+      setSmtpPassword('');
       queryClient.invalidateQueries({ queryKey: ['settings'] });
+      notifications.show({ message: 'Settings saved.' });
     },
+    onError: (e: Error) =>
+      notifications.show({ color: 'red', message: e.message || 'Could not save settings.' }),
   });
 
-  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
-  const [webhookUrl, setWebhookUrl] = useState('');
-  const [thresholdDays, setThresholdDays] = useState(30);
-  const [testStatus, setTestStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [smtpHost, setSmtpHost] = useState('');
-  const [smtpPort, setSmtpPort] = useState(587);
-  const [smtpUsername, setSmtpUsername] = useState('');
-  const [smtpPassword, setSmtpPassword] = useState('');
-  const [smtpFromEmail, setSmtpFromEmail] = useState('');
-  const [smtpFromName, setSmtpFromName] = useState('GLCert');
-  const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState(false);
-  const [testEmailStatus, setTestEmailStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-
-  const testNotificationMutation = useMutation({
+  const testAlert = useMutation({
     mutationFn: () =>
       authFetchJson('/api/notifications/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ webhookUrl }),
+        body: JSON.stringify({ webhookUrl: draft.notificationWebhookUrl }),
       }),
-    onSuccess: () => setTestStatus('success'),
-    onError: () => setTestStatus('error'),
   });
-
-  const notificationMutation = useMutation({
+  const testEmail = useMutation({
     mutationFn: () =>
-      authFetchJson('/api/settings', {
-        method: 'PUT',
+      authFetchJson('/api/notifications/test-email', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...form.values,
-          notificationsEnabled,
-          notificationWebhookUrl: webhookUrl,
-          notificationThresholdDays: thresholdDays,
-        }),
+        body: JSON.stringify({ email: draft.smtpFromEmail }),
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['settings'] });
-    },
   });
 
-  if (isLoading)
-    return (
-      <Center py={80}>
-        <Loader />
-      </Center>
-    );
+  if (isLoading || !saved) return <div className={classes.loading} aria-label="Loading" />;
+
+  const expiryExample = formatDate(
+    new Date(Date.now() + draft.defaultValidityDays * 86_400_000).toISOString(),
+  );
+  const alertShare = Math.min(
+    1,
+    draft.notificationThresholdDays / Math.max(draft.defaultValidityDays, 1),
+  );
 
   return (
-    <Stack gap='xl' mx='auto'>
-      <Title>Settings</Title>
+    <div className={classes.page}>
+      <div className={classes.header}>
+        <div>
+          <h1 className={classes.title}>Settings</h1>
+          <div className="gl-second-line">For the whole instance. Only admins see this page.</div>
+        </div>
+        <div className={classes.headerActions}>
+          {dirty && (
+            <button
+              type="button"
+              className={classes.linkButton}
+              onClick={() => {
+                setDraft(saved);
+                setSmtpPassword('');
+              }}
+            >
+              Discard changes
+            </button>
+          )}
+          <Button disabled={!dirty} loading={save.isPending} onClick={() => save.mutate()}>
+            Save changes
+          </Button>
+        </div>
+      </div>
 
-      <Paper withBorder p='lg' style={{ borderLeft: '3px solid var(--mantine-color-teal-5)' }}>
-        <Title order={5} mb='md'>Certificate Defaults</Title>
-        <form onSubmit={form.onSubmit((values) => mutation.mutate(values))}>
-          <Stack gap='md'>
+      <div className={s.sections}>
+        <Section
+          id="defaults-h"
+          title="Certificate defaults"
+          note="Prefilled on every new authority and certificate. Existing ones keep their values."
+        >
+          <TextInput
+            label="Organization"
+            value={draft.organization}
+            onChange={(e) => set('organization', e.currentTarget.value)}
+          />
+          <div className={s.grid}>
             <TextInput
-              label='Organization'
-              placeholder='My Company'
-              {...form.getInputProps('organization')}
+              label="Country"
+              placeholder="PT"
+              maxLength={2}
+              value={draft.country}
+              onChange={(e) => set('country', e.currentTarget.value.toUpperCase())}
             />
-            <Group grow>
-              <TextInput label='Country' placeholder='US' {...form.getInputProps('country')} />
-              <TextInput label='State' placeholder='California' {...form.getInputProps('state')} />
-              <TextInput label='City' placeholder='San Francisco' {...form.getInputProps('city')} />
-            </Group>
             <TextInput
-              label='Email'
-              placeholder='admin@mycompany.com'
-              {...form.getInputProps('email')}
+              label="State"
+              value={draft.state}
+              onChange={(e) => set('state', e.currentTarget.value)}
             />
-            <Select
-              label='Default Key Algorithm'
-              data={[
+            <TextInput
+              label="City"
+              value={draft.city}
+              onChange={(e) => set('city', e.currentTarget.value)}
+            />
+          </div>
+          <TextInput
+            label="Contact email"
+            type="email"
+            value={draft.email}
+            onChange={(e) => set('email', e.currentTarget.value)}
+          />
+          <div className={s.divider} />
+          <div className={s.grid}>
+            <Segments
+              label="Key algorithm"
+              value={draft.defaultKeyAlgorithm}
+              options={[
                 { value: 'rsa', label: 'RSA' },
                 { value: 'ecdsa', label: 'ECDSA' },
                 { value: 'ed25519', label: 'Ed25519' },
               ]}
-              {...form.getInputProps('defaultKeyAlgorithm')}
+              onChange={(v) => set('defaultKeyAlgorithm', v)}
             />
-            {form.values.defaultKeyAlgorithm === 'rsa' && (
-              <Select
-                label='RSA Key Size'
-                data={[
-                  { value: '2048', label: '2048 bits' },
-                  { value: '4096', label: '4096 bits' },
-                ]}
-                value={String(form.values.defaultRSAKeySize)}
-                onChange={(value) => form.setFieldValue('defaultRSAKeySize', Number(value))}
-              />
-            )}
-            {form.values.defaultKeyAlgorithm === 'ecdsa' && (
-              <Select
-                label='ECDSA Curve'
-                data={[
-                  { value: 'P-256', label: 'P-256' },
-                  { value: 'P-384', label: 'P-384' },
-                  { value: 'P-521', label: 'P-521' },
-                ]}
-                {...form.getInputProps('defaultECDSACurve')}
+            {draft.defaultKeyAlgorithm === 'rsa' && (
+              <Segments
+                label="RSA key size"
+                value={draft.defaultRSAKeySize}
+                options={[2048, 3072, 4096].map((n) => ({ value: n, label: String(n) }))}
+                onChange={(v) => set('defaultRSAKeySize', v)}
               />
             )}
             <NumberInput
-              label='Default Validity (days)'
+              label="Validity"
               min={1}
               max={3650}
-              {...form.getInputProps('defaultValidityDays')}
+              value={draft.defaultValidityDays}
+              onChange={(v) => set('defaultValidityDays', Math.max(1, Number(v) || 365))}
+              rightSection={<span className="gl-second-line">days</span>}
+              rightSectionWidth={44}
             />
-            <Group justify='flex-end'>
-              <Button type='submit' loading={mutation.isPending || isLoading}>
-                Save Settings
-              </Button>
-            </Group>
-          </Stack>
-        </form>
-      </Paper>
+          </div>
+          <p className={classes.muted}>
+            {draft.defaultKeyAlgorithm === 'ecdsa' ? 'ECDSA uses curve P-256. ' : ''}A certificate
+            issued today would expire on <span className="gl-literal">{expiryExample}</span>.
+          </p>
+        </Section>
 
-      <Paper withBorder p='lg' style={{ borderLeft: '3px solid var(--mantine-color-teal-5)' }}>
-        <Title order={5} mb='md'>Notifications</Title>
-        <Stack gap='md'>
-          <Switch
-            label='Enable expiration notifications'
-            checked={notificationsEnabled}
-            onChange={(event) => setNotificationsEnabled(event.currentTarget.checked)}
-          />
-          <TextInput
-            label='Webhook URL'
-            placeholder='discord://token@webhookid'
-            value={webhookUrl}
-            onChange={(e) => setWebhookUrl(e.currentTarget.value)}
-            disabled={!notificationsEnabled}
-           
-          />
-          <NumberInput
-            label='Warning threshold (days)'
-            min={1}
-            max={365}
-            value={thresholdDays}
-            onChange={(value) => setThresholdDays(Number(value) || 30)}
-            disabled={!notificationsEnabled}
-          />
-          <Group justify='space-between'>
+        <Section
+          id="alerts-h"
+          title="Expiry alerts"
+          note="One alert per authority or certificate when it reaches the threshold."
+        >
+          <div className={s.switchRow}>
+            <div>
+              <div id="webhook-l" className={s.switchTitle}>
+                Webhook alerts
+              </div>
+              <div className="gl-second-line">
+                Discord, Slack, Telegram, Gotify and other Shoutrrr services
+              </div>
+            </div>
+            <Switch
+              aria-labelledby="webhook-l"
+              checked={draft.notificationsEnabled}
+              onChange={(e) => set('notificationsEnabled', e.currentTarget.checked)}
+            />
+          </div>
+          <div className={s.grid}>
+            <NumberInput
+              label="Threshold"
+              min={1}
+              max={365}
+              value={draft.notificationThresholdDays}
+              onChange={(v) => set('notificationThresholdDays', Math.max(1, Number(v) || 30))}
+              rightSection={<span className="gl-second-line">days</span>}
+              rightSectionWidth={44}
+            />
+            <PasswordInput
+              label="Webhook URL"
+              placeholder="discord://token@id"
+              value={draft.notificationWebhookUrl}
+              onChange={(e) => set('notificationWebhookUrl', e.currentTarget.value)}
+              disabled={!draft.notificationsEnabled}
+              style={{ gridColumn: 'span 2' }}
+            />
+          </div>
+          <div
+            className={s.lifeline}
+            role="img"
+            aria-label={`A ${draft.defaultValidityDays}-day certificate alerts ${draft.notificationThresholdDays} days before it expires`}
+          >
+            <div className={s.lifeTrack}>
+              <span className={s.lifeAlert} style={{ width: `${alertShare * 100}%` }} />
+            </div>
+            <div className={`${s.lifeLabels} gl-literal`}>
+              <span style={{ left: 0 }}>issued</span>
+              <span style={{ right: `${alertShare * 100}%`, transform: 'translateX(50%)' }}>
+                alert
+              </span>
+              <span style={{ right: 0 }}>expires</span>
+            </div>
+          </div>
+          <div className={s.actionRow}>
             <Button
-              variant='light'
-              loading={testNotificationMutation.isPending}
-              disabled={!notificationsEnabled || !webhookUrl}
-              onClick={() => {
-                setTestStatus('idle');
-                testNotificationMutation.mutate();
-              }}
+              variant="default"
+              disabled={!draft.notificationsEnabled || !draft.notificationWebhookUrl}
+              loading={testAlert.isPending}
+              onClick={() => testAlert.mutate()}
             >
-              Send Test Notification
+              Send a test alert
             </Button>
-            {testStatus === 'success' && <Text c='green' size='sm'>Test sent successfully</Text>}
-            {testStatus === 'error' && <Text c='red' size='sm'>Failed to send test</Text>}
-          </Group>
-          <Group justify='flex-end'>
-            <Button loading={notificationMutation.isPending} onClick={() => notificationMutation.mutate()}>
-              Save Notification Settings
-            </Button>
-          </Group>
-        </Stack>
-      </Paper>
+            {testAlert.isSuccess && (
+              <span className={s.status} style={{ color: 'var(--gl-success)' }}>
+                Test alert sent.
+              </span>
+            )}
+            {testAlert.isError && (
+              <span className={s.status} style={{ color: 'var(--gl-danger)' }}>
+                The test alert failed.
+              </span>
+            )}
+          </div>
+        </Section>
 
-      <Paper withBorder p='lg' style={{ borderLeft: '3px solid var(--mantine-color-teal-5)' }}>
-        <Title order={5} mb='md'>Email</Title>
-        <Stack gap='md'>
-          <TextInput label="SMTP Host" placeholder="smtp.gmail.com" value={smtpHost} onChange={e => setSmtpHost(e.currentTarget.value)} />
-          <NumberInput label="SMTP Port" min={1} max={65535} value={smtpPort} onChange={v => setSmtpPort(Number(v) || 587)} />
-          <TextInput label="SMTP Username" placeholder="your@email.com" value={smtpUsername} onChange={e => setSmtpUsername(e.currentTarget.value)} />
-          <PasswordInput label="SMTP Password" value={smtpPassword} onChange={e => setSmtpPassword(e.currentTarget.value)} placeholder="Leave empty to keep current" />
-          <TextInput label="From Email" placeholder="noreply@mycompany.com" value={smtpFromEmail} onChange={e => setSmtpFromEmail(e.currentTarget.value)} />
-          <TextInput label="From Name" placeholder="GLCert" value={smtpFromName} onChange={e => setSmtpFromName(e.currentTarget.value)} />
-          <Switch label="Send expiration alerts via email" checked={emailNotificationsEnabled} onChange={e => setEmailNotificationsEnabled(e.currentTarget.checked)} />
-          <Group justify="space-between">
-            <Button variant="light" loading={testEmailStatus === 'loading'} disabled={!smtpHost || !smtpFromEmail} onClick={() => {
-              setTestEmailStatus('loading');
-              authFetchJson('/api/notifications/test-email', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: smtpFromEmail }),
-              }).then(() => setTestEmailStatus('success')).catch(() => setTestEmailStatus('error'));
-            }}>Send Test Email</Button>
-            {testEmailStatus === 'success' && <Text c="green" size="sm">Test email sent</Text>}
-            {testEmailStatus === 'error' && <Text c="red" size="sm">Failed to send test email</Text>}
-          </Group>
-          <Group justify="flex-end">
-            <Button loading={notificationMutation.isPending} onClick={() => {
-              authFetchJson('/api/settings', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  ...form.values,
-                  notificationsEnabled,
-                  notificationWebhookUrl: webhookUrl,
-                  notificationThresholdDays: thresholdDays,
-                  smtpHost, smtpPort, smtpUsername, smtpPassword: smtpPassword || '',
-                  smtpFromEmail, smtpFromName, emailNotificationsEnabled,
-                }),
-              }).then(() => {
-                queryClient.invalidateQueries({ queryKey: ['settings'] });
-                setSmtpPassword('');
-              });
-            }}>Save Email Settings</Button>
-          </Group>
+        <Section
+          id="email-h"
+          title="Email"
+          note="Used for password resets, share links and, if you turn it on, expiry alerts."
+        >
+          <div className={s.switchRow}>
+            <div>
+              <div id="email-alerts-l" className={s.switchTitle}>
+                Expiry alerts by email
+              </div>
+              <div className="gl-second-line">Same threshold as webhooks</div>
+            </div>
+            <Switch
+              aria-labelledby="email-alerts-l"
+              checked={draft.emailNotificationsEnabled}
+              onChange={(e) => set('emailNotificationsEnabled', e.currentTarget.checked)}
+            />
+          </div>
+          <div className={s.grid}>
+            <TextInput
+              label="SMTP host"
+              placeholder="smtp.example.com"
+              value={draft.smtpHost}
+              onChange={(e) => set('smtpHost', e.currentTarget.value)}
+              style={{ gridColumn: 'span 2' }}
+            />
+            <NumberInput
+              label="Port"
+              min={1}
+              max={65535}
+              value={draft.smtpPort}
+              onChange={(v) => set('smtpPort', Number(v) || 587)}
+            />
+          </div>
+          <div className={s.grid}>
+            <TextInput
+              label="Username"
+              placeholder="Optional"
+              value={draft.smtpUsername}
+              onChange={(e) => set('smtpUsername', e.currentTarget.value)}
+            />
+            <PasswordInput
+              label="Password"
+              placeholder="Leave empty to keep it"
+              value={smtpPassword}
+              onChange={(e) => setSmtpPassword(e.currentTarget.value)}
+            />
+          </div>
+          <div className={s.grid}>
+            <TextInput
+              label="From address"
+              type="email"
+              placeholder="glcert@example.com"
+              value={draft.smtpFromEmail}
+              onChange={(e) => set('smtpFromEmail', e.currentTarget.value)}
+            />
+            <TextInput
+              label="From name"
+              value={draft.smtpFromName}
+              onChange={(e) => set('smtpFromName', e.currentTarget.value)}
+            />
+          </div>
+          <div className={s.actionRow}>
+            <Button
+              variant="default"
+              disabled={dirty || !saved.smtpHost || !saved.smtpFromEmail}
+              loading={testEmail.isPending}
+              onClick={() => testEmail.mutate()}
+            >
+              Send a test email
+            </Button>
+            <span className="gl-second-line">
+              {dirty
+                ? 'Save first; the test uses the saved settings.'
+                : saved.smtpFromEmail
+                  ? `Sent to ${saved.smtpFromEmail}.`
+                  : ''}
+            </span>
+            {testEmail.isSuccess && (
+              <span className={s.status} style={{ color: 'var(--gl-success)' }}>
+                Test email sent.
+              </span>
+            )}
+            {testEmail.isError && (
+              <span className={s.status} style={{ color: 'var(--gl-danger)' }}>
+                The test email failed.
+              </span>
+            )}
+          </div>
+        </Section>
+
+        <BackupSection />
+      </div>
+    </div>
+  );
+}
+
+/** Backup, restore and factory reset, moved here from the old Administration page. */
+function BackupSection() {
+  const [dialog, setDialog] = useState<'backup' | 'restore' | 'reset' | null>(null);
+  const [password, setPassword] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [confirmText, setConfirmText] = useState('');
+  const [message, setMessage] = useState('');
+
+  const open = (d: 'backup' | 'restore' | 'reset') => {
+    setPassword('');
+    setFile(null);
+    setConfirmText('');
+    setMessage('');
+    backup.reset();
+    restore.reset();
+    setDialog(d);
+  };
+
+  const backup = useMutation({
+    mutationFn: () => authFetchDownload('/api/backup/create', { password }, 'glcert-backup.zip'),
+  });
+  const restore = useMutation({
+    mutationFn: async () => {
+      const form = new FormData();
+      form.append('backup', file!);
+      form.append('password', password);
+      const res = await authFetch('/api/backup/restore', { method: 'POST', body: form });
+      if (!res.ok) throw new Error((await res.text()) || 'Restore failed');
+      return (await res.json()) as { message: string };
+    },
+    onSuccess: (data) => setMessage(data.message),
+    onError: (e: Error) => setMessage(e.message),
+  });
+  const reset = useMutation({
+    mutationFn: () =>
+      authFetchJson('/api/admin/factory-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    onSuccess: () => {
+      localStorage.removeItem('auth_token');
+      window.location.reload();
+    },
+    onError: () => notifications.show({ color: 'red', message: 'The factory reset failed.' }),
+  });
+
+  return (
+    <Section
+      id="backup-h"
+      title="Backup and reset"
+      note="Backups are ZIP files encrypted with a password you choose. Keep them off this server."
+    >
+      <div className={s.opRow}>
+        <div className={s.opText}>
+          <span className={s.switchTitle}>Back up</span>
+          <span className="gl-second-line">Every authority, certificate, user and setting</span>
+        </div>
+        <Button variant="default" onClick={() => open('backup')}>
+          Create backup
+        </Button>
+      </div>
+      <div className={s.divider} />
+      <div className={s.opRow}>
+        <div className={s.opText}>
+          <span className={s.switchTitle}>Restore</span>
+          <span className="gl-second-line">
+            Merges a backup in. Nothing that exists is overwritten.
+          </span>
+        </div>
+        <Button variant="default" onClick={() => open('restore')}>
+          Restore from file
+        </Button>
+      </div>
+      <div className={s.divider} />
+      <div className={s.opRow}>
+        <div className={s.opText}>
+          <span className={s.switchTitle}>Factory reset</span>
+          <span className="gl-second-line">
+            Deletes every authority, certificate, account and setting. You run setup again.
+          </span>
+        </div>
+        <Button color="red" variant="outline" onClick={() => open('reset')}>
+          Factory reset
+        </Button>
+      </div>
+
+      <Modal
+        opened={dialog === 'backup'}
+        onClose={() => setDialog(null)}
+        title="Create a backup"
+        size={420}
+      >
+        <Stack>
+          <Text size="sm" c="var(--gl-text-soft)" fw={300}>
+            The ZIP is encrypted with this password. You need it to restore, and it cannot be
+            recovered.
+          </Text>
+          <PasswordInput
+            label="Backup password"
+            value={password}
+            onChange={(e) => setPassword(e.currentTarget.value)}
+            data-autofocus
+          />
+          {backup.isSuccess && (
+            <span className={s.status} style={{ color: 'var(--gl-success)' }}>
+              Backup downloaded.
+            </span>
+          )}
+          {backup.isError && (
+            <span className={s.status} style={{ color: 'var(--gl-danger)' }}>
+              The backup failed.
+            </span>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button variant="default" onClick={() => setDialog(null)}>
+              {backup.isSuccess ? 'Done' : 'Cancel'}
+            </Button>
+            {!backup.isSuccess && (
+              <Button
+                disabled={!password}
+                loading={backup.isPending}
+                onClick={() => backup.mutate()}
+              >
+                Download backup
+              </Button>
+            )}
+          </div>
         </Stack>
-      </Paper>
-    </Stack>
+      </Modal>
+
+      <Modal
+        opened={dialog === 'restore'}
+        onClose={() => setDialog(null)}
+        title="Restore from a backup"
+        size={420}
+      >
+        <Stack>
+          {restore.isSuccess ? (
+            <>
+              <Text size="sm" c="var(--gl-success)">
+                {message}
+              </Text>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <Button onClick={() => (window.location.href = '/')}>Reload</Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <Text size="sm" c="var(--gl-text-soft)" fw={300}>
+                Authorities, certificates and settings are merged in. Your account and encryption
+                keys stay as they are.
+              </Text>
+              <FileInput
+                label="Backup file"
+                placeholder="Choose a .zip file"
+                accept=".zip"
+                value={file}
+                onChange={setFile}
+              />
+              <PasswordInput
+                label="Backup password"
+                value={password}
+                onChange={(e) => setPassword(e.currentTarget.value)}
+              />
+              {restore.isError && <p className={classes.error}>{message}</p>}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <Button variant="default" onClick={() => setDialog(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  disabled={!file || !password}
+                  loading={restore.isPending}
+                  onClick={() => restore.mutate()}
+                >
+                  Restore
+                </Button>
+              </div>
+            </>
+          )}
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={dialog === 'reset'}
+        onClose={() => setDialog(null)}
+        title="Factory reset?"
+        size={420}
+      >
+        <Stack>
+          <Text size="sm" c="var(--gl-text-soft)" fw={300}>
+            Every authority, certificate, account and setting is deleted, and you run setup again.
+            This cannot be undone.
+          </Text>
+          <TextInput
+            label="Type RESET to confirm"
+            placeholder="RESET"
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.currentTarget.value)}
+          />
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button variant="default" onClick={() => setDialog(null)} data-autofocus>
+              Cancel
+            </Button>
+            <Button
+              color="red"
+              variant="outline"
+              disabled={confirmText !== 'RESET'}
+              loading={reset.isPending}
+              onClick={() => reset.mutate()}
+            >
+              Factory reset
+            </Button>
+          </div>
+        </Stack>
+      </Modal>
+    </Section>
   );
 }
 

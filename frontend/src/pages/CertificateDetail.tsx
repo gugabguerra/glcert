@@ -771,6 +771,7 @@ function CertificateDetail() {
         onClose={() => setShowShareDialog(false)}
         entityType="certificate"
         entityId={id!}
+        entityName={cert.name}
         fileOptions={[
           { value: 'certificate', label: 'Certificate (cert.pem)' },
           { value: 'key', label: 'Private Key (key.pem)' },

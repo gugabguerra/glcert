@@ -90,10 +90,12 @@ glcert/
                                 notification, totp, audit)
   frontend/
     src/
-      api.ts                    authFetch / JSON / download helpers
-      auth.tsx                  Auth context, role helpers
+      api/client.ts             authFetch / JSON / download helpers
+      hooks/useAuth.tsx         Auth context, role helpers
       App.tsx                   Routes and role-based navigation
-      components/               Shared components
+      theme/                    GL Design System tokens, Mantine theme, global CSS
+      assets/fonts/             Self-hosted Oxanium and IBM Plex Mono (OFL)
+      components/               Shared components; shell/ (sidebar), timeline/ (chart, details)
       pages/                    One file per screen
       utils/                    Password scoring, clipboard
   docs/                         This documentation set

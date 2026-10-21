@@ -160,3 +160,32 @@ func TestListsFailClosedOnPermissionLookupError(t *testing.T) {
 		t.Fatalf("accessibleCAFilter = (%q, %v, %v), want impossible filter", cond, args, filtered)
 	}
 }
+
+func TestCertListIncludesIssueDate(t *testing.T) {
+	h, auth, _ := seedDashboard(t)
+	certHandler := NewCertHandler(h.db, nil, nil, h.crypto, auth)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/certificates", nil)
+	rr := httptest.NewRecorder()
+	certHandler.List(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rr.Code)
+	}
+
+	var certs []struct {
+		ID        string     `json:"id"`
+		IssuedAt  *time.Time `json:"issuedAt"`
+		ExpiresAt *time.Time `json:"expiresAt"`
+	}
+	if err := json.NewDecoder(rr.Body).Decode(&certs); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(certs) == 0 {
+		t.Fatal("expected seeded certificates in the list")
+	}
+	for _, c := range certs {
+		if c.IssuedAt == nil {
+			t.Fatalf("certificate %s has no issuedAt; the timeline needs the current version's issue date", c.ID)
+		}
+	}
+}

@@ -1,30 +1,35 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { MantineProvider, type MantineColorScheme } from '@mantine/core';
+import { MantineProvider, localStorageColorSchemeManager } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
-import App from './App';
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
+import { theme, cssVariablesResolver } from './theme/theme';
+import './theme/global.css';
+import App from './App';
 
 const queryClient = new QueryClient();
 
-function getColorScheme(): MantineColorScheme {
-  const stored = localStorage.getItem('glcert-color-scheme');
-  if (stored === 'light' || stored === 'dark') return stored;
-  return 'auto';
-}
+// Same key and values ('light' | 'dark' | 'auto') the app has always stored, so saved choices
+// carry over.
+const colorSchemeManager = localStorageColorSchemeManager({ key: 'glcert-color-scheme' });
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <MantineProvider theme={{ primaryColor: 'teal' }} defaultColorScheme={getColorScheme()}>
+      <MantineProvider
+        theme={theme}
+        cssVariablesResolver={cssVariablesResolver}
+        colorSchemeManager={colorSchemeManager}
+        defaultColorScheme="auto"
+      >
         <Notifications position="top-right" />
         <BrowserRouter>
           <App />
         </BrowserRouter>
       </MantineProvider>
     </QueryClientProvider>
-  </React.StrictMode>
+  </React.StrictMode>,
 );

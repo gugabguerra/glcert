@@ -1,0 +1,148 @@
+/* Authority page from the redesign's FAuthority screen. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 1200px;
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.breadcrumb {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--gl-text-muted);
+}
+
+.title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 500;
+  color: var(--gl-text);
+  overflow-wrap: anywhere;
+}
+
+.validity {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+/* Display numeral, as in the details panel. */
+.days {
+  font-size: 40px;
+  line-height: 44px;
+  font-weight: 200;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.unit {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 300;
+  color: var(--gl-text-muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 32px 48px;
+}
+
+.column {
+  flex: 1 1 360px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.person {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
+
+.avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 999px;
+  background: var(--gl-fill);
+  color: var(--gl-text-soft);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.who {
+  flex-grow: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.personName {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--gl-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.muted {
+  margin: 0;
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 300;
+  color: var(--gl-text-muted);
+}
+
+.grant {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.danger {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--gl-border);
+}
+
+.dangerText {
+  flex: 1 1 320px;
+  display: flex;
+  flex-direction: column;
+}
+
+.loading {
+  height: 320px;
+  border-radius: var(--gl-r-card);
+  background: var(--gl-fill-soft);
+}

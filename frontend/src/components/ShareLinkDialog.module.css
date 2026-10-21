@@ -1,0 +1,140 @@
+/* Share link dialog from the redesign's FShareLink screen. */
+
+.lead {
+  margin: 0;
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 300;
+  color: var(--gl-text-soft);
+}
+
+.files {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.file {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--gl-r-control);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.file:hover {
+  background: var(--gl-fill-soft);
+}
+
+.file[aria-checked='true'] {
+  background: var(--gl-accent-soft);
+}
+
+.radio {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--gl-border-field);
+  border-radius: 999px;
+}
+
+.file[aria-checked='true'] .radio {
+  border-color: var(--gl-accent);
+}
+
+.file[aria-checked='true'] .radio::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--gl-accent);
+}
+
+.fileText {
+  flex-grow: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.fileLabel {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--gl-text);
+}
+
+.keyWarning {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--gl-warning);
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+}
+
+.expiry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.expiryTrack {
+  flex-grow: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--gl-fill-soft);
+}
+
+.expiryBar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--gl-text-muted);
+  transition: width 1s linear;
+}
+
+.commands {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+
+.linkButton {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--gl-link);
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--gl-border);
+}
