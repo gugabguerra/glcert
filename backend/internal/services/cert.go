@@ -40,6 +40,7 @@ type CreateCertInput struct {
 	City              string   `json:"city"`
 	KeyAlgorithm      string   `json:"keyAlgorithm"`
 	RSAKeySize        int      `json:"rsaKeySize"`
+	ECDSACurve        string   `json:"ecdsaCurve"`
 	ValidityDays      int      `json:"validityDays"`
 }
 
@@ -51,14 +52,15 @@ type CertResult struct {
 }
 
 func (s *CertService) GenerateCert(input CreateCertInput, caCertPEM, caKeyPEM []byte) (*CertResult, error) {
-	if input.RSAKeySize == 0 {
-		input.RSAKeySize = 2048
-	}
 	if input.ValidityDays == 0 {
 		input.ValidityDays = 365
 	}
 
-	privKey, err := rsa.GenerateKey(rand.Reader, input.RSAKeySize)
+	privKey, err := generateKey(KeyParams{
+		Algorithm:  input.KeyAlgorithm,
+		RSAKeySize: input.RSAKeySize,
+		ECDSACurve: input.ECDSACurve,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("generate private key: %w", err)
 	}
@@ -108,6 +110,7 @@ func (s *CertService) GenerateCert(input CreateCertInput, caCertPEM, caKeyPEM []
 		template.KeyUsage = x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment
 		template.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth}
 	}
+	template.KeyUsage = keyUsageFor(privKey, template.KeyUsage)
 
 	var certDER []byte
 	var certPEM []byte
@@ -115,7 +118,7 @@ func (s *CertService) GenerateCert(input CreateCertInput, caCertPEM, caKeyPEM []
 
 	if input.Type == "selfsigned" {
 		// Self-signed: sign with own key
-		certDER, err = x509.CreateCertificate(rand.Reader, template, template, &privKey.PublicKey, privKey)
+		certDER, err = x509.CreateCertificate(rand.Reader, template, template, privKey.Public(), privKey)
 		if err != nil {
 			return nil, fmt.Errorf("create certificate: %w", err)
 		}
@@ -134,23 +137,26 @@ func (s *CertService) GenerateCert(input CreateCertInput, caCertPEM, caKeyPEM []
 			return nil, fmt.Errorf("parse CA certificate: %w", err)
 		}
 
-		block, _ := pem.Decode(caKeyPEM)
-		if block == nil {
-			return nil, fmt.Errorf("decode CA key PEM")
-		}
-		caKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+		parsedCAKey, err := parsePrivateKeyWithPassphrase(caKeyPEM, nil)
 		if err != nil {
 			return nil, fmt.Errorf("parse CA key: %w", err)
 		}
+		caKey, err := signerFromKey(parsedCAKey)
+		if err != nil {
+			return nil, fmt.Errorf("CA key: %w", err)
+		}
 
-		certDER, err = x509.CreateCertificate(rand.Reader, template, caCert, &privKey.PublicKey, caKey)
+		certDER, err = x509.CreateCertificate(rand.Reader, template, caCert, privKey.Public(), caKey)
 		if err != nil {
 			return nil, fmt.Errorf("create certificate: %w", err)
 		}
 	}
 
 	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privKey)})
+	keyPEM, err = encodePrivateKeyPEM(privKey)
+	if err != nil {
+		return nil, err
+	}
 
 	cert := &models.Certificate{
 		Name:                   input.Name,

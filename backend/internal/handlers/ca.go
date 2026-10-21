@@ -48,6 +48,7 @@ type CreateCARequest struct {
 	Email        string  `json:"email"`
 	KeyAlgorithm string  `json:"keyAlgorithm"`
 	RSAKeySize   int     `json:"rsaKeySize"`
+	ECDSACurve   string  `json:"ecdsaCurve"`
 	ValidityDays int     `json:"validityDays"`
 	Passphrase   string  `json:"passphrase"`
 	ParentCAID   *string `json:"parentCaId"`
@@ -220,6 +221,13 @@ func (h *CAHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := services.ValidateKeyParams(services.KeyParams{
+		Algorithm: req.KeyAlgorithm, RSAKeySize: req.RSAKeySize, ECDSACurve: req.ECDSACurve,
+	}); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	// If creating an intermediate CA, fetch parent CA cert and key
 	var parentCertPEM, parentKeyPEM []byte
 	if req.ParentCAID != nil && *req.ParentCAID != "" {
@@ -261,6 +269,7 @@ func (h *CAHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Email:        req.Email,
 		KeyAlgorithm: req.KeyAlgorithm,
 		RSAKeySize:   req.RSAKeySize,
+		ECDSACurve:   req.ECDSACurve,
 		ValidityDays: req.ValidityDays,
 		ParentCAID:   req.ParentCAID,
 	}, parentCertPEM, parentKeyPEM)

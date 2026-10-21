@@ -66,6 +66,7 @@ type CreateCertRequest struct {
 	City                   string   `json:"city"`
 	KeyAlgorithm           string   `json:"keyAlgorithm"`
 	RSAKeySize             int      `json:"rsaKeySize"`
+	ECDSACurve             string   `json:"ecdsaCurve"`
 	ValidityDays           int      `json:"validityDays"`
 	GroupName              string   `json:"groupName"`
 }
@@ -241,6 +242,13 @@ func (h *CertHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := services.ValidateKeyParams(services.KeyParams{
+		Algorithm: req.KeyAlgorithm, RSAKeySize: req.RSAKeySize, ECDSACurve: req.ECDSACurve,
+	}); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	if req.Type != "selfsigned" && req.CertificateAuthorityID == nil {
 		http.Error(w, "certificateAuthorityId is required for server/client certificates", http.StatusBadRequest)
 		return
@@ -279,6 +287,7 @@ func (h *CertHandler) Create(w http.ResponseWriter, r *http.Request) {
 		City:              req.City,
 		KeyAlgorithm:      req.KeyAlgorithm,
 		RSAKeySize:        req.RSAKeySize,
+		ECDSACurve:        req.ECDSACurve,
 		ValidityDays:      req.ValidityDays,
 	}, caCertPEM, caKeyPEM)
 	if err != nil {

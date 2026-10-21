@@ -23,8 +23,9 @@ Screenshots are coming soon. Replace each placeholder below with an image when t
 
 - **Certificate authorities:** Create or import root and intermediate CAs with RSA, ECDSA, or
   Ed25519 keys. Manage parent-child chains and download certificates and private keys.
-- **Certificate lifecycle:** Issue server, client, combined, or self-signed certificates. Set
-  validity periods, regenerate certificates, and restore earlier versions.
+- **Certificate lifecycle:** Issue server, client, combined, or self-signed certificates with
+  RSA, ECDSA (P-256, P-384, P-521), or Ed25519 keys. Set validity periods, regenerate
+  certificates (keeping their key algorithm), and restore earlier versions.
 - **Role-based access:** Admin, Operator, and Viewer roles, with per-CA permissions enforced by
   the server.
 - **Downloads and sharing:** Download individual files or ZIP/TGZ bundles. Create single-use,

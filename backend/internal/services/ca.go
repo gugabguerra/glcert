@@ -37,6 +37,7 @@ type CreateCAInput struct {
 	Email        string  `json:"email"`
 	KeyAlgorithm string  `json:"keyAlgorithm"`
 	RSAKeySize   int     `json:"rsaKeySize"`
+	ECDSACurve   string  `json:"ecdsaCurve"`
 	ValidityDays int     `json:"validityDays"`
 	ParentCAID   *string `json:"parentCaId"`
 }
@@ -45,14 +46,15 @@ type CreateCAInput struct {
 // intermediate CA signed by the parent. Otherwise, it creates a self-signed root CA.
 // Returns the model, cert PEM (chain for intermediates), and key PEM.
 func (s *CAService) GenerateCA(input CreateCAInput, parentCertPEM, parentKeyPEM []byte) (*models.CertificateAuthority, []byte, []byte, error) {
-	if input.RSAKeySize == 0 {
-		input.RSAKeySize = 2048
-	}
 	if input.ValidityDays == 0 {
 		input.ValidityDays = 1825
 	}
 
-	privKey, err := rsa.GenerateKey(rand.Reader, input.RSAKeySize)
+	privKey, err := generateKey(KeyParams{
+		Algorithm:  input.KeyAlgorithm,
+		RSAKeySize: input.RSAKeySize,
+		ECDSACurve: input.ECDSACurve,
+	})
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("generate private key: %w", err)
 	}
@@ -101,17 +103,12 @@ func (s *CAService) GenerateCA(input CreateCAInput, parentCertPEM, parentKeyPEM 
 			return nil, nil, nil, fmt.Errorf("parse parent CA key: %w", err)
 		}
 
-		var signingKey interface{}
-		switch k := parentKey.(type) {
-		case *rsa.PrivateKey:
-			signingKey = k
-		case *ecdsa.PrivateKey:
-			signingKey = k
-		default:
-			return nil, nil, nil, fmt.Errorf("unsupported parent CA key type: %T", parentKey)
+		signingKey, err := signerFromKey(parentKey)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("parent CA key: %w", err)
 		}
 
-		certDER, err = x509.CreateCertificate(rand.Reader, template, parentCert, &privKey.PublicKey, signingKey)
+		certDER, err = x509.CreateCertificate(rand.Reader, template, parentCert, privKey.Public(), signingKey)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("create intermediate certificate: %w", err)
 		}
@@ -123,14 +120,17 @@ func (s *CAService) GenerateCA(input CreateCAInput, parentCertPEM, parentKeyPEM 
 		// Root CA: self-signed, MaxPathLen=1
 		template.MaxPathLen = 1
 
-		certDER, err = x509.CreateCertificate(rand.Reader, template, template, &privKey.PublicKey, privKey)
+		certDER, err = x509.CreateCertificate(rand.Reader, template, template, privKey.Public(), privKey)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("create root certificate: %w", err)
 		}
 		certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
 	}
 
-	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privKey)})
+	keyPEM, err := encodePrivateKeyPEM(privKey)
+	if err != nil {
+		return nil, nil, nil, err
+	}
 
 	ca := &models.CertificateAuthority{
 		Name:           input.Name,
@@ -279,17 +279,9 @@ func (s *CAService) ReadCA(name string, version int, passphrase string) ([]byte,
 		if err != nil {
 			return nil, nil, fmt.Errorf("decrypt passphrase-protected key: %w", err)
 		}
-		switch k := key.(type) {
-		case *rsa.PrivateKey:
-			keyPEM = pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(k)})
-		case *ecdsa.PrivateKey:
-			der, err := x509.MarshalECPrivateKey(k)
-			if err != nil {
-				return nil, nil, fmt.Errorf("marshal EC key: %w", err)
-			}
-			keyPEM = pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: der})
-		default:
-			return nil, nil, fmt.Errorf("unsupported key type for re-encoding")
+		keyPEM, err = encodePrivateKeyPEM(key)
+		if err != nil {
+			return nil, nil, fmt.Errorf("re-encode key: %w", err)
 		}
 	}
 

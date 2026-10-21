@@ -7,6 +7,10 @@ file.
 
 ### Fixed
 
+- New CAs and certificates now use the requested `keyAlgorithm` (`rsa`, `ecdsa` with an optional
+  `ecdsaCurve`, or `ed25519`) instead of always generating RSA keys, and regenerating a
+  certificate keeps its algorithm, size and curve. Certificates can now also be issued under
+  imported ECDSA or Ed25519 CAs, and unknown algorithms are rejected with 400.
 - Dashboard counts (CAs, certificates, expiring, expired) are now limited to the CAs an operator
   or viewer is granted, instead of showing totals for every CA.
 - Operators with no CA grants no longer see every CA and certificate in the lists, and child CAs

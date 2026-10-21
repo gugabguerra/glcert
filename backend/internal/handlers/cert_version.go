@@ -103,6 +103,14 @@ func (h *CertHandler) Regenerate(w http.ResponseWriter, r *http.Request) {
 
 	newVersion := currentVersion + 1
 
+	// Keep the key algorithm, size and curve of the current version.
+	keyParams := services.KeyParams{Algorithm: "rsa", RSAKeySize: 2048}
+	if currentCertPEM, _, _, rErr := h.cert.ReadCert(certType, name, currentVersion); rErr == nil {
+		if p, pErr := services.KeyParamsFromCertPEM(currentCertPEM); pErr == nil {
+			keyParams = p
+		}
+	}
+
 	result, err := h.cert.GenerateCert(services.CreateCertInput{
 		Name:        name,
 		Description: description,
@@ -120,8 +128,9 @@ func (h *CertHandler) Regenerate(w http.ResponseWriter, r *http.Request) {
 		Country:      country,
 		State:        state,
 		City:         city,
-		KeyAlgorithm: "rsa",
-		RSAKeySize:   2048,
+		KeyAlgorithm: keyParams.Algorithm,
+		RSAKeySize:   keyParams.RSAKeySize,
+		ECDSACurve:   keyParams.ECDSACurve,
 		ValidityDays: req.ValidityDays,
 	}, caCertPEM, caKeyPEM)
 	if err != nil {
