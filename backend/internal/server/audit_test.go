@@ -148,7 +148,12 @@ func TestAuditFactoryResetSurvives(t *testing.T) {
 	adminToken := completeSetup(t, h)
 	createCAAs(t, h, adminToken, "gone-ca", "gone.example.com")
 
-	rr := doRequest(t, h, http.MethodPost, "/api/admin/factory-reset", nil, adminToken)
+	rr := doRequest(t, h, http.MethodPost, "/api/admin/factory-reset", map[string]string{"password": "wrong"}, adminToken)
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("factory reset with a wrong password must be refused, got %d", rr.Code)
+	}
+
+	rr = doRequest(t, h, http.MethodPost, "/api/admin/factory-reset", map[string]string{"password": "admin-password123!"}, adminToken)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("factory reset: status=%d body=%s", rr.Code, rr.Body.String())
 	}

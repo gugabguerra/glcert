@@ -22,10 +22,12 @@ type ShareHandler struct {
 	crypto *services.CryptoService
 	email  *services.EmailService
 	auth   *services.AuthService
+	// publicURL is the configured origin emailed links are built from.
+	publicURL string
 }
 
-func NewShareHandler(db *sql.DB, cert *services.CertService, ca *services.CAService, crypto *services.CryptoService, email *services.EmailService, auth *services.AuthService) *ShareHandler {
-	return &ShareHandler{db: db, cert: cert, ca: ca, crypto: crypto, email: email, auth: auth}
+func NewShareHandler(db *sql.DB, cert *services.CertService, ca *services.CAService, crypto *services.CryptoService, email *services.EmailService, auth *services.AuthService, publicURL string) *ShareHandler {
+	return &ShareHandler{db: db, cert: cert, ca: ca, crypto: crypto, email: email, auth: auth, publicURL: publicURL}
 }
 
 var validFileTypes = map[string]bool{
@@ -119,8 +121,10 @@ func (h *ShareHandler) ServeLink(w http.ResponseWriter, r *http.Request) {
 	var fileType string
 	var expiresAt time.Time
 
+	// Claim the token before serving: the delete is the single-use check, so
+	// two concurrent requests can never both download the file.
 	err := h.db.QueryRow(
-		"SELECT entity_type, entity_id, file_type, expires_at FROM share_links WHERE token = ?", token,
+		"DELETE FROM share_links WHERE token = ? RETURNING entity_type, entity_id, file_type, expires_at", token,
 	).Scan(&entityType, &entityID, &fileType, &expiresAt)
 
 	if err == sql.ErrNoRows {
@@ -137,13 +141,12 @@ func (h *ShareHandler) ServeLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("Cache-Control", "no-store")
 	if entityType == "certificate" {
 		h.serveCertFile(w, r, entityID, fileType)
 	} else {
 		h.serveCAFile(w, r, entityID, fileType)
 	}
-
-	go h.db.Exec("DELETE FROM share_links WHERE token = ?", token)
 }
 
 func (h *ShareHandler) serveCertFile(w http.ResponseWriter, r *http.Request, id string, fileType string) {
@@ -284,25 +287,43 @@ func generateToken() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
+// SendShareEmail emails an existing share link. The link is rebuilt here from
+// the token and the configured public URL, never taken from the client, so
+// the endpoint cannot relay arbitrary links through the server's mail.
 func (h *ShareHandler) SendShareEmail(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Email    string `json:"email"`
-		URL      string `json:"url"`
+		Token    string `json:"token"`
 		FileName string `json:"fileName"`
-		FileType string `json:"fileType"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	if req.Email == "" || req.URL == "" || req.FileName == "" {
-		http.Error(w, "email, url, and fileName are required", http.StatusBadRequest)
+	if req.Email == "" || req.Token == "" || req.FileName == "" {
+		http.Error(w, "email, token, and fileName are required", http.StatusBadRequest)
+		return
+	}
+	if h.publicURL == "" {
+		http.Error(w, "emailing links needs the server's PUBLIC_URL setting", http.StatusServiceUnavailable)
 		return
 	}
 
-	subject := fmt.Sprintf("GLCert Share Link — %s", req.FileName)
-	htmlBody := buildShareEmailBody(req.FileName, req.URL)
+	var expiresAt time.Time
+	err := h.db.QueryRow("SELECT expires_at FROM share_links WHERE token = ?", req.Token).Scan(&expiresAt)
+	if err != nil || time.Now().After(expiresAt) {
+		http.Error(w, "share link not found or expired", http.StatusNotFound)
+		return
+	}
+
+	fileName := sanitizeFilename(req.FileName)
+	if len(fileName) > 128 {
+		fileName = fileName[:128]
+	}
+	shareURL := h.publicURL + "/api/share/" + req.Token
+	subject := fmt.Sprintf("GLCert Share Link — %s", fileName)
+	htmlBody := buildShareEmailBody(fileName, shareURL)
 
 	if err := h.email.SendEmail(req.Email, subject, htmlBody); err != nil {
 		http.Error(w, "failed to send email: "+err.Error(), http.StatusInternalServerError)

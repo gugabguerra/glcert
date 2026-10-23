@@ -1,43 +1,28 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
-	"net/url"
 	"strings"
 
+	"github.com/gugabguerra/glcert/internal/logger"
 	"github.com/gugabguerra/glcert/internal/services"
 )
-
-// appBaseURL derives the externally reachable base URL for links embedded in
-// emails (e.g. password reset). It honours X-Forwarded-Proto when present and
-// validates the Host header so a poisoned or malformed Host cannot be used to
-// craft phishing links or header-injection payloads.
-func appBaseURL(r *http.Request) string {
-	scheme := "http"
-	if r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https") {
-		scheme = "https"
-	}
-	host := strings.TrimSpace(r.Host)
-	if host == "" || strings.ContainsAny(host, "/\\\r\n") {
-		return "http://localhost"
-	}
-	if u, err := url.Parse(scheme + "://" + host); err != nil || u.Host != host || u.Path != "" {
-		return "http://localhost"
-	}
-	return scheme + "://" + host
-}
 
 type AuthHandler struct {
 	auth   *services.AuthService
 	crypto *services.CryptoService
 	email  *services.EmailService
 	totp   *services.TOTPService
+	// publicURL is the configured origin reset links are built from; the
+	// Host header is never trusted for them.
+	publicURL string
 }
 
-func NewAuthHandler(auth *services.AuthService, crypto *services.CryptoService, email *services.EmailService, totp *services.TOTPService) *AuthHandler {
-	return &AuthHandler{auth: auth, crypto: crypto, email: email, totp: totp}
+func NewAuthHandler(auth *services.AuthService, crypto *services.CryptoService, email *services.EmailService, totp *services.TOTPService, publicURL string) *AuthHandler {
+	return &AuthHandler{auth: auth, crypto: crypto, email: email, totp: totp, publicURL: publicURL}
 }
 
 type SetupRequest struct {
@@ -88,7 +73,7 @@ func (h *AuthHandler) Setup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.crypto.SavePassphrase(req.EncryptionPassphrase, req.Password); err != nil {
+	if err := h.crypto.SavePassphrase(req.EncryptionPassphrase, userID, req.Password); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -124,11 +109,9 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.crypto.HasPassphrase() && result.Role == "admin" {
-		if err := h.crypto.LoadPassphrase(req.Password); err != nil {
-			http.Error(w, "failed to load encryption passphrase", http.StatusInternalServerError)
-			return
-		}
+	// Unlock before the TOTP step: the TOTP secret itself is encrypted.
+	if result.Role == "admin" {
+		unlockForAdmin(h.auth.DB(), h.crypto, result.UserID, req.Password)
 	}
 
 	if result.TOTPEnabled {
@@ -190,15 +173,11 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.crypto.HasPassphrase() && GetUserRole(r.Context()) == "admin" {
-		if err := h.crypto.ChangeAdminPassword(req.CurrentPassword, req.NewPassword); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+	if role := GetUserRole(r.Context()); role == "admin" {
+		if !h.crypto.IsEnabled() {
+			unlockForAdmin(h.auth.DB(), h.crypto, userID, req.CurrentPassword)
 		}
-		if err := h.crypto.LoadPassphrase(req.NewPassword); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+		syncAdminKey(h.crypto, userID, role, req.NewPassword)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -235,10 +214,12 @@ func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.auth.SaveResetToken(userID, token)
-
-	resetURL := fmt.Sprintf("%s/reset-password?token=%s", appBaseURL(r), token)
-	h.email.SendPasswordResetEmail(req.Email, resetURL)
+	if h.publicURL == "" {
+		logger.Warnf("Password reset requested, but no email sent: PUBLIC_URL is not set")
+	} else {
+		h.auth.SaveResetToken(userID, token)
+		h.email.SendPasswordResetEmail(req.Email, h.publicURL+"/reset-password?token="+token)
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -265,20 +246,84 @@ func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.auth.ResetPassword(req.Token, req.Password); err != nil {
+	userID, err := h.auth.ResetPassword(req.Token, req.Password)
+	if err != nil {
 		http.Error(w, "invalid or expired token", http.StatusBadRequest)
 		return
 	}
-
-	if h.crypto.HasPassphrase() && h.crypto.IsEnabled() {
-		if err := h.crypto.LoadPassphrase(req.Password); err != nil {
-			http.Error(w, "password updated but failed to load encryption", http.StatusInternalServerError)
-			return
-		}
-	}
+	role, _ := h.auth.GetUserRole(userID)
+	syncAdminKey(h.crypto, userID, role, req.Password)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+// UnlockEncryption is the recovery path when no admin's key copy opens (for
+// example the only admin reset a forgotten password while the server was
+// locked). The setup encryption passphrase unlocks the key, and the caller's
+// copy is rewritten under their current password.
+func (h *AuthHandler) UnlockEncryption(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Passphrase string `json:"passphrase"`
+		Password   string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Passphrase == "" || req.Password == "" {
+		http.Error(w, "passphrase and password are required", http.StatusBadRequest)
+		return
+	}
+	userID := GetUserID(r.Context())
+	// 403, not 401: the client treats 401 as an expired session.
+	if !h.auth.ValidatePassword(userID, req.Password) {
+		http.Error(w, "wrong password", http.StatusForbidden)
+		return
+	}
+	if err := h.crypto.UnlockWithPassphrase(req.Passphrase); err != nil {
+		http.Error(w, "wrong encryption passphrase", http.StatusForbidden)
+		return
+	}
+	if err := h.crypto.SetWrap(userID, req.Password); err != nil {
+		logger.Errorf("store encryption key copy: %v", err)
+		http.Error(w, "unlocked, but the key copy could not be saved", http.StatusInternalServerError)
+		return
+	}
+	recordAudit(h.auth.DB(), r, "encryption.unlock", "settings", "", "Encryption unlocked with the passphrase")
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+// unlockForAdmin opens the encryption key at an admin sign-in. A v1 key file
+// is migrated on the spot, and a missing or stale copy is replaced when the
+// service is already unlocked. A failure never blocks the sign-in: encrypted
+// operations stay locked instead (fail closed).
+func unlockForAdmin(db *sql.DB, crypto *services.CryptoService, userID, password string) {
+	if !crypto.HasPassphrase() {
+		return
+	}
+	err := crypto.Unlock(userID, password)
+	if errors.Is(err, services.ErrLegacyKeyFile) {
+		_, err = crypto.MigrateV1(db, userID, password)
+	}
+	if err == nil {
+		return
+	}
+	if crypto.IsEnabled() {
+		syncAdminKey(crypto, userID, "admin", password)
+		return
+	}
+	logger.Warnf("Admin sign-in left encryption locked: %v", err)
+}
+
+// syncAdminKey keeps an admin's copy of the encryption passphrase in step with
+// their password; other roles hold none. While the service is locked it does
+// nothing: the admin re-enrolls at the next sign-in after any admin unlocks.
+func syncAdminKey(crypto *services.CryptoService, userID, role, password string) {
+	if role != "admin" || !crypto.IsEnabled() {
+		return
+	}
+	if err := crypto.SetWrap(userID, password); err != nil {
+		logger.Errorf("Store encryption key copy: %v", err)
+	}
 }
 
 func extractToken(r *http.Request) string {

@@ -15,8 +15,8 @@ full version of the README's security notes.
   password invalidates **all** sessions. Login and password-reset endpoints are rate-limited and
   never reveal whether an account exists.
 - **MFA** — TOTP with AES-GCM-encrypted secrets and single-use SHA-256-hashed backup codes.
-- **Password reset** — single-use, one-hour tokens delivered by email; links are built from a
-  validated base URL.
+- **Password reset** — single-use, 15-minute tokens delivered by email; links are built only from
+  `PUBLIC_URL`.
 - **Share links** — single-use, 15-minute, unauthenticated download tokens for exactly one file.
 - **Audit log** — every successful state change to CAs, certificates, CA grants, users, settings
   and backups, and every factory reset, writes an `audit_log` row with the acting user's id and
@@ -27,8 +27,24 @@ full version of the README's security notes.
 
 ## What is encrypted
 
-- Private keys at rest — AES-GCM under the master key in `data/encryption.key`; the service
-  **fails closed** if the key is unavailable.
+- Private keys at rest — AES-GCM under a data key derived as PBKDF2(setup passphrase, salt). The
+  passphrase chosen at setup is the root secret and is never stored in the clear.
+  `data/encryption.key` is JSON `{version: 2, salt, check, wraps}`; `wraps` holds one copy of the
+  passphrase per admin, wrapped with a key derived from that admin's password.
+- **Unlock** — any admin sign-in unlocks the service. Sign-in never fails because of encryption;
+  operations stay locked instead (**fail closed**). Password change or reset and admin creation
+  rewrite that admin's copy while unlocked; demotion or deletion removes it. An admin with a
+  missing or stale copy gets a fresh one at the next sign-in once any admin has unlocked.
+- **Recovery** — `POST /api/auth/unlock-encryption` (admin, rate limited) takes the setup
+  passphrase and the caller's password, unlocks, and rewrites the caller's copy. Wrong values
+  return `403`. There is no UI; use curl.
+- **Migration** — the first admin sign-in after upgrading from the v1 scheme (data key derived
+  from the admin password) converts `data/encryption.key` once: CA and certificate key files and
+  the encrypted columns (TOTP secrets, CA passphrases, SMTP password) are re-encrypted. The
+  original is kept as `data/encryption.key.v1`; secrets neither key opens are left as they are and
+  counted in the log; an interrupted run resumes (`data/encryption.key.salt` holds the pending
+  salt). Only the admin whose password opens the v1 file can trigger it. Back up `data/` first.
+- The SMTP password is stored encrypted only: saving it while locked returns `503`.
 - TOTP secrets and key passphrases (AES-GCM); passwords (bcrypt); backup codes (SHA-256).
 - Backups are password-encrypted ZIP archives.
 
@@ -47,6 +63,11 @@ full version of the README's security notes.
 - **Operator access** — operators can download private keys for CAs they are granted.
   *Mitigation:* grant narrowly, review `ca.permissions.update` audit entries, revoke by deleting
   the grant or the user.
+- **Key protection** — each admin's password protects a copy of the root passphrase, so TOTP does
+  not add to key protection. *Mitigation:* strong admin passwords and a locked-down `data/`.
+- **Backups across instances** — restore does not apply the backup's encryption key, so another
+  instance cannot open the restored keys. A backup taken before the v2 migration should be restored only
+  onto the version it came from, or onto a cold copy of the old `data/` folder.
 - **Email** — reset and share links travel by SMTP. *Mitigation:* TLS SMTP and a dedicated
   mailbox.
 
@@ -59,7 +80,9 @@ full version of the README's security notes.
 4. Keep `LOG_LEVEL` at `info` outside debugging sessions.
 5. Back up regularly (`POST /api/backup/create`); store the backup password separately from the
    backup file.
-6. When retiring an instance, wipe thoroughly: factory reset (admin) or delete `data/` entirely.
+6. Set `PUBLIC_URL` to the external origin (behind your TLS proxy). Reset and share emails are
+   built only from it, never from the `Host` header; without it they are not sent.
+7. When retiring an instance, wipe thoroughly: factory reset (admin) or delete `data/` entirely.
 
 ## Reporting a problem
 

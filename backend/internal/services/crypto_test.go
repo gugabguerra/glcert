@@ -30,7 +30,7 @@ func TestEncryptFailsClosedWhenLocked(t *testing.T) {
 	dir := t.TempDir()
 
 	setup := NewCryptoService(dir)
-	if err := setup.SavePassphrase("correct horse battery staple", "admin-password"); err != nil {
+	if err := setup.SavePassphrase("correct horse battery staple", "admin-1", "admin-password"); err != nil {
 		t.Fatalf("SavePassphrase: %v", err)
 	}
 
@@ -52,7 +52,7 @@ func TestEncryptDecryptRoundTripWhenUnlocked(t *testing.T) {
 	const pass = "correct horse battery staple"
 
 	s := NewCryptoService(dir)
-	if err := s.SavePassphrase(pass, "admin-password"); err != nil {
+	if err := s.SavePassphrase(pass, "admin-1", "admin-password"); err != nil {
 		t.Fatalf("SavePassphrase: %v", err)
 	}
 
@@ -66,8 +66,8 @@ func TestEncryptDecryptRoundTripWhenUnlocked(t *testing.T) {
 
 	// A fresh instance that loads the passphrase must decrypt the same blob.
 	unlocked := NewCryptoService(dir)
-	if err := unlocked.LoadPassphrase("admin-password"); err != nil {
-		t.Fatalf("LoadPassphrase: %v", err)
+	if err := unlocked.Unlock("admin-1", "admin-password"); err != nil {
+		t.Fatalf("Unlock: %v", err)
 	}
 	plain, err := unlocked.Decrypt(enc)
 	if err != nil {
@@ -83,7 +83,7 @@ func TestPassphraseFileDeletedAllowsPlaintextAgain(t *testing.T) {
 	const pass = "correct horse battery staple"
 
 	s := NewCryptoService(dir)
-	if err := s.SavePassphrase(pass, "admin-password"); err != nil {
+	if err := s.SavePassphrase(pass, "admin-1", "admin-password"); err != nil {
 		t.Fatalf("SavePassphrase: %v", err)
 	}
 

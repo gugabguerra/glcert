@@ -28,6 +28,7 @@ interface ShareLinkDialogProps {
 }
 
 interface ShareResult {
+  token: string;
   url: string;
   fileType: string;
   expiresAt: number;
@@ -82,6 +83,7 @@ export function ShareLinkDialog({
       const parsed = Date.parse(data.expires_at);
       setNow(Date.now());
       setResult({
+        token: data.token,
         url: `${window.location.origin}/api/share/${data.token}`,
         fileType: data.file_type,
         expiresAt: Number.isNaN(parsed) ? Date.now() + SHARE_LINK_LIFETIME_MS : parsed,
@@ -98,16 +100,16 @@ export function ShareLinkDialog({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: email.trim(),
-          url: result!.url,
+          token: result!.token,
           fileName: fileNameFor(result!.fileType),
-          fileType: result!.fileType,
         }),
       }),
     onSuccess: () => {
       notifications.show({ message: `Link sent to ${email.trim()}.` });
       setEmail('');
     },
-    onError: () => notifications.show({ color: 'red', message: 'Could not send the email.' }),
+    onError: (e: Error) =>
+      notifications.show({ color: 'red', message: e.message || 'Could not send the email.' }),
   });
 
   const copy = async (text: string, what: string) => {

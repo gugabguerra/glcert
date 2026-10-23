@@ -4,8 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/gugabguerra/glcert/internal/logger"
 	"github.com/gugabguerra/glcert/internal/services"
 )
 
@@ -127,4 +131,36 @@ func SecurityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		next.ServeHTTP(w, r)
 	})
+}
+
+// MaxBodyBytes caps every request body. Backup restore sets its own larger cap.
+const MaxBodyBytes = 1 << 20
+
+// LimitBody applies MaxBodyBytes to every request except backup restore.
+func LimitBody(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/backup/restore" {
+			r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// RequestLog logs each request without its query string, and with share
+// tokens redacted: they are bearer credentials for a private key.
+func RequestLog(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+		start := time.Now()
+		next.ServeHTTP(ww, r)
+		logger.Infof("%s %s %d %dB %s", r.Method, redactPath(r.URL.Path), ww.Status(), ww.BytesWritten(), time.Since(start).Round(time.Microsecond))
+	})
+}
+
+func redactPath(path string) string {
+	const sharePrefix = "/api/share/"
+	if rest, ok := strings.CutPrefix(path, sharePrefix); ok && !strings.Contains(rest, "/") && rest != "send-email" {
+		return sharePrefix + "[redacted]"
+	}
+	return path
 }

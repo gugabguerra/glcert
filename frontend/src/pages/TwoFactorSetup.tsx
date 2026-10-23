@@ -44,7 +44,7 @@ function TwoFactorSetup() {
       authFetchJson('/api/totp/verify-setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secret: data!.secret, code, codes: data!.codes }),
+        body: JSON.stringify({ code }),
       }),
     onSuccess: () => {
       if (user) setUser({ ...user, totpEnabled: true });

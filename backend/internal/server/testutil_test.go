@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -18,7 +19,13 @@ import (
 func newTestRouter(t *testing.T) (http.Handler, string) {
 	t.Helper()
 	dataDir := t.TempDir()
+	return newTestRouterAt(t, dataDir), dataDir
+}
 
+// newTestRouterAt wires a router on an existing data dir, as a server restart
+// would: the database persists, the crypto service starts locked.
+func newTestRouterAt(t *testing.T, dataDir string) http.Handler {
+	t.Helper()
 	db, err := database.New(dataDir)
 	if err != nil {
 		t.Fatalf("database.New: %v", err)
@@ -32,7 +39,7 @@ func newTestRouter(t *testing.T) (http.Handler, string) {
 		w.WriteHeader(http.StatusNotFound)
 	})
 
-	return SetupRouter(db, crypto, cfg, staticHandler), dataDir
+	return SetupRouter(db, crypto, cfg, staticHandler)
 }
 
 // doRequest performs an HTTP request against the test router.
@@ -57,6 +64,22 @@ func doRequest(t *testing.T, h http.Handler, method, path string, body interface
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
 	return rr
+}
+
+// doRequestFrom is doRequest from a distinct client address, for endpoints
+// behind the per-IP rate limiter. It returns the status code.
+func doRequestFrom(t *testing.T, h http.Handler, method, path string, body interface{}, client int) int {
+	t.Helper()
+	b, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal body: %v", err)
+	}
+	req := httptest.NewRequest(method, path, bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = fmt.Sprintf("198.51.100.%d:1234", client%250+1)
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	return rr.Code
 }
 
 // decodeJSON decodes a JSON response body into v.

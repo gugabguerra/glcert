@@ -59,7 +59,9 @@ func main() {
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	logger.Infof("GLCert server starting on %s", addr)
-	if err := http.ListenAndServe(addr, r); err != nil {
+	// No WriteTimeout: backup downloads can be large and slow.
+	srv := &http.Server{Addr: addr, Handler: r, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
+	if err := srv.ListenAndServe(); err != nil {
 		logger.Fatalf("Server failed: %v", err)
 	}
 }

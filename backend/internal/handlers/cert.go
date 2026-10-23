@@ -252,6 +252,11 @@ func (h *CertHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if nameTaken(h.db, req.Type, req.Name) {
+		http.Error(w, nameTakenMsg, http.StatusConflict)
+		return
+	}
+
 	if req.Type != "selfsigned" && req.CertificateAuthorityID == nil {
 		http.Error(w, "certificateAuthorityId is required for server/client certificates", http.StatusBadRequest)
 		return
@@ -456,6 +461,10 @@ func (h *CertHandler) ImportCert(w http.ResponseWriter, r *http.Request) {
 
 	certID := uuid.New().String()
 
+	if nameTaken(h.db, result.Type, req.Name) {
+		http.Error(w, nameTakenMsg, http.StatusConflict)
+		return
+	}
 	if err := h.cert.SaveCert(result.Type, req.Name, 1, []byte(req.CertPEM), []byte(req.KeyPEM), caCertPEM); err != nil {
 		logger.Errorf("Import cert: save files: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -539,11 +548,28 @@ func validateEntityName(name string) error {
 	if name == "" || len(name) > 128 {
 		return fmt.Errorf("invalid name")
 	}
-	if strings.Contains(name, "..") || strings.ContainsAny(name, "/\\") {
-		return fmt.Errorf("name cannot contain path separators or \"..\"")
+	if name == "." || strings.Contains(name, "..") || strings.ContainsAny(name, "/\\") {
+		return fmt.Errorf("name cannot be \".\" or contain path separators or \"..\"")
 	}
 	return nil
 }
+
+// nameTaken reports whether a CA (certType "") or a certificate of certType
+// already uses name. Files live in a directory named after the entity, so a
+// second one would overwrite the first one's keys. NOCASE because the desktop
+// build runs on case-insensitive file systems. Lookup errors count as taken.
+func nameTaken(db *sql.DB, certType, name string) bool {
+	var one int
+	var err error
+	if certType == "" {
+		err = db.QueryRow("SELECT 1 FROM certificate_authorities WHERE name = ? COLLATE NOCASE", name).Scan(&one)
+	} else {
+		err = db.QueryRow("SELECT 1 FROM certificates WHERE type = ? AND name = ? COLLATE NOCASE", certType, name).Scan(&one)
+	}
+	return err != sql.ErrNoRows
+}
+
+const nameTakenMsg = "an entry with this name already exists"
 
 func sanitizeFilename(name string) string {
 	result := make([]rune, 0, len(name))

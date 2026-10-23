@@ -15,10 +15,11 @@ type AdminHandler struct {
 	db      *sql.DB
 	dataDir string
 	crypto  *services.CryptoService
+	auth    *services.AuthService
 }
 
-func NewAdminHandler(db *sql.DB, dataDir string, crypto *services.CryptoService) *AdminHandler {
-	return &AdminHandler{db: db, dataDir: dataDir, crypto: crypto}
+func NewAdminHandler(db *sql.DB, dataDir string, crypto *services.CryptoService, auth *services.AuthService) *AdminHandler {
+	return &AdminHandler{db: db, dataDir: dataDir, crypto: crypto, auth: auth}
 }
 
 func (h *AdminHandler) FactoryReset(w http.ResponseWriter, r *http.Request) {
@@ -28,6 +29,17 @@ func (h *AdminHandler) FactoryReset(w http.ResponseWriter, r *http.Request) {
 	actorID := GetUserID(r.Context())
 	email := actorEmail(h.db, actorID)
 
+	// Erasing everything needs the admin's password, not just a session.
+	// 403, not 401: the client treats 401 as an expired session.
+	var req struct {
+		Password string `json:"password"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+	if req.Password == "" || !h.auth.ValidatePassword(actorID, req.Password) {
+		http.Error(w, "wrong password", http.StatusForbidden)
+		return
+	}
+
 	tx, err := h.db.Begin()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -35,7 +47,7 @@ func (h *AdminHandler) FactoryReset(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
-	tables := []string{"certificate_versions", "certificates", "certificate_authorities", "sessions", "pending_sessions", "backup_codes", "ca_permissions", "password_resets", "users", "audit_log"}
+	tables := []string{"certificate_versions", "certificates", "certificate_authorities", "share_links", "sessions", "pending_sessions", "backup_codes", "ca_permissions", "password_resets", "users", "audit_log"}
 	for _, table := range tables {
 		if _, err := tx.Exec("DELETE FROM " + table); err != nil {
 			logger.Errorf("Failed to clear table %s: %v", table, err)
@@ -51,7 +63,8 @@ func (h *AdminHandler) FactoryReset(w http.ResponseWriter, r *http.Request) {
 		default_key_algorithm = 'rsa',
 		default_rsa_key_size = 2048,
 		default_ecdsa_curve = 'P-256',
-		default_validity_days = 365
+		default_validity_days = 365,
+		smtp_password = ''
 		WHERE id = 1`); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -64,6 +77,7 @@ func (h *AdminHandler) FactoryReset(w http.ResponseWriter, r *http.Request) {
 
 	os.RemoveAll(filepath.Join(h.dataDir, "certificates"))
 	os.Remove(filepath.Join(h.dataDir, "encryption.key"))
+	os.Remove(filepath.Join(h.dataDir, "encryption.key.v1"))
 
 	h.crypto.Reset()
 	recordAuditAs(h.db, actorID, email, "factory_reset", "", "", "All data erased")

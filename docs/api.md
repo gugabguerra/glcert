@@ -16,7 +16,9 @@ an `/api` route falls through to the frontend.
 ## Errors
 
 Errors return a plain-text body with an appropriate HTTP status (`400`, `401`, `403`, `404`,
-`409`, `500`). Messages never leak whether an account exists.
+`409`, `500`). Messages never leak whether an account exists. Creating a CA or certificate with a
+name already used (case-insensitive, same type for certificates) returns `409`. Request bodies
+are capped at 1 MiB (backup restore: 128 MiB).
 
 ## Public routes (no auth)
 
@@ -40,7 +42,7 @@ Errors return a plain-text body with an appropriate HTTP status (`400`, `401`, `
 | PUT    | /api/auth/password            | Change own password      |
 | GET    | /api/totp/status              | Get TOTP status          |
 | GET    | /api/totp/setup               | Generate TOTP secret + QR|
-| POST   | /api/totp/verify-setup        | Verify and enable TOTP   |
+| POST   | /api/totp/verify-setup        | Verify and enable TOTP; body `{code}` only, secret and backup codes are kept server side |
 | POST   | /api/totp/disable             | Disable TOTP             |
 | GET    | /api/users/me                 | Get current user profile |
 | PUT    | /api/users/me                 | Update current user name |
@@ -48,7 +50,7 @@ Errors return a plain-text body with an appropriate HTTP status (`400`, `401`, `
 | POST   | /api/notifications/test       | Send test notification   |
 | POST   | /api/notifications/test-email | Send test email          |
 | POST   | /api/share/{type}/{id}        | Generate share link      |
-| POST   | /api/share/send-email         | Send share link via email|
+| POST   | /api/share/send-email         | Email a share link; body `{email, token, fileName}`, link built from `PUBLIC_URL` (`503` if unset) |
 | GET    | /api/ca                       | List CAs (filtered by permissions for non-admins) |
 | GET    | /api/ca/{id}                  | Get CA                   |
 | GET    | /api/ca/{id}/download/cert    | Download CA cert         |
@@ -88,7 +90,8 @@ every operation is scoped server-side, not in the UI.
 | ------ | ---------------------------------- | ---------------------------- |
 | GET    | /api/settings                      | Get settings                 |
 | PUT    | /api/settings                      | Update settings              |
-| POST   | /api/admin/factory-reset           | Delete all data              |
+| POST   | /api/admin/factory-reset           | Delete all data; body `{password}`, `403` if wrong |
+| POST   | /api/auth/unlock-encryption        | Unlock keys; body `{passphrase, password}`, `403` if wrong |
 | POST   | /api/backup/create                 | Create backup                |
 | GET    | /api/users                         | List all users               |
 | POST   | /api/users                         | Create new user              |

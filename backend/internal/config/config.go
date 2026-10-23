@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"net/url"
 	"os"
 	"slices"
 	"strconv"
@@ -15,13 +16,15 @@ const DefaultPort = 18080
 
 // Setting keys: camelCase in config.json, SCREAMING_SNAKE_CASE in the environment.
 const (
-	keyPort     = "port"
-	keyDataDir  = "dataDir"
-	keyLogLevel = "logLevel"
+	keyPort      = "port"
+	keyDataDir   = "dataDir"
+	keyLogLevel  = "logLevel"
+	keyPublicURL = "publicUrl"
 
-	envPort     = "PORT"
-	envDataDir  = "DATA_DIR"
-	envLogLevel = "LOG_LEVEL"
+	envPort      = "PORT"
+	envDataDir   = "DATA_DIR"
+	envLogLevel  = "LOG_LEVEL"
+	envPublicURL = "PUBLIC_URL"
 )
 
 // Layer locations. Both are overridable so tests can point at fixtures.
@@ -39,6 +42,10 @@ type Config struct {
 	Port     string
 	DataDir  string
 	LogLevel string
+	// PublicURL is the externally reachable origin used in emailed links
+	// (password reset, share links). Empty means those emails are not sent:
+	// request headers are never trusted to build them.
+	PublicURL string
 }
 
 // validLogLevels lists the levels the logger understands, in order.
@@ -105,6 +112,15 @@ func Load() (*Config, error) {
 		validate: validateLogLevel,
 	}
 
+	publicURL := setting{
+		name:     "public URL",
+		jsonKey:  keyPublicURL,
+		envKey:   envPublicURL,
+		fallback: "",
+		decode:   decodeJSONString,
+		validate: validatePublicURL,
+	}
+
 	cfg := &Config{}
 	if cfg.Port, err = port.value(fileValues, configPath, dotenvValues); err != nil {
 		return nil, err
@@ -113,6 +129,9 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 	if cfg.LogLevel, err = logLevel.value(fileValues, configPath, dotenvValues); err != nil {
+		return nil, err
+	}
+	if cfg.PublicURL, err = publicURL.value(fileValues, configPath, dotenvValues); err != nil {
 		return nil, err
 	}
 	return cfg, nil
@@ -250,20 +269,20 @@ func loadDotEnv(path string) dotEnv {
 	return dotenv
 }
 
-// knownJSONKey reports whether the key names one of the three settings.
+// knownJSONKey reports whether the key names one of the settings.
 func knownJSONKey(key string) bool {
 	switch key {
-	case keyPort, keyDataDir, keyLogLevel:
+	case keyPort, keyDataDir, keyLogLevel, keyPublicURL:
 		return true
 	default:
 		return false
 	}
 }
 
-// knownEnvKey reports whether the variable names one of the three settings.
+// knownEnvKey reports whether the variable names one of the settings.
 func knownEnvKey(key string) bool {
 	switch key {
-	case envPort, envDataDir, envLogLevel:
+	case envPort, envDataDir, envLogLevel, envPublicURL:
 		return true
 	default:
 		return false
@@ -325,4 +344,15 @@ func validateLogLevel(value string) (string, error) {
 		return "", fmt.Errorf("%q is not one of %s", value, strings.Join(validLogLevels, ", "))
 	}
 	return level, nil
+}
+
+// validatePublicURL accepts an http(s) origin with an optional path prefix
+// (for a reverse proxy sub-path) and drops the trailing slash.
+func validatePublicURL(value string) (string, error) {
+	u, err := url.Parse(strings.TrimSpace(value))
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" ||
+		u.User != nil || u.RawQuery != "" || u.Fragment != "" {
+		return "", fmt.Errorf("%q is not an http(s) URL like https://pki.example.com", value)
+	}
+	return strings.TrimRight(u.String(), "/"), nil
 }

@@ -228,9 +228,19 @@ func (h *CAHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if nameTaken(h.db, "", req.Name) {
+		http.Error(w, nameTakenMsg, http.StatusConflict)
+		return
+	}
+
 	// If creating an intermediate CA, fetch parent CA cert and key
 	var parentCertPEM, parentKeyPEM []byte
 	if req.ParentCAID != nil && *req.ParentCAID != "" {
+		// Signing with the parent's key is a use of that CA.
+		if !h.auth.UserHasCAAccess(GetUserID(r.Context()), *req.ParentCAID) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 		var parentName string
 		var parentVersion int
 		var parentEncPassphrase []byte
@@ -462,6 +472,11 @@ func (h *CAHandler) Import(w http.ResponseWriter, r *http.Request) {
 
 	if err := validateEntityName(req.Name); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if nameTaken(h.db, "", req.Name) {
+		http.Error(w, nameTakenMsg, http.StatusConflict)
 		return
 	}
 

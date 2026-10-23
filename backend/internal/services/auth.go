@@ -98,6 +98,9 @@ func (s *AuthService) CompleteSetup(input SetupInput) (string, string, error) {
 	return token, userID, nil
 }
 
+// dummyHash is compared against when no account matches (see Login).
+var dummyHash, _ = bcrypt.GenerateFromPassword([]byte("glcert-no-such-user"), bcrypt.DefaultCost)
+
 type LoginResult struct {
 	Token       string
 	UserID      string
@@ -109,14 +112,15 @@ func (s *AuthService) Login(email, password string) (LoginResult, error) {
 	var userID, storedHash, role string
 	err := s.db.QueryRow("SELECT id, password_hash, role FROM users WHERE email = ?", email).Scan(&userID, &storedHash, &role)
 	if err != nil {
-		// Log the same generic message as a password mismatch so logs cannot
-		// be used to enumerate registered email addresses.
-		logger.Errorf("Login failed for email=%q", email)
+		// Spend the same bcrypt time as a wrong password, so response timing
+		// does not reveal whether the account exists.
+		bcrypt.CompareHashAndPassword(dummyHash, []byte(password))
+		logger.Warnf("Login failed")
 		return LoginResult{}, fmt.Errorf("invalid credentials")
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(storedHash), []byte(password)); err != nil {
-		logger.Errorf("Login failed for email=%q", email)
+		logger.Warnf("Login failed")
 		return LoginResult{}, fmt.Errorf("invalid credentials")
 	}
 
@@ -159,6 +163,17 @@ func (s *AuthService) ValidatePendingToken(token string) (bool, string) {
 		return false, ""
 	}
 	return true, userID
+}
+
+// MaxPendingAttempts is how many wrong codes a pending sign-in survives.
+const MaxPendingAttempts = 5
+
+// RecordPendingFailure counts a wrong second-factor code and burns the
+// pending sign-in once MaxPendingAttempts is reached, so the code cannot be
+// brute-forced within one password sign-in.
+func (s *AuthService) RecordPendingFailure(token string) {
+	s.db.Exec("UPDATE pending_sessions SET failed_attempts = failed_attempts + 1 WHERE token = ?", token)
+	s.db.Exec("DELETE FROM pending_sessions WHERE token = ? AND failed_attempts >= ?", token, MaxPendingAttempts)
 }
 
 func (s *AuthService) DeletePendingToken(token string) {
@@ -324,29 +339,30 @@ func (s *AuthService) ValidateResetToken(token string) (bool, string) {
 	return true, userID
 }
 
-func (s *AuthService) ResetPassword(token, newPassword string) error {
+// ResetPassword applies a reset token and returns the account it belonged to.
+func (s *AuthService) ResetPassword(token, newPassword string) (string, error) {
 	valid, userID := s.ValidateResetToken(token)
 	if !valid {
-		return fmt.Errorf("invalid or expired reset token")
+		return "", fmt.Errorf("invalid or expired reset token")
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 	if err != nil {
-		return fmt.Errorf("hash password: %w", err)
+		return "", fmt.Errorf("hash password: %w", err)
 	}
 
 	_, err = s.db.Exec("UPDATE users SET password_hash = ? WHERE id = ?", string(hash), userID)
 	if err != nil {
-		return fmt.Errorf("update password: %w", err)
+		return "", fmt.Errorf("update password: %w", err)
 	}
 
 	_, err = s.db.Exec("DELETE FROM password_resets WHERE token = ?", token)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	s.InvalidateUserSessions(userID)
-	return nil
+	return userID, nil
 }
 
 // --- User Management (admin only) ---
@@ -413,13 +429,12 @@ func (s *AuthService) DeleteUser(userID string) error {
 	}
 	defer tx.Rollback()
 
-	tx.Exec("DELETE FROM sessions WHERE user_id = ?", userID)
-	tx.Exec("DELETE FROM pending_sessions WHERE user_id = ?", userID)
-	tx.Exec("DELETE FROM backup_codes WHERE user_id = ?", userID)
-	tx.Exec("DELETE FROM ca_permissions WHERE user_id = ?", userID)
-	tx.Exec("DELETE FROM password_resets WHERE user_id = ?", userID)
-	_, err = tx.Exec("DELETE FROM users WHERE id = ?", userID)
-	if err != nil {
+	for _, table := range []string{"sessions", "pending_sessions", "backup_codes", "ca_permissions", "password_resets"} {
+		if _, err := tx.Exec("DELETE FROM "+table+" WHERE user_id = ?", userID); err != nil {
+			return fmt.Errorf("delete %s: %w", table, err)
+		}
+	}
+	if _, err := tx.Exec("DELETE FROM users WHERE id = ?", userID); err != nil {
 		return err
 	}
 
@@ -510,9 +525,13 @@ func (s *AuthService) SetCAPermissions(caID string, userIDs []string) error {
 	}
 	defer tx.Rollback()
 
-	tx.Exec("DELETE FROM ca_permissions WHERE ca_id = ?", caID)
+	if _, err := tx.Exec("DELETE FROM ca_permissions WHERE ca_id = ?", caID); err != nil {
+		return err
+	}
 	for _, uid := range userIDs {
-		tx.Exec("INSERT INTO ca_permissions (ca_id, user_id) VALUES (?, ?)", caID, uid)
+		if _, err := tx.Exec("INSERT INTO ca_permissions (ca_id, user_id) VALUES (?, ?)", caID, uid); err != nil {
+			return fmt.Errorf("grant %s: %w", uid, err)
+		}
 	}
 	return tx.Commit()
 }

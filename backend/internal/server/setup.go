@@ -24,22 +24,23 @@ func SetupRouter(db *sql.DB, crypto *services.CryptoService, cfg *config.Config,
 	certService := services.NewCertService(cfg.DataDir, crypto)
 
 	r := chi.NewRouter()
-	r.Use(middleware.Logger)
+	r.Use(handlers.RequestLog)
 	r.Use(middleware.Recoverer)
 	r.Use(handlers.SecurityHeaders)
+	r.Use(handlers.LimitBody)
 
-	authHandler := handlers.NewAuthHandler(auth, crypto, emailService, totpService)
+	authHandler := handlers.NewAuthHandler(auth, crypto, emailService, totpService, cfg.PublicURL)
 	authMiddleware := handlers.NewAuthMiddleware(auth, db)
 	totpHandler := handlers.NewTOTPHandler(totpService, auth)
-	userHandler := handlers.NewUserHandler(auth)
+	userHandler := handlers.NewUserHandler(auth, crypto)
 	backupHandler := handlers.NewBackupHandler(db, cfg.DataDir)
-	adminHandler := handlers.NewAdminHandler(db, cfg.DataDir, crypto)
+	adminHandler := handlers.NewAdminHandler(db, cfg.DataDir, crypto, auth)
 	caHandler := handlers.NewCAHandler(db, caService, crypto, auth)
 	certHandler := handlers.NewCertHandler(db, certService, caService, crypto, auth)
 	caPermHandler := handlers.NewCAPermissionHandler(auth)
 	auditHandler := handlers.NewAuditHandler(auditService)
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
-	shareHandler := handlers.NewShareHandler(db, certService, caService, crypto, emailService, auth)
+	shareHandler := handlers.NewShareHandler(db, certService, caService, crypto, emailService, auth, cfg.PublicURL)
 	h := handlers.New(db, crypto, auth)
 
 	r.Route("/api", func(r chi.Router) {
@@ -122,7 +123,7 @@ func SetupRouter(db *sql.DB, crypto *services.CryptoService, cfg *config.Config,
 
 				r.Post("/ca", caHandler.Create)
 				r.Post("/ca/import", caHandler.Import)
-				r.Delete("/ca/{id}", caHandler.Delete)
+				r.With(authMiddleware.RequireCAAccess).Delete("/ca/{id}", caHandler.Delete)
 
 				r.Post("/certificates", certHandler.Create)
 				r.Post("/certificates/import", certHandler.ImportCert)
@@ -137,6 +138,7 @@ func SetupRouter(db *sql.DB, crypto *services.CryptoService, cfg *config.Config,
 			r.Group(func(r chi.Router) {
 				r.Use(handlers.RequireRole("admin"))
 
+				r.With(handlers.RateLimit(rate.Every(3*time.Second), 3)).Post("/auth/unlock-encryption", authHandler.UnlockEncryption)
 				r.Get("/settings", h.GetSettings)
 				r.Put("/settings", h.UpdateSettings)
 				r.Post("/admin/factory-reset", adminHandler.FactoryReset)

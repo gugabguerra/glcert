@@ -2,11 +2,11 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/gugabguerra/glcert/internal/services"
-	"github.com/pquerna/otp/totp"
 )
 
 type TOTPHandler struct {
@@ -34,7 +34,7 @@ func (h *TOTPHandler) Setup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.totp.GenerateSecret(email)
+	result, err := h.totp.GenerateSecret(userID, email)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -44,10 +44,10 @@ func (h *TOTPHandler) Setup(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
+// VerifySetupRequest carries only the confirmation code: the secret and
+// backup codes stay on the server from Setup.
 type VerifySetupRequest struct {
-	Secret string   `json:"secret"`
-	Code   string   `json:"code"`
-	Codes  []string `json:"codes"`
+	Code string `json:"code"`
 }
 
 func (h *TOTPHandler) VerifySetup(w http.ResponseWriter, r *http.Request) {
@@ -57,18 +57,17 @@ func (h *TOTPHandler) VerifySetup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Code == "" || req.Secret == "" {
-		http.Error(w, "code and secret are required", http.StatusBadRequest)
+	if req.Code == "" {
+		http.Error(w, "code is required", http.StatusBadRequest)
 		return
 	}
 
-	if !totp.Validate(req.Code, req.Secret) {
-		http.Error(w, "invalid TOTP code", http.StatusBadRequest)
+	err := h.totp.ConfirmSetup(GetUserID(r.Context()), req.Code)
+	if errors.Is(err, services.ErrInvalidCode) || errors.Is(err, services.ErrNoPendingSetup) {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-
-	userID := GetUserID(r.Context())
-	if err := h.totp.EnableTOTP(userID, req.Secret, req.Codes); err != nil {
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -114,6 +113,7 @@ func (h *TOTPHandler) Verify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !codeValid {
+		h.auth.RecordPendingFailure(req.PartialToken)
 		http.Error(w, "invalid code", http.StatusUnauthorized)
 		return
 	}

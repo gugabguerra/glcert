@@ -370,3 +370,25 @@ func TestLoadToleratesAnAbsentDotEnvFile(t *testing.T) {
 		t.Errorf("Port should fall back to the default, got %q", cfg.Port)
 	}
 }
+
+func TestLoadValidatesPublicURL(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("CONFIG_FILE", "")
+	t.Setenv("ENV_FILE", "")
+
+	t.Setenv("PUBLIC_URL", "https://pki.example.com/")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.PublicURL != "https://pki.example.com" {
+		t.Errorf("PublicURL should drop the trailing slash, got %q", cfg.PublicURL)
+	}
+
+	for _, bad := range []string{"pki.example.com", "ftp://pki.example.com", "https://user@pki.example.com", "https://pki.example.com/?x=1"} {
+		t.Setenv("PUBLIC_URL", bad)
+		if _, err := Load(); err == nil {
+			t.Errorf("PUBLIC_URL %q should be rejected", bad)
+		}
+	}
+}

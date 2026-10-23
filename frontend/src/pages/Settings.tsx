@@ -496,12 +496,14 @@ function BackupSection() {
       authFetchJson('/api/admin/factory-reset', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
       }),
     onSuccess: () => {
       localStorage.removeItem('auth_token');
       window.location.reload();
     },
-    onError: () => notifications.show({ color: 'red', message: 'The factory reset failed.' }),
+    onError: (e: Error) =>
+      notifications.show({ color: 'red', message: e.message || 'The factory reset failed.' }),
   });
 
   return (
@@ -657,6 +659,11 @@ function BackupSection() {
             value={confirmText}
             onChange={(e) => setConfirmText(e.currentTarget.value)}
           />
+          <PasswordInput
+            label="Your password"
+            value={password}
+            onChange={(e) => setPassword(e.currentTarget.value)}
+          />
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             <Button variant="default" onClick={() => setDialog(null)} data-autofocus>
               Cancel
@@ -664,7 +671,7 @@ function BackupSection() {
             <Button
               color="red"
               variant="outline"
-              disabled={confirmText !== 'RESET'}
+              disabled={confirmText !== 'RESET' || !password}
               loading={reset.isPending}
               onClick={() => reset.mutate()}
             >

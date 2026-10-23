@@ -130,7 +130,7 @@ function Setup() {
       {step === 1 && (
         <Stack gap="md">
           <Text size="sm" c="dimmed">
-            This passphrase encrypts your certificate private keys. You will need to provide your admin password on each login to unlock them.
+            This passphrase encrypts your certificate private keys. An admin sign-in unlocks them after each restart. Store the passphrase somewhere safe: it is the only way to recover the keys if every admin password is lost.
           </Text>
           <PasswordInput
             label="Encryption Passphrase"

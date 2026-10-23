@@ -37,6 +37,11 @@ file.
   me in a week" puts it off for seven days in that browser; closing it lasts until the next
   sign-in.
 - `GET /api/certificates` returns `issuedAt`, when each certificate's current version was issued.
+- `PUBLIC_URL` setting (`publicUrl` in `config.json`): the externally reachable http(s) origin used
+  to build password-reset and emailed share links. The desktop build defaults it to
+  `http://localhost:<port>`.
+- `POST /api/auth/unlock-encryption` (admin, rate limited): unlock with the setup encryption
+  passphrase and your password when no admin sign-in can. No interface yet; use curl.
 
 ### Changed
 
@@ -55,6 +60,23 @@ file.
   never reveals whether an account exists.
 - The sidebar's account row shows only the role, and authorities in the sidebar tree show a shield
   icon.
+- Encryption keys use a new scheme: the setup passphrase is the root secret and each admin holds
+  a copy wrapped with their own password. Any admin sign-in unlocks the service. On the first
+  admin sign-in after upgrading, `data/encryption.key` is migrated once and automatically (keys,
+  TOTP secrets, CA passphrases and the SMTP password are re-encrypted; the old file is kept as
+  `data/encryption.key.v1`). Back up `data/` before upgrading.
+- Password-reset and share emails need `PUBLIC_URL`. Without it, forgot-password sends no email and
+  `POST /api/share/send-email` returns `503`.
+- `POST /api/share/send-email` takes `{email, token, fileName}`; the server builds the link. The
+  `url` and `fileType` fields are gone.
+- `POST /api/totp/verify-setup` takes only `{code}`; the server keeps the issued secret and
+  backup codes for 15 minutes.
+- `POST /api/admin/factory-reset` requires `{password}`; it also clears share links, the SMTP
+  password and `encryption.key.v1`.
+- A CA, or a certificate of the same type, cannot reuse an existing name (case-insensitive): `409`.
+  The name `.` is rejected.
+- Every request body is capped at 1 MiB (backup restore keeps 128 MiB). The server sets header
+  and idle timeouts.
 
 ### Fixed
 
@@ -64,6 +86,20 @@ file.
 - Saving one Settings section no longer sends stale values for the others: the page keeps one
   draft of the whole record, which the server replaces on every save.
 - Signing in no longer changes the hook order of the app's router component.
+- Changing or resetting an admin password no longer makes encrypted data unreadable, a second
+  admin can sign in (it returned `500`), and a forgotten-password reset no longer locks the admin
+  out of the keys. A sign-in never fails because of encryption; operations stay locked instead.
+- The SMTP password is never stored in plaintext: saving it while encryption is locked returns
+  `503`, and reading it while locked fails.
+- Share links are claimed atomically, so a link is served exactly once even under concurrent
+  requests. Responses are `no-store` and tokens are redacted from request logs.
+- Deleting a CA requires access to it, and creating an intermediate requires access to its parent.
+- A duplicate CA or certificate name no longer overwrites the other entry's key files, and
+  deleting a CA named `.` no longer removes every CA's files.
+- Unknown accounts take as long to reject as wrong passwords, and failed logins no longer log the
+  email address.
+- A pending two-factor sign-in is burned after 5 wrong codes, and a backup code cannot be spent
+  twice under concurrent requests.
 
 ## [1.0.0] — 2026-10-21
 

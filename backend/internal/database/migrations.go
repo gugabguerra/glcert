@@ -311,6 +311,8 @@ func migrate(db *sql.DB) error {
 		db.Exec(q)
 	}
 
+	db.Exec(`ALTER TABLE pending_sessions ADD COLUMN failed_attempts INTEGER DEFAULT 0`)
+
 	// Insert default settings if not exists
 	var count int
 	err = db.QueryRow("SELECT COUNT(*) FROM settings").Scan(&count)

@@ -7,9 +7,11 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"image/png"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pquerna/otp"
@@ -19,10 +21,23 @@ import (
 type TOTPService struct {
 	db     *sql.DB
 	crypto *CryptoService
+
+	// pending holds the secret and backup codes issued by GenerateSecret
+	// until the user confirms them, so enabling never trusts client values.
+	mu      sync.Mutex
+	pending map[string]pendingSetup
 }
 
+type pendingSetup struct {
+	secret  string
+	codes   []string
+	expires time.Time
+}
+
+const setupLifetime = 15 * time.Minute
+
 func NewTOTPService(db *sql.DB, crypto *CryptoService) *TOTPService {
-	return &TOTPService{db: db, crypto: crypto}
+	return &TOTPService{db: db, crypto: crypto, pending: map[string]pendingSetup{}}
 }
 
 type TOTPSetupResult struct {
@@ -31,7 +46,7 @@ type TOTPSetupResult struct {
 	Codes     []string `json:"codes"`
 }
 
-func (s *TOTPService) GenerateSecret(email string) (*TOTPSetupResult, error) {
+func (s *TOTPService) GenerateSecret(userID, email string) (*TOTPSetupResult, error) {
 	key, err := totp.Generate(totp.GenerateOpts{
 		Issuer:      "GLCert",
 		AccountName: email,
@@ -59,12 +74,47 @@ func (s *TOTPService) GenerateSecret(email string) (*TOTPSetupResult, error) {
 		return nil, err
 	}
 
+	s.mu.Lock()
+	for id, p := range s.pending {
+		if time.Now().After(p.expires) {
+			delete(s.pending, id)
+		}
+	}
+	s.pending[userID] = pendingSetup{secret: key.Secret(), codes: codes, expires: time.Now().Add(setupLifetime)}
+	s.mu.Unlock()
+
 	return &TOTPSetupResult{
 		Secret:    key.Secret(),
 		ImageData: base64.StdEncoding.EncodeToString(buf.Bytes()),
 		Codes:     codes,
 	}, nil
 }
+
+// ConfirmSetup enables TOTP with the secret and backup codes GenerateSecret
+// issued to this user, once code proves the authenticator holds the secret.
+func (s *TOTPService) ConfirmSetup(userID, code string) error {
+	s.mu.Lock()
+	p, ok := s.pending[userID]
+	s.mu.Unlock()
+	if !ok || time.Now().After(p.expires) {
+		return ErrNoPendingSetup
+	}
+	if !totp.Validate(code, p.secret) {
+		return ErrInvalidCode
+	}
+	if err := s.EnableTOTP(userID, p.secret, p.codes); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	delete(s.pending, userID)
+	s.mu.Unlock()
+	return nil
+}
+
+var (
+	ErrNoPendingSetup = errors.New("no two-factor setup in progress; start again")
+	ErrInvalidCode    = errors.New("invalid TOTP code")
+)
 
 func (s *TOTPService) EnableTOTP(userID, secret string, codes []string) error {
 	encrypted, err := s.crypto.Encrypt([]byte(secret))
@@ -129,14 +179,13 @@ func (s *TOTPService) ValidateBackupCode(userID, code string) bool {
 	hash := sha256.Sum256([]byte(code))
 	hashHex := hex.EncodeToString(hash[:])
 
-	var id int
-	err := s.db.QueryRow("SELECT id FROM backup_codes WHERE user_id = ? AND code_hash = ? AND used = FALSE", userID, hashHex).Scan(&id)
+	// One statement, so a code can only ever be spent once.
+	res, err := s.db.Exec("UPDATE backup_codes SET used = TRUE WHERE user_id = ? AND code_hash = ? AND used = FALSE", userID, hashHex)
 	if err != nil {
 		return false
 	}
-
-	s.db.Exec("UPDATE backup_codes SET used = TRUE WHERE id = ?", id)
-	return true
+	n, err := res.RowsAffected()
+	return err == nil && n > 0
 }
 
 func (s *TOTPService) GetBackupCodes(userID string) ([]string, error) {

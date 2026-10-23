@@ -39,13 +39,12 @@ func (s *EmailService) getSMTPConfig() (*smtpConfig, error) {
 		return nil, fmt.Errorf("SMTP not configured")
 	}
 
-	if encryptedPassword != "" && s.crypto.IsEnabled() {
+	if encryptedPassword != "" {
 		decrypted, err := s.crypto.Decrypt([]byte(encryptedPassword))
-		if err == nil {
-			cfg.Password = string(decrypted)
+		if err != nil {
+			return nil, fmt.Errorf("SMTP password unavailable: %w", err)
 		}
-	} else {
-		cfg.Password = encryptedPassword
+		cfg.Password = string(decrypted)
 	}
 
 	return &cfg, nil

@@ -186,15 +186,16 @@ func (h *Handler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if body.SMTPPassword != "" {
-		if h.crypto.IsEnabled() {
-			encrypted, err := h.crypto.Encrypt([]byte(body.SMTPPassword))
-			if err == nil {
-				h.db.Exec("UPDATE settings SET smtp_password = ? WHERE id = 1", string(encrypted))
-			} else {
-				logger.Errorf("Failed to encrypt SMTP password: %v", err)
-			}
-		} else {
-			h.db.Exec("UPDATE settings SET smtp_password = ? WHERE id = 1", body.SMTPPassword)
+		// Encrypt refuses while the key is locked, so the password is never
+		// stored in plaintext once encryption is configured.
+		encrypted, err := h.crypto.Encrypt([]byte(body.SMTPPassword))
+		if err != nil {
+			http.Error(w, "settings saved, but the SMTP password was not: "+err.Error(), http.StatusServiceUnavailable)
+			return
+		}
+		if _, err := h.db.Exec("UPDATE settings SET smtp_password = ? WHERE id = 1", string(encrypted)); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 	}
 	recordAudit(h.db, r, "settings.update", "settings", "1", "Settings updated")

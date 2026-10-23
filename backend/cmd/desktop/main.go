@@ -29,6 +29,9 @@ func main() {
 		os.Exit(1)
 	}
 	logger.Init(cfg.LogLevel)
+	if cfg.PublicURL == "" {
+		cfg.PublicURL = "http://localhost:" + cfg.Port
+	}
 	logger.Infof("GLCert version %s", version)
 
 	db, err := database.New(cfg.DataDir)
@@ -68,7 +71,8 @@ func main() {
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	go func() {
-		if err := http.ListenAndServe(addr, r); err != nil {
+		srv := &http.Server{Addr: addr, Handler: r, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
+		if err := srv.ListenAndServe(); err != nil {
 			logger.Fatalf("Server failed: %v", err)
 		}
 	}()

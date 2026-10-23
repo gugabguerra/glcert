@@ -39,10 +39,10 @@ Screenshots are coming soon. Replace each placeholder below with an image when t
   the server.
 - **Downloads and sharing:** Download individual files or ZIP/TGZ bundles. Create single-use,
   15-minute links for one file at a time, with a live countdown, ready-made wget and curl
-  commands, and an email option.
+  commands, and an email option (needs `PUBLIC_URL`).
 - **Administration:** Manage users and the authorities each can use, review the audit log by
-  kind, person and day, configure system settings, and back up, restore, or factory reset from
-  Settings.
+  kind, person and day, configure system settings, and back up, restore, or factory reset (asks
+  for your password) from Settings.
 - **Multi-factor authentication:** Optional TOTP with encrypted secret storage and single-use
   backup codes, set up in three steps from your account page, with a reminder after sign-in for
   accounts that do not use it yet.
@@ -126,6 +126,7 @@ dotenv file. Real environment variables take precedence over both files.
 | `port` | `PORT` | `18080` | HTTP server listen port |
 | `dataDir` | `DATA_DIR` | `./data` | Database and certificate storage directory |
 | `logLevel` | `LOG_LEVEL` | `info` | Log verbosity: `debug`, `info`, `warn`, `error`, or `fatal` |
+| `publicUrl` | `PUBLIC_URL` | empty | Public `http(s)` origin used in emailed reset and share links; without it no such email is sent |
 
 | Loader variable | Default | Purpose |
 |---|---|---|
@@ -141,13 +142,15 @@ services](https://shoutrrr.nickfedor.com/services/overview/), including Discord,
 and Gotify. Configure the destination and alert threshold in **Settings → Notifications**. You can
 send a test notification from the same page.
 
-GLCert also supports SMTP for password-reset and expiration-alert email. Treat webhook URLs and
-SMTP credentials as secrets; keep them out of tracked files.
+GLCert also supports SMTP for password-reset, share-link, and expiration-alert email; reset and
+share links are built from `PUBLIC_URL`. Treat webhook URLs and SMTP credentials as secrets; keep
+them out of tracked files.
 
 ## Security
 
-- Private keys are encrypted at rest. Restrict access to the data directory, which also contains
-  the encryption key material.
+- Private keys are encrypted at rest under the setup encryption passphrase. Any admin sign-in
+  unlocks them; until then operations stay locked. Restrict access to the data directory, which
+  also contains the encryption key material.
 - The database is not encrypted at rest, and the server uses plain HTTP. Use a TLS reverse proxy,
   protect the data directory, and keep encrypted backups in a separate secure location.
 - Sessions expire after 24 hours and are cleared on server restart. Password changes invalidate

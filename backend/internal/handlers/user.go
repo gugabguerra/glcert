@@ -6,16 +6,18 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/gugabguerra/glcert/internal/logger"
 	"github.com/gugabguerra/glcert/internal/models"
 	"github.com/gugabguerra/glcert/internal/services"
 )
 
 type UserHandler struct {
-	auth *services.AuthService
+	auth   *services.AuthService
+	crypto *services.CryptoService
 }
 
-func NewUserHandler(auth *services.AuthService) *UserHandler {
-	return &UserHandler{auth: auth}
+func NewUserHandler(auth *services.AuthService, crypto *services.CryptoService) *UserHandler {
+	return &UserHandler{auth: auth, crypto: crypto}
 }
 
 func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -58,6 +60,7 @@ func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	syncAdminKey(h.crypto, user.ID, user.Role, req.Password)
 	recordAudit(h.auth.DB(), r, "user.create", "user", user.ID, fmt.Sprintf("%s (%s)", user.Email, user.Role))
 
 	w.Header().Set("Content-Type", "application/json")
@@ -95,6 +98,11 @@ func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		if oldRole == "admin" && req.Role != "admin" {
+			if err := h.crypto.RemoveWrap(userID); err != nil {
+				logger.Errorf("Remove encryption key copy: %v", err)
+			}
+		}
 		if oldRole != req.Role {
 			email, _ := h.auth.GetUserEmail(userID)
 			recordAudit(h.auth.DB(), r, "user.role_change", "user", userID, fmt.Sprintf("%s: %s → %s", email, oldRole, req.Role))
@@ -129,6 +137,9 @@ func (h *UserHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	if err := h.crypto.RemoveWrap(userID); err != nil {
+		logger.Errorf("Remove encryption key copy: %v", err)
+	}
 	recordAudit(h.auth.DB(), r, "user.delete", "user", userID, email)
 
 	w.WriteHeader(http.StatusNoContent)
@@ -158,6 +169,8 @@ func (h *UserHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	role, _ := h.auth.GetUserRole(userID)
+	syncAdminKey(h.crypto, userID, role, req.Password)
 	email, _ := h.auth.GetUserEmail(userID)
 	recordAudit(h.auth.DB(), r, "user.password_reset", "user", userID, email)
 
