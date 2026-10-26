@@ -1,0 +1,9 @@
+# Keep host-only files out of the build context: native node_modules from the
+# host would replace the image's own, and data/ holds real keys.
+**/node_modules
+data
+backend/data
+dist
+frontend/dist
+.claude
+docs/local
