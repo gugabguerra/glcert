@@ -69,7 +69,7 @@ application data in the persistent `glcert-data` volume, so the data survives co
 
 ### Local development
 
-Prerequisites: Go 1.25+, Node.js 20+, and npm.
+Prerequisites: Go 1.27+, Node.js 24+, and npm.
 
 Start the backend:
 
@@ -179,7 +179,7 @@ best-effort basis. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 | Layer | Technology |
 |---|---|
-| Backend | Go 1.25, Chi, `crypto/x509` |
+| Backend | Go 1.27, Chi, `crypto/x509` |
 | Frontend | React 19, TypeScript, Mantine v9, Vite |
 | Database | SQLite with a pure-Go driver (no CGO required) |
 | Notifications | Shoutrrr |

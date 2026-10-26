@@ -3,6 +3,16 @@
 All notable changes to GLCert. Newest first; versions match the git tags and the root `VERSION`
 file.
 
+## [Unreleased]
+
+### Fixed
+
+- Toolchain and base images upgraded for the October 2026 Node.js CVE: the Docker image now builds
+  with Node 24 (was the end-of-life Node 20) and Go 1.27, and runs on Alpine 3.24 (was the
+  end-of-life 3.19). CI uses the same versions. All Go modules and npm packages move to their
+  latest releases, including React Router 7, which fixes two moderate advisories in React Router
+  6. TypeScript moves to 6.0, the newest version typescript-eslint supports.
+
 ## [1.1.0] — 2026-10-23
 
 ### Added
