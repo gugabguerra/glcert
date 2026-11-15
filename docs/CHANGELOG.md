@@ -3,6 +3,16 @@
 All notable changes to GLCert. Newest first; versions match the git tags and the root `VERSION`
 file.
 
+## [Unreleased]
+
+### Changed
+
+- New logo, the "key bar" mark: five bars whose outline forms a shield, the centre bar split into
+  a dot and a stem like a keyhole. It replaces the old padlock icon and the stroke shield
+  everywhere: sidebar, sign-in screens, favicons (now also an SVG favicon that follows the
+  system light or dark theme), home-screen icons and the macOS app icon. Masters live in
+  `assets/logo/`. The product name is now written "GLcert" in the interface.
+
 ## [1.1.1] — 2026-10-26
 
 ### Fixed

@@ -84,7 +84,7 @@ function Setup() {
           <IconShieldLock size={32} />
         </ThemeIcon>
       </Group>
-      <Title order={2} ta="center" mb="lg">Welcome to GLCert</Title>
+      <Title order={2} ta="center" mb="lg">Welcome to GLcert</Title>
       <Text c="dimmed" ta="center" mb="xl">Set up your PKI manager</Text>
 
       <Stepper active={step} mb="xl">

@@ -109,7 +109,7 @@ function Login() {
           <p className={classes.lead}>
             {useBackup
               ? 'Type one of the backup codes you saved when you set up two-factor.'
-              : 'Open your authenticator app and type the 6-digit code for GLCert.'}
+              : 'Open your authenticator app and type the 6-digit code for GLcert.'}
           </p>
           {useBackup ? (
             <TextInput
@@ -179,7 +179,7 @@ function Login() {
             <span className={classes.noteIcon}>
               <IconAlertTriangle size={16} stroke={1.8} aria-hidden="true" />
             </span>
-            This connection is not encrypted. Put GLCert behind a TLS proxy before you sign in from
+            This connection is not encrypted. Put GLcert behind a TLS proxy before you sign in from
             another network.
           </div>
         )}

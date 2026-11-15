@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <title>GLcert (small sizes: 24 px and below)</title>
+  <g fill="#34d399">
+    <rect x="5" y="10" width="9" height="20" rx="4.5"/>
+    <circle cx="24" cy="10.5" r="4.5"/>
+    <rect x="19.5" y="19" width="9" height="23" rx="4.5"/>
+    <rect x="34" y="10" width="9" height="20" rx="4.5"/>
+  </g>
+</svg>

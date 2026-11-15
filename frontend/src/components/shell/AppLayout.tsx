@@ -41,7 +41,7 @@ export function AppLayout() {
               <IconMenu2 size={16} stroke={1.8} />
             </button>
             <GlcertMark />
-            <span className={classes.wordmark}>GLCert</span>
+            <span className={classes.wordmark}>GLcert</span>
           </header>
           <Drawer
             opened={drawerOpen}

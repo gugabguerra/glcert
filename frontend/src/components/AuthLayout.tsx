@@ -9,8 +9,8 @@ export function AuthLayout({ children, footnote }: { children: ReactNode; footno
   return (
     <main className={classes.screen}>
       <div className={classes.brand}>
-        <GlcertMark />
-        GLCert
+        <GlcertMark size={44} />
+        GLcert
       </div>
       {children}
       {footnote && <p className={classes.footnote}>{footnote}</p>}

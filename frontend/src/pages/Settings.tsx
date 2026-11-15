@@ -55,7 +55,7 @@ const BLANK: SettingsData = {
   smtpPort: 587,
   smtpUsername: '',
   smtpFromEmail: '',
-  smtpFromName: 'GLCert',
+  smtpFromName: 'GLcert',
   emailNotificationsEnabled: false,
 };
 

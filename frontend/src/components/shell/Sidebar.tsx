@@ -28,22 +28,31 @@ import classes from './Shell.module.css';
 
 const ICON = { size: 16, stroke: 1.8 } as const;
 
-export function GlcertMark() {
+/**
+ * The "key bar" mark: five bars whose outline is a shield; the centre bar splits into a dot and
+ * a stem, a keyhole. Masters live in assets/logo/. At 20 px and below it switches to the
+ * three-bar cut, which keeps the keyhole readable.
+ */
+export function GlcertMark({ size = 24 }: { size?: number }) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      width="24"
-      height="24"
-      fill="none"
-      stroke="var(--gl-brand)"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M12 2.5l8 3.2v5.6c0 5-3.4 9.1-8 10.7-4.6-1.6-8-5.7-8-10.7V5.7z" />
-      <circle cx="12" cy="10.5" r="2.2" />
-      <path d="M12 12.7V16" />
+    <svg viewBox="0 0 48 48" width={size} height={size} fill="var(--gl-brand)" aria-hidden="true">
+      {size > 20 ? (
+        <>
+          <rect x="4" y="10" width="6" height="16" rx="3" />
+          <rect x="12.5" y="8" width="6" height="27" rx="3" />
+          <circle cx="24" cy="10" r="3.4" />
+          <rect x="21" y="17" width="6" height="25" rx="3" />
+          <rect x="29.5" y="8" width="6" height="27" rx="3" />
+          <rect x="38" y="10" width="6" height="16" rx="3" />
+        </>
+      ) : (
+        <>
+          <rect x="5" y="10" width="9" height="20" rx="4.5" />
+          <circle cx="24" cy="10.5" r="4.5" />
+          <rect x="19.5" y="19" width="9" height="23" rx="4.5" />
+          <rect x="34" y="10" width="9" height="20" rx="4.5" />
+        </>
+      )}
     </svg>
   );
 }
@@ -158,11 +167,11 @@ export function Sidebar({ rail, onToggleRail, onNavigate, inDrawer }: SidebarPro
       aria-label="Navigation"
     >
       <div className={classes.brand}>
-        <Link to="/" className={classes.brandLink} aria-label="GLCert home" onClick={onNavigate}>
+        <Link to="/" className={classes.brandLink} aria-label="GLcert home" onClick={onNavigate}>
           <GlcertMark />
         </Link>
         <span className={classes.wordmark} data-label>
-          GLCert
+          GLcert
         </span>
         {onToggleRail && (
           <Tooltip label={rail ? 'Expand sidebar' : 'Collapse sidebar'} position="right">
