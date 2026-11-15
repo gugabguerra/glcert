@@ -295,7 +295,7 @@ func (s *CertService) ImportCert(certPEM, keyPEM []byte, passphrase string) (*Im
 				return nil, nil, fmt.Errorf("private key type does not match certificate")
 			}
 			pubKey, ok := cert.PublicKey.(*ecdsa.PublicKey)
-			if !ok || pubKey.X.Cmp(ecKey.PublicKey.X) != 0 || pubKey.Y.Cmp(ecKey.PublicKey.Y) != 0 {
+			if !ok || !ecKey.PublicKey.Equal(pubKey) {
 				return nil, nil, fmt.Errorf("private key does not match certificate public key")
 			}
 		}

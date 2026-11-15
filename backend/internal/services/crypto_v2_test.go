@@ -110,13 +110,21 @@ func v1Instance(t *testing.T, password string) string {
 	caDir := filepath.Join(dir, "certificates", "ca", "root", "v1")
 	certDir := filepath.Join(dir, "certificates", "server", "web", "v2")
 	for d, f := range map[string]string{caDir: "ca.key", certDir: "key.pem"} {
-		os.MkdirAll(d, 0755)
-		os.WriteFile(filepath.Join(d, f), sealV1("KEY "+f), 0600)
+		if err := os.MkdirAll(d, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(d, f), sealV1("KEY "+f), 0600); err != nil {
+			t.Fatal(err)
+		}
 	}
 	// A blob from before an earlier password change: no key opens it.
 	staleDir := filepath.Join(dir, "certificates", "server", "old", "v1")
-	os.MkdirAll(staleDir, 0755)
-	os.WriteFile(filepath.Join(staleDir, "key.pem"), bytes.Repeat([]byte{1}, 64), 0600)
+	if err := os.MkdirAll(staleDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(staleDir, "key.pem"), bytes.Repeat([]byte{1}, 64), 0600); err != nil {
+		t.Fatal(err)
+	}
 
 	db, err := database.New(dir)
 	if err != nil {
@@ -216,8 +224,12 @@ func TestMigrateV1ResumesAfterInterruption(t *testing.T) {
 	}
 	// Simulate a crash after the secrets were rewritten but before the new
 	// key file landed: the v1 file and the pending salt are still on disk.
-	os.WriteFile(s.GetPassphrasePath(), v1File, 0600)
-	os.WriteFile(s.pendingSaltPath(), kf.Salt, 0600)
+	if err := os.WriteFile(s.GetPassphrasePath(), v1File, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(s.pendingSaltPath(), kf.Salt, 0600); err != nil {
+		t.Fatal(err)
+	}
 
 	again := NewCryptoService(dir)
 	report, err := again.MigrateV1(db, "admin-1", "admin-pw")

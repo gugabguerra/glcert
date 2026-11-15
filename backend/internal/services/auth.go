@@ -114,7 +114,7 @@ func (s *AuthService) Login(email, password string) (LoginResult, error) {
 	if err != nil {
 		// Spend the same bcrypt time as a wrong password, so response timing
 		// does not reveal whether the account exists.
-		bcrypt.CompareHashAndPassword(dummyHash, []byte(password))
+		_ = bcrypt.CompareHashAndPassword(dummyHash, []byte(password))
 		logger.Warnf("Login failed")
 		return LoginResult{}, fmt.Errorf("invalid credentials")
 	}

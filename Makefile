@@ -1,6 +1,18 @@
-.PHONY: build-desktop build-macos-app build-desktop-macos-arm64 build-desktop-macos-x64 build-desktop-windows build-desktop-linux clean
+.PHONY: build-desktop build-frontend embed-frontend build-macos-app build-desktop-macos-arm64 build-desktop-macos-x64 build-desktop-windows build-desktop-linux clean
 
 VERSION ?= $(shell cat VERSION)
+LDFLAGS := -s -w -X main.version=$(VERSION)
+
+# The desktop shell uses webview_go, which needs cgo. Go turns cgo off when cross-compiling, so
+# every desktop target turns it back on and names a C/C++ compiler for its platform.
+#   macOS:   Apple clang builds either architecture with -arch.
+#   Linux:   native gcc plus GTK 3 and WebKitGTK 4.0 dev packages (pkg-config gtk+-3.0 webkit2gtk-4.0).
+#   Windows: mingw-w64; override WINDOWS_CC/WINDOWS_CXX if yours have other names. Older
+#            mingw-w64 lacks EventToken.h, so assets/windows/include supplies it last.
+WINDOWS_CC ?= x86_64-w64-mingw32-gcc
+WINDOWS_CXX ?= x86_64-w64-mingw32-g++
+
+DESKTOP_BUILD := go build -tags desktop -trimpath
 
 build-desktop: build-desktop-macos-arm64
 
@@ -13,105 +25,53 @@ embed-frontend: build-frontend
 
 build-desktop-macos-arm64: embed-frontend
 	mkdir -p dist
-	cd backend && GOOS=darwin GOARCH=arm64 go build -tags desktop -ldflags "-s -w -X main.version=$(VERSION)" -o ../dist/glcert-macos-arm64 ./cmd/desktop
+	cd backend && CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 CC="clang -arch arm64" CXX="clang++ -arch arm64" \
+		$(DESKTOP_BUILD) -ldflags "$(LDFLAGS)" -o ../dist/glcert-macos-arm64 ./cmd/desktop
 
 build-desktop-macos-x64: embed-frontend
 	mkdir -p dist
-	cd backend && GOOS=darwin GOARCH=amd64 go build -tags desktop -ldflags "-s -w -X main.version=$(VERSION)" -o ../dist/glcert-macos-x64 ./cmd/desktop
+	cd backend && CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 CC="clang -arch x86_64" CXX="clang++ -arch x86_64" \
+		$(DESKTOP_BUILD) -ldflags "$(LDFLAGS)" -o ../dist/glcert-macos-x64 ./cmd/desktop
 
 build-desktop-windows: embed-frontend
 	mkdir -p dist
-	cd backend && GOOS=windows GOARCH=amd64 go build -tags desktop -ldflags "-s -w -X main.version=$(VERSION)" -o ../dist/glcert-windows.exe ./cmd/desktop
+	cd backend && CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=$(WINDOWS_CC) CXX=$(WINDOWS_CXX) \
+		CGO_CXXFLAGS="-idirafter $(CURDIR)/assets/windows/include" \
+		$(DESKTOP_BUILD) -ldflags "$(LDFLAGS) -H windowsgui" -o ../dist/glcert-windows.exe ./cmd/desktop
 
 build-desktop-linux: embed-frontend
 	mkdir -p dist
-	cd backend && GOOS=linux GOARCH=amd64 go build -tags desktop -ldflags "-s -w -X main.version=$(VERSION)" -o ../dist/glcert-linux ./cmd/desktop
+	cd backend && CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
+		$(DESKTOP_BUILD) -ldflags "$(LDFLAGS)" -o ../dist/glcert-linux ./cmd/desktop
 
-build-macos-app: embed-frontend
-	mkdir -p dist
+# Universal macOS bundle (arm64 + x86_64) zipped for the release page.
+build-macos-app: build-desktop-macos-arm64 build-desktop-macos-x64
+	lipo -create dist/glcert-macos-arm64 dist/glcert-macos-x64 -output dist/glcert-macos-universal
 
-	# Build arm64
-	cd backend && GOOS=darwin GOARCH=arm64 go build -tags desktop -ldflags "-s -w -X main.version=$(VERSION)" -o /tmp/glcert-arm64 ./cmd/desktop
+	# Icon set from the 1024 px master
+	rm -rf dist/glcert.iconset && mkdir -p dist/glcert.iconset
+	for s in 16 32 128 256 512; do \
+		sips -z $$s $$s assets/IMG/glcert.png --out dist/glcert.iconset/icon_$${s}x$${s}.png >/dev/null; \
+		sips -z $$((s*2)) $$((s*2)) assets/IMG/glcert.png --out dist/glcert.iconset/icon_$${s}x$${s}@2x.png >/dev/null; \
+	done
+	iconutil -c icns dist/glcert.iconset -o dist/glcert.icns
 
-	# Build amd64
-	cd backend && GOOS=darwin GOARCH=amd64 go build -tags desktop -ldflags "-s -w -X main.version=$(VERSION)" -o /tmp/glcert-amd64 ./cmd/desktop
+	# Bundle
+	rm -rf dist/GLcert.app
+	mkdir -p dist/GLcert.app/Contents/MacOS dist/GLcert.app/Contents/Resources
+	cp dist/glcert-macos-universal dist/GLcert.app/Contents/MacOS/glcert
+	chmod +x dist/GLcert.app/Contents/MacOS/glcert
+	cp dist/glcert.icns dist/GLcert.app/Contents/Resources/glcert.icns
+	sed 's/@VERSION@/$(VERSION)/g' assets/macos/Info.plist > dist/GLcert.app/Contents/Info.plist
+	plutil -lint dist/GLcert.app/Contents/Info.plist
 
-	# Create universal binary
-	lipo -create /tmp/glcert-arm64 /tmp/glcert-amd64 -output /tmp/glcert-universal
-	rm -f /tmp/glcert-arm64 /tmp/glcert-amd64
+	# Ad-hoc signature so Apple Silicon will launch the universal binary
+	codesign --force --deep --sign - dist/GLcert.app
 
-	# Generate icon
-	rm -rf /tmp/glcert.iconset /tmp/glcert.icns
-	mkdir -p /tmp/glcert.iconset
-	sips -z 16 16 assets/IMG/glcert.png --out /tmp/glcert.iconset/icon_16x16.png
-	sips -z 32 32 assets/IMG/glcert.png --out /tmp/glcert.iconset/icon_16x16@2x.png
-	sips -z 32 32 assets/IMG/glcert.png --out /tmp/glcert.iconset/icon_32x32.png
-	sips -z 64 64 assets/IMG/glcert.png --out /tmp/glcert.iconset/icon_32x32@2x.png
-	sips -z 128 128 assets/IMG/glcert.png --out /tmp/glcert.iconset/icon_128x128.png
-	sips -z 256 256 assets/IMG/glcert.png --out /tmp/glcert.iconset/icon_128x128@2x.png
-	sips -z 256 256 assets/IMG/glcert.png --out /tmp/glcert.iconset/icon_256x256.png
-	sips -z 512 512 assets/IMG/glcert.png --out /tmp/glcert.iconset/icon_256x256@2x.png
-	sips -z 512 512 assets/IMG/glcert.png --out /tmp/glcert.iconset/icon_512x512.png
-	cp assets/IMG/glcert.png /tmp/glcert.iconset/icon_512x512@2x.png
-	iconutil -c icns /tmp/glcert.iconset -o /tmp/glcert.icns
-	rm -rf /tmp/glcert.iconset
-
-	# Assemble .app bundle
-	rm -rf dist/GLCert.app
-	mkdir -p dist/GLCert.app/Contents/MacOS
-	mkdir -p dist/GLCert.app/Contents/Resources
-	cp /tmp/glcert-universal dist/GLCert.app/Contents/MacOS/glcert
-	cp /tmp/glcert.icns dist/GLCert.app/Contents/Resources/glcert.icns
-	chmod +x dist/GLCert.app/Contents/MacOS/glcert
-
-	# Write Info.plist
-	@cat > dist/GLCert.app/Contents/Info.plist << 'PLIST'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-	<key>CFBundleDevelopmentRegion</key>
-	<string>en</string>
-	<key>CFBundleDisplayName</key>
-	<string>GLCert</string>
-	<key>CFBundleExecutable</key>
-	<string>glcert</string>
-	<key>CFBundleIconFile</key>
-	<string>glcert</string>
-	<key>CFBundleIdentifier</key>
-	<string>com.glcert.glcert</string>
-	<key>CFBundleInfoDictionaryVersion</key>
-	<string>6.0</string>
-	<key>CFBundleName</key>
-	<string>GLCert</string>
-	<key>CFBundlePackageType</key>
-	<string>APPL</string>
-	<key>CFBundleShortVersionString</key>
-	<string>$(VERSION)</string>
-	<key>CFBundleVersion</key>
-	<string>1</string>
-	<key>LSMinimumSystemVersion</key>
-	<string>10.15</string>
-	<key>NSHighResolutionCapable</key>
-	<true/>
-	<key>NSHumanReadableCopyright</key>
-	<string>GLCert - Certificate Management</string>
-	<key>LSApplicationCategoryType</key>
-	<string>public.app-category.utilities</string>
-</dict>
-</plist>
-PLIST
-
-	# Create distributable zip
-	cd dist && ditto -c -k --sequesterRsrc --keepParent GLCert.app GLCert-macos.zip
-
-	rm -f /tmp/glcert-universal /tmp/glcert.icns
-
-	@echo ""
-	@echo "Build complete:"
-	@echo "  App:    dist/GLCert.app"
-	@echo "  Zip:    dist/GLCert-macos.zip"
-	@echo "  Size:   $$(du -sh dist/GLCert-macos.zip | cut -f1)"
+	rm -f dist/GLcert-macos.zip
+	cd dist && ditto -c -k --sequesterRsrc --keepParent GLcert.app GLcert-macos.zip
+	rm -rf dist/glcert.iconset dist/glcert.icns dist/glcert-macos-universal
+	@echo "Built dist/GLcert.app and dist/GLcert-macos.zip ($$(du -sh dist/GLcert-macos.zip | cut -f1))"
 
 clean:
 	rm -rf dist/ backend/internal/embedded/static/

@@ -14,6 +14,9 @@ jobs:
         with:
           go-version: '1.27'
           cache-dependency-path: backend/go.sum
+      # embed.go needs the bundled frontend; this job doesn't build it, so give it a stand-in.
+      - name: Stub embedded frontend
+        run: mkdir -p backend/internal/embedded/static && echo '<!doctype html>' > backend/internal/embedded/static/index.html
       - name: Lint (golangci-lint)
         uses: golangci/golangci-lint-action@v8
         with:
@@ -62,7 +65,10 @@ jobs:
           node-version: '24'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: Build frontend bundle
-        run: make build-frontend
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+      - name: Build and embed frontend bundle
+        run: make embed-frontend
       - name: Build backend (embed pipeline)
         run: cd backend && go build ./...
