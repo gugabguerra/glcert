@@ -3,6 +3,21 @@
 All notable changes to GLCert. Newest first; versions match the git tags and the root `VERSION`
 file.
 
+## [1.1.3] — 2026-11-15
+
+### Fixed
+
+- Desktop release builds work again. The `Makefile` didn't parse (the macOS `Info.plist` was an
+  inline heredoc), so every tagged release since 1.0.0 published no downloads. The plist is now a
+  template in `assets/macos/`, every desktop target builds with cgo as `webview_go` requires, and
+  the Release workflow installs the GTK/WebKit and mingw-w64 toolchains for Linux and Windows
+  (`assets/windows/include` supplies a WebView2 header older mingw-w64 lacks). The
+  macOS app is now `GLcert.app` in `GLcert-macos.zip`, universal and ad-hoc signed; the Windows
+  build no longer opens a console window.
+- CI is green again: lint and the build job now see an embedded frontend, and the lint findings
+  this had hidden are fixed (unchecked errors in tests, deprecated ECDSA key comparisons now use
+  `PublicKey.Equal`).
+
 ## [1.1.2] — 2026-11-15
 
 ### Changed
