@@ -17,6 +17,7 @@ import (
 func SetupRouter(db *sql.DB, crypto *services.CryptoService, cfg *config.Config, staticHandler http.Handler) *chi.Mux {
 	auth := services.NewAuthService(db)
 	totpService := services.NewTOTPService(db, crypto)
+	passkeyService := services.NewPasskeyService(db, cfg.PublicURL, cfg.Port)
 	emailService := services.NewEmailService(db, crypto)
 	notificationService := services.NewNotificationService(db, emailService)
 	auditService := services.NewAuditService(db)
@@ -32,6 +33,7 @@ func SetupRouter(db *sql.DB, crypto *services.CryptoService, cfg *config.Config,
 	authHandler := handlers.NewAuthHandler(auth, crypto, emailService, totpService, cfg.PublicURL)
 	authMiddleware := handlers.NewAuthMiddleware(auth, db)
 	totpHandler := handlers.NewTOTPHandler(totpService, auth)
+	passkeyHandler := handlers.NewPasskeyHandler(passkeyService, totpService, auth)
 	userHandler := handlers.NewUserHandler(auth, crypto)
 	backupHandler := handlers.NewBackupHandler(db, cfg.DataDir)
 	adminHandler := handlers.NewAdminHandler(db, cfg.DataDir, crypto, auth)
@@ -58,6 +60,10 @@ func SetupRouter(db *sql.DB, crypto *services.CryptoService, cfg *config.Config,
 
 		// --- TOTP verify (unauthenticated) ---
 		r.With(handlers.RateLimit(rate.Every(3*time.Second), 3)).Post("/totp/verify", totpHandler.Verify)
+
+		// --- Passkey verify (unauthenticated; needs a pending sign-in token) ---
+		r.With(handlers.RateLimit(rate.Every(3*time.Second), 5)).Post("/passkeys/login/begin", passkeyHandler.LoginBegin)
+		r.With(handlers.RateLimit(rate.Every(3*time.Second), 3)).Post("/passkeys/login/finish", passkeyHandler.LoginFinish)
 
 		// --- Backup restore ---
 		// Allowed unauthenticated only during initial bootstrap (setup wizard).
@@ -87,6 +93,10 @@ func SetupRouter(db *sql.DB, crypto *services.CryptoService, cfg *config.Config,
 			r.Get("/totp/setup", totpHandler.Setup)
 			r.Post("/totp/verify-setup", totpHandler.VerifySetup)
 			r.Post("/totp/disable", totpHandler.Disable)
+			r.Get("/passkeys", passkeyHandler.List)
+			r.Post("/passkeys/register/begin", passkeyHandler.RegisterBegin)
+			r.Post("/passkeys/register/finish", passkeyHandler.RegisterFinish)
+			r.Post("/passkeys/{id}/remove", passkeyHandler.Remove)
 
 			r.Get("/users/me", userHandler.GetMe)
 			r.Put("/users/me", userHandler.UpdateMe)

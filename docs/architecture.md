@@ -47,7 +47,7 @@ overwriting. **Mount a volume in Docker or state is lost on restart.**
 
 A goroutine (5 minutes after start, then hourly) checks certificates and CAs for expiration and
 fires notifications (Shoutrrr — Discord, Slack, Telegram, SMTP, and 20+ more), and cleans up
-expired sessions and pending TOTP sessions.
+expired sessions and pending two-factor sign-ins.
 
 ## Configuration
 
@@ -87,7 +87,7 @@ glcert/
       models/models.go          Domain models
       server/                   Router wiring and setup flow
       services/                 Business rules (auth, ca, cert, crypto, email,
-                                notification, totp, audit)
+                                notification, totp, passkey, audit)
   frontend/
     src/
       api/client.ts             authFetch / JSON / download helpers

@@ -44,7 +44,8 @@ type Config struct {
 	LogLevel string
 	// PublicURL is the externally reachable origin used in emailed links
 	// (password reset, share links). Empty means those emails are not sent:
-	// request headers are never trusted to build them.
+	// request headers are never trusted to build them. It is also the only
+	// origin passkeys are accepted from (http://localhost:<port> when empty).
 	PublicURL string
 }
 

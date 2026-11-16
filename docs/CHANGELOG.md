@@ -3,6 +3,22 @@
 All notable changes to GLcert. Newest first; versions match the git tags and the root `VERSION`
 file.
 
+## [Unreleased]
+
+### Added
+
+- Passkeys as a second factor. After the password, sign in with a fingerprint, face, screen lock
+  or security key in place of a code from the authenticator app. Add, name and remove them under
+  Two-factor on your account page; an account can use passkeys, the app, or both, and the first
+  one you add comes with backup codes. Passkeys need a browser on HTTPS at the `PUBLIC_URL`
+  address (or `http://localhost:<port>` when it is unset); in the desktop app they depend on the
+  system web view. New dependency: `github.com/go-webauthn/webauthn`.
+
+### Fixed
+
+- Setting up the authenticator app again now replaces the old backup codes. Before, the earlier
+  set kept working next to the new one.
+
 ## [1.1.3] — 2026-11-15
 
 ### Fixed
@@ -182,7 +198,8 @@ Summarized from the user's point of view; see the git history for details.
   CAs included through chain traversal).
 - Administration panel: user management, filterable audit log, backup, restore, factory reset.
 - Desktop app: webview shell with the frontend embedded in the binary, macOS distribution build.
-- MFA / TOTP with QR setup, single-use backup codes, and encrypted secret storage.
+- Two-factor authentication (TOTP) with QR setup, single-use backup codes, and encrypted secret
+  storage.
 - Temporary share links (single-use, 15-minute) with optional email delivery.
 - Certificate version history with restore and regeneration; import for certificates and CAs.
 - Expiration notifications via Shoutrrr (Discord, Slack, Telegram, SMTP, 20+ services).

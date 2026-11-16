@@ -64,7 +64,8 @@ Active user sessions. Cleared on server restart.
 
 ## pending_sessions
 
-Temporary tokens during the two-factor login flow: password accepted, TOTP not yet verified.
+Temporary tokens during the two-factor login flow: password accepted, second factor (passkey,
+TOTP or backup code) not yet verified.
 
 | Column     | Type           | Notes                          |
 | ---------- | -------------- | ------------------------------ |
@@ -74,7 +75,8 @@ Temporary tokens during the two-factor login flow: password accepted, TOTP not y
 
 ## backup_codes
 
-Single-use backup codes for TOTP recovery. Stored as SHA-256 hashes.
+Single-use backup codes, the recovery path for TOTP and passkeys. Stored as SHA-256 hashes.
+Issued with the first second factor, replaced as a set, deleted with the last one.
 
 | Column     | Type           | Notes                            |
 | ---------- | -------------- | -------------------------------- |
@@ -83,6 +85,21 @@ Single-use backup codes for TOTP recovery. Stored as SHA-256 hashes.
 | code_hash  | TEXT NOT NULL  | SHA-256 hash of backup code      |
 | used       | BOOLEAN        | DEFAULT FALSE                    |
 | created_at | DATETIME       | DEFAULT CURRENT_TIMESTAMP        |
+
+## passkeys
+
+WebAuthn credentials used as a second factor. Nothing here is secret: the private key never
+leaves the authenticator.
+
+| Column        | Type           | Notes                                              |
+| ------------- | -------------- | -------------------------------------------------- |
+| id            | TEXT PK        | UUID                                               |
+| user_id       | TEXT NOT NULL  | FK -> users(id) ON DELETE CASCADE                  |
+| credential_id | BLOB NOT NULL  | UNIQUE, the authenticator's credential ID          |
+| name          | TEXT NOT NULL  | User's label, at most 64 characters                |
+| credential    | TEXT NOT NULL  | JSON record: public key, flags, signature counter  |
+| created_at    | DATETIME       | DEFAULT CURRENT_TIMESTAMP                          |
+| last_used_at  | DATETIME       | Nullable, set on each successful sign-in           |
 
 ## password_resets
 

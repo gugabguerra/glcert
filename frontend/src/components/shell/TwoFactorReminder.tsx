@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Modal, Text } from '@mantine/core';
 import { useAuth } from '../../hooks/useAuth';
+import { hasTwoFactor } from '../../types/user';
 import {
   clearSignedIn,
   justSignedIn,
@@ -19,7 +20,7 @@ export function TwoFactorReminder() {
   const navigate = useNavigate();
   // Read once on mount; the sign-in marker is cleared right after, so a reload does not reopen it.
   const [opened, setOpened] = useState(
-    () => justSignedIn() && shouldRemind(!!user?.totpEnabled, snoozedUntil(), Date.now()),
+    () => justSignedIn() && shouldRemind(hasTwoFactor(user), snoozedUntil(), Date.now()),
   );
 
   useEffect(() => {
@@ -30,8 +31,8 @@ export function TwoFactorReminder() {
     <Modal opened={opened} onClose={() => setOpened(false)} title="Turn on two-factor?" size={420}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <Text size="sm" c="var(--gl-text-soft)" fw={300}>
-          Only your password protects this account. A code from an authenticator app keeps it safe
-          if the password leaks. It takes about a minute.
+          Only your password protects this account. A passkey or a code from an authenticator app
+          keeps it safe if the password leaks. It takes about a minute.
         </Text>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
           <Button
@@ -47,7 +48,7 @@ export function TwoFactorReminder() {
             data-autofocus
             onClick={() => {
               setOpened(false);
-              navigate('/profile/two-factor');
+              navigate('/profile#two-factor-h');
             }}
           >
             Set up two-factor

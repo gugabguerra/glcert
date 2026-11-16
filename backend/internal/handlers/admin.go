@@ -47,7 +47,7 @@ func (h *AdminHandler) FactoryReset(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
-	tables := []string{"certificate_versions", "certificates", "certificate_authorities", "share_links", "sessions", "pending_sessions", "backup_codes", "ca_permissions", "password_resets", "users", "audit_log"}
+	tables := []string{"certificate_versions", "certificates", "certificate_authorities", "share_links", "sessions", "pending_sessions", "backup_codes", "passkeys", "ca_permissions", "password_resets", "users", "audit_log"}
 	for _, table := range tables {
 		if _, err := tx.Exec("DELETE FROM " + table); err != nil {
 			logger.Errorf("Failed to clear table %s: %v", table, err)

@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import {
   Button,
   Modal,
@@ -16,6 +16,7 @@ import { IconDeviceDesktop, IconMoon, IconSun } from '@tabler/icons-react';
 import { authFetchJson } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 import { PasswordStrengthIndicator } from '../components/PasswordStrengthIndicator';
+import { PasskeySettings } from '../components/PasskeySettings';
 import type { User } from '../types/user';
 import classes from './Admin.module.css';
 import s from './Settings.module.css';
@@ -63,7 +64,14 @@ function UserProfile() {
     queryKey: ['totpStatus'],
     queryFn: () => authFetchJson('/api/totp/status'),
   });
-  const twoFactorOn = totp?.enabled ?? user?.totpEnabled ?? false;
+  const totpOn = totp?.enabled ?? user?.totpEnabled ?? false;
+  const passkeyCount = user?.passkeyCount ?? 0;
+
+  // The sign-in reminder links straight to the two-factor section.
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (hash) document.getElementById(hash.slice(1))?.scrollIntoView({ block: 'start' });
+  }, [hash]);
 
   const saveName = useMutation({
     mutationFn: () =>
@@ -213,31 +221,34 @@ function UserProfile() {
         <Section
           id="two-factor-h"
           title="Two-factor"
-          note="A code from your authenticator app, asked after your password."
+          note="Asked after your password: a passkey, or a code from your authenticator app."
         >
+          {!totpOn && passkeyCount === 0 && (
+            <p className={classes.muted}>Only your password protects this account.</p>
+          )}
+          <PasskeySettings onCountChange={(count) => setUser({ ...user, passkeyCount: count })} />
+          <div className={s.divider} />
           <div className={s.opRow}>
             <div className={s.opText}>
               <span
                 className={s.switchTitle}
-                style={{ color: twoFactorOn ? 'var(--gl-success)' : 'var(--gl-text)' }}
+                style={{ color: totpOn ? 'var(--gl-success)' : 'var(--gl-text)' }}
               >
-                {twoFactorOn ? 'On' : 'Off'}
+                Authenticator app {totpOn ? 'on' : 'off'}
               </span>
               <span className="gl-second-line">
-                {twoFactorOn
-                  ? 'Authenticator app, with single-use backup codes'
-                  : 'Only your password protects this account.'}
+                A 6-digit code from an app on your phone, with single-use backup codes.
               </span>
             </div>
             <Button
               component={Link}
               to="/profile/two-factor"
-              variant={twoFactorOn ? 'default' : 'filled'}
+              variant={totpOn || passkeyCount > 0 ? 'default' : 'filled'}
             >
-              {twoFactorOn ? 'Set up again' : 'Set up two-factor'}
+              {totpOn ? 'Set up again' : 'Set up the app'}
             </Button>
           </div>
-          {twoFactorOn && (
+          {totpOn && (
             <>
               <p className={classes.muted}>
                 Setting up again replaces your authenticator and gives you new backup codes.
@@ -245,9 +256,11 @@ function UserProfile() {
               <div className={s.divider} />
               <div className={s.opRow}>
                 <div className={s.opText}>
-                  <span className={s.switchTitle}>Turn off two-factor</span>
+                  <span className={s.switchTitle}>Turn off the authenticator app</span>
                   <span className="gl-second-line">
-                    Your password alone will open this account.
+                    {passkeyCount > 0
+                      ? 'Your passkeys and backup codes keep working.'
+                      : 'Your password alone will open this account.'}
                   </span>
                 </div>
                 <Button color="red" variant="outline" onClick={() => setTurningOff(true)}>
@@ -273,7 +286,7 @@ function UserProfile() {
           setTurningOff(false);
           refetchTotp();
           setUser({ ...user, totpEnabled: false });
-          notifications.show({ message: 'Two-factor is off.' });
+          notifications.show({ message: 'The authenticator app is off.' });
         }}
       />
     </div>
@@ -308,7 +321,7 @@ function TurnOffDialog({
   });
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Turn off two-factor?" size={420}>
+    <Modal opened={opened} onClose={onClose} title="Turn off the authenticator app?" size={420}>
       <Stack>
         <Text size="sm" c="var(--gl-text-soft)" fw={300}>
           Confirm with your password and a current code from your authenticator app.

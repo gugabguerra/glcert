@@ -102,10 +102,12 @@ func (s *AuthService) CompleteSetup(input SetupInput) (string, string, error) {
 var dummyHash, _ = bcrypt.GenerateFromPassword([]byte("glcert-no-such-user"), bcrypt.DefaultCost)
 
 type LoginResult struct {
-	Token       string
-	UserID      string
-	Role        string
-	TOTPEnabled bool
+	Token  string
+	UserID string
+	Role   string
+	// SecondFactors lists the methods that can finish the sign-in ("passkey",
+	// "totp"). When it is non-empty, Token is a pending token, not a session.
+	SecondFactors []string
 }
 
 func (s *AuthService) Login(email, password string) (LoginResult, error) {
@@ -125,9 +127,19 @@ func (s *AuthService) Login(email, password string) (LoginResult, error) {
 	}
 
 	var totpEnabled bool
+	var passkeys int
 	s.db.QueryRow("SELECT totp_enabled FROM users WHERE id = ?", userID).Scan(&totpEnabled)
+	s.db.QueryRow("SELECT COUNT(*) FROM passkeys WHERE user_id = ?", userID).Scan(&passkeys)
 
+	var factors []string
+	if passkeys > 0 {
+		factors = append(factors, "passkey")
+	}
 	if totpEnabled {
+		factors = append(factors, "totp")
+	}
+
+	if len(factors) > 0 {
 		pendingToken, err := s.generatePendingToken()
 		if err != nil {
 			return LoginResult{}, err
@@ -139,7 +151,7 @@ func (s *AuthService) Login(email, password string) (LoginResult, error) {
 			return LoginResult{}, fmt.Errorf("save pending session: %w", err)
 		}
 
-		return LoginResult{Token: pendingToken, UserID: userID, Role: role, TOTPEnabled: true}, nil
+		return LoginResult{Token: pendingToken, UserID: userID, Role: role, SecondFactors: factors}, nil
 	}
 
 	token, err := s.generateToken()
@@ -153,7 +165,7 @@ func (s *AuthService) Login(email, password string) (LoginResult, error) {
 		return LoginResult{}, fmt.Errorf("save session: %w", err)
 	}
 
-	return LoginResult{Token: token, UserID: userID, Role: role, TOTPEnabled: false}, nil
+	return LoginResult{Token: token, UserID: userID, Role: role}, nil
 }
 
 func (s *AuthService) ValidatePendingToken(token string) (bool, string) {
@@ -290,10 +302,14 @@ func (s *AuthService) generateToken() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
+// userColumns is the models.User projection shared by the user queries.
+const userColumns = `id, name, email, role, totp_enabled,
+	(SELECT COUNT(*) FROM passkeys WHERE passkeys.user_id = users.id), created_at`
+
 func (s *AuthService) GetUserByID(userID string) (*models.User, error) {
 	var user models.User
-	err := s.db.QueryRow("SELECT id, name, email, role, totp_enabled, created_at FROM users WHERE id = ?", userID).Scan(
-		&user.ID, &user.Name, &user.Email, &user.Role, &user.TOTPEnabled, &user.CreatedAt,
+	err := s.db.QueryRow("SELECT "+userColumns+" FROM users WHERE id = ?", userID).Scan(
+		&user.ID, &user.Name, &user.Email, &user.Role, &user.TOTPEnabled, &user.PasskeyCount, &user.CreatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -389,7 +405,7 @@ func (s *AuthService) CreateUser(name, email, password, role string) (*models.Us
 }
 
 func (s *AuthService) ListUsers() ([]models.User, error) {
-	rows, err := s.db.Query("SELECT id, name, email, role, totp_enabled, created_at FROM users ORDER BY created_at ASC")
+	rows, err := s.db.Query("SELECT " + userColumns + " FROM users ORDER BY created_at ASC")
 	if err != nil {
 		return nil, err
 	}
@@ -398,7 +414,7 @@ func (s *AuthService) ListUsers() ([]models.User, error) {
 	var users []models.User
 	for rows.Next() {
 		var u models.User
-		if err := rows.Scan(&u.ID, &u.Name, &u.Email, &u.Role, &u.TOTPEnabled, &u.CreatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.Name, &u.Email, &u.Role, &u.TOTPEnabled, &u.PasskeyCount, &u.CreatedAt); err != nil {
 			return nil, err
 		}
 		users = append(users, u)
@@ -429,7 +445,7 @@ func (s *AuthService) DeleteUser(userID string) error {
 	}
 	defer tx.Rollback()
 
-	for _, table := range []string{"sessions", "pending_sessions", "backup_codes", "ca_permissions", "password_resets"} {
+	for _, table := range []string{"sessions", "pending_sessions", "backup_codes", "passkeys", "ca_permissions", "password_resets"} {
 		if _, err := tx.Exec("DELETE FROM "+table+" WHERE user_id = ?", userID); err != nil {
 			return fmt.Errorf("delete %s: %w", table, err)
 		}

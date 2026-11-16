@@ -47,9 +47,12 @@ manage TLS certificates, and control access from a web interface — without usi
 - **Administration:** Manage users and the authorities each can use, review the audit log by
   kind, person and day, configure system settings, and back up, restore, or factory reset (asks
   for your password) from Settings.
-- **Multi-factor authentication:** Optional TOTP with encrypted secret storage and single-use
-  backup codes, set up in three steps from your account page, with a reminder after sign-in for
-  accounts that do not use it yet.
+- **Two-factor authentication:** Optional second factor after the password: passkeys
+  (fingerprint, face, screen lock or a security key) and TOTP with encrypted secret storage. Both
+  come with single-use backup codes and are managed from your account page, with a reminder after
+  sign-in for accounts that use neither. Passkeys need a browser on HTTPS at the `PUBLIC_URL`
+  address (or `http://localhost:<port>` when it is unset); in the desktop app they depend on the
+  system web view and may not be offered.
 - **Notifications:** Send CA and certificate expiration alerts through SMTP or supported webhook
   services. Configure a threshold and send a test notification.
 - **Backup and restore:** Create password-encrypted ZIP backups. Restoring merges data without
@@ -130,7 +133,7 @@ dotenv file. Real environment variables take precedence over both files.
 | `port` | `PORT` | `18080` | HTTP server listen port |
 | `dataDir` | `DATA_DIR` | `./data` | Database and certificate storage directory |
 | `logLevel` | `LOG_LEVEL` | `info` | Log verbosity: `debug`, `info`, `warn`, `error`, or `fatal` |
-| `publicUrl` | `PUBLIC_URL` | empty | Public `http(s)` origin used in emailed reset and share links; without it no such email is sent |
+| `publicUrl` | `PUBLIC_URL` | empty | Public `http(s)` origin used in emailed reset and share links, and the only address passkeys are accepted from; without it no such email is sent and passkeys work on `http://localhost:<port>` only |
 
 | Loader variable | Default | Purpose |
 |---|---|---|
@@ -159,7 +162,8 @@ them out of tracked files.
   protect the data directory, and keep encrypted backups in a separate secure location.
 - Sessions expire after 24 hours and are cleared on server restart. Password changes invalidate
   all sessions.
-- MFA is available for accounts. Share links are single-use and expire after 15 minutes.
+- Two-factor authentication (passkeys and TOTP) is available for accounts. Share links are
+  single-use and expire after 15 minutes.
 
 Read [docs/SECURITY.md](docs/SECURITY.md) before deploying. It documents the security boundaries,
 hardening checklist, and vulnerability reporting process.

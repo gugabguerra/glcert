@@ -70,6 +70,17 @@ func doRequest(t *testing.T, h http.Handler, method, path string, body interface
 // behind the per-IP rate limiter. It returns the status code.
 func doRequestFrom(t *testing.T, h http.Handler, method, path string, body interface{}, client int) int {
 	t.Helper()
+	return doRequestFromAddr(t, h, method, path, body, client).Code
+}
+
+// doRequestFromFull is doRequestFrom for a POST whose response body matters.
+func doRequestFromFull(t *testing.T, h http.Handler, path string, body interface{}, client int) *httptest.ResponseRecorder {
+	t.Helper()
+	return doRequestFromAddr(t, h, http.MethodPost, path, body, client)
+}
+
+func doRequestFromAddr(t *testing.T, h http.Handler, method, path string, body interface{}, client int) *httptest.ResponseRecorder {
+	t.Helper()
 	b, err := json.Marshal(body)
 	if err != nil {
 		t.Fatalf("marshal body: %v", err)
@@ -79,7 +90,7 @@ func doRequestFrom(t *testing.T, h http.Handler, method, path string, body inter
 	req.RemoteAddr = fmt.Sprintf("198.51.100.%d:1234", client%250+1)
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
-	return rr.Code
+	return rr
 }
 
 // decodeJSON decodes a JSON response body into v.

@@ -80,7 +80,7 @@ function TwoFactorSetup() {
         Back to your account
       </Link>
       <div>
-        <h1 className={classes.title}>Set up two-factor</h1>
+        <h1 className={classes.title}>Set up the authenticator app</h1>
         <div className="gl-second-line">
           {user?.totpEnabled && !verified
             ? 'Your current authenticator stops working once this is done.'
@@ -202,7 +202,7 @@ function TwoFactorSetup() {
                   </Button>
                   <Button
                     onClick={() => {
-                      notifications.show({ message: 'Two-factor is on.' });
+                      notifications.show({ message: 'Authenticator app is on.' });
                       navigate('/profile');
                     }}
                   >

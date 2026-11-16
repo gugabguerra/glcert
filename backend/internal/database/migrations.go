@@ -150,6 +150,25 @@ func migrate(db *sql.DB) error {
 		return err
 	}
 
+	// Passkeys (WebAuthn second factor). credential is the library's JSON
+	// record: public key, flags, and signature counter. Nothing in it is secret.
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS passkeys (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			credential_id BLOB NOT NULL UNIQUE,
+			name TEXT NOT NULL DEFAULT '',
+			credential TEXT NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			last_used_at DATETIME,
+			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+		)
+	`)
+	if err != nil {
+		return err
+	}
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_passkeys_user ON passkeys(user_id)")
+
 	// Password resets
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS password_resets (

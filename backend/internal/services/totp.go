@@ -127,25 +127,60 @@ func (s *TOTPService) EnableTOTP(userID, secret string, codes []string) error {
 		return fmt.Errorf("save TOTP secret: %w", err)
 	}
 
+	return s.replaceBackupCodes(userID, codes)
+}
+
+// IssueBackupCodes gives the user a fresh set of backup codes and returns
+// them in the clear, once. Any earlier set stops working.
+func (s *TOTPService) IssueBackupCodes(userID string) ([]string, error) {
+	codes, err := s.GenerateBackupCodes()
+	if err != nil {
+		return nil, err
+	}
+	if err := s.replaceBackupCodes(userID, codes); err != nil {
+		return nil, err
+	}
+	return codes, nil
+}
+
+// HasBackupCodes reports whether the user still holds an unused backup code.
+func (s *TOTPService) HasBackupCodes(userID string) bool {
+	var n int
+	err := s.db.QueryRow("SELECT COUNT(*) FROM backup_codes WHERE user_id = ? AND used = FALSE", userID).Scan(&n)
+	return err == nil && n > 0
+}
+
+// replaceBackupCodes swaps the user's backup codes for a new set in one
+// transaction, so an old set never stays valid next to the new one.
+func (s *TOTPService) replaceBackupCodes(userID string, codes []string) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("save backup codes: %w", err)
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec("DELETE FROM backup_codes WHERE user_id = ?", userID); err != nil {
+		return fmt.Errorf("delete backup codes: %w", err)
+	}
 	for _, code := range codes {
 		hash := sha256.Sum256([]byte(strings.ToLower(code)))
-		hashHex := hex.EncodeToString(hash[:])
-		_, err := s.db.Exec("INSERT INTO backup_codes (user_id, code_hash) VALUES (?, ?)", userID, hashHex)
-		if err != nil {
+		if _, err := tx.Exec("INSERT INTO backup_codes (user_id, code_hash) VALUES (?, ?)", userID, hex.EncodeToString(hash[:])); err != nil {
 			return fmt.Errorf("save backup code: %w", err)
 		}
 	}
-
-	return nil
+	return tx.Commit()
 }
 
+// DisableTOTP turns the authenticator app off. Backup codes go with it unless
+// a passkey still protects the account and needs them as its recovery path.
 func (s *TOTPService) DisableTOTP(userID string) error {
 	_, err := s.db.Exec("UPDATE users SET totp_secret = NULL, totp_enabled = FALSE WHERE id = ?", userID)
 	if err != nil {
 		return fmt.Errorf("disable TOTP: %w", err)
 	}
 
-	_, err = s.db.Exec("DELETE FROM backup_codes WHERE user_id = ?", userID)
+	_, err = s.db.Exec(`DELETE FROM backup_codes WHERE user_id = ?
+		AND NOT EXISTS (SELECT 1 FROM passkeys WHERE passkeys.user_id = backup_codes.user_id)`, userID)
 	if err != nil {
 		return fmt.Errorf("delete backup codes: %w", err)
 	}

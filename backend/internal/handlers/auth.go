@@ -109,15 +109,17 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Unlock before the TOTP step: the TOTP secret itself is encrypted.
+	// Unlock before the second-factor step: the TOTP secret itself is
+	// encrypted, and only the password can open the key.
 	if result.Role == "admin" {
 		unlockForAdmin(h.auth.DB(), h.crypto, result.UserID, req.Password)
 	}
 
-	if result.TOTPEnabled {
+	if len(result.SecondFactors) > 0 {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
+		json.NewEncoder(w).Encode(map[string]interface{}{
 			"partialToken": result.Token,
+			"methods":      result.SecondFactors,
 		})
 		return
 	}

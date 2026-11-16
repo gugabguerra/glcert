@@ -7,11 +7,11 @@ const SIGNED_IN_KEY = 'glcert-just-signed-in';
 
 /** True when the reminder should show now: two-factor is off and no snooze is running. */
 export function shouldRemind(
-  totpEnabled: boolean,
+  twoFactorOn: boolean,
   snoozedUntil: number | null,
   now: number,
 ): boolean {
-  return !totpEnabled && (snoozedUntil === null || now >= snoozedUntil);
+  return !twoFactorOn && (snoozedUntil === null || now >= snoozedUntil);
 }
 
 function read(storage: Storage, key: string): string | null {

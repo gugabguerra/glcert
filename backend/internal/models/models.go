@@ -3,12 +3,23 @@ package models
 import "time"
 
 type User struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	Email       string    `json:"email"`
-	Role        string    `json:"role"`
-	TOTPEnabled bool      `json:"totpEnabled"`
-	CreatedAt   time.Time `json:"createdAt"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Email       string `json:"email"`
+	Role        string `json:"role"`
+	TOTPEnabled bool   `json:"totpEnabled"`
+	// PasskeyCount is how many passkeys the account can use as a second factor.
+	PasskeyCount int       `json:"passkeyCount"`
+	CreatedAt    time.Time `json:"createdAt"`
+}
+
+// Passkey is the listing view of a registered passkey. The credential record
+// itself never leaves the server.
+type Passkey struct {
+	ID         string     `json:"id"`
+	Name       string     `json:"name"`
+	CreatedAt  time.Time  `json:"createdAt"`
+	LastUsedAt *time.Time `json:"lastUsedAt"`
 }
 
 type Settings struct {

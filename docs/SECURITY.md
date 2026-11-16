@@ -14,7 +14,16 @@ full version of the README's security notes.
 - **Sessions** — random bearer tokens, 24-hour expiry, cleared on every restart. Changing a
   password invalidates **all** sessions. Login and password-reset endpoints are rate-limited and
   never reveal whether an account exists.
-- **MFA** — TOTP with AES-GCM-encrypted secrets and single-use SHA-256-hashed backup codes.
+- **Two-factor authentication** — a second factor asked after the password: a passkey (WebAuthn)
+  or TOTP with AES-GCM-encrypted secrets, plus single-use SHA-256-hashed backup codes. Five wrong
+  answers of any kind burn the pending sign-in.
+- **Passkeys** — the relying party is fixed at startup from `PUBLIC_URL`
+  (`http://localhost:<port>` without one); request headers never decide which origin is accepted.
+  An address browsers refuse passkeys on (plain HTTP off localhost, a bare IP) turns the feature
+  off instead. Only the public key, flags and signature counter are stored. Challenges are
+  single-use, live 5 minutes and are bound to the pending sign-in; a signature counter that goes
+  backwards is refused. Removing a passkey asks for the password. The first second factor on an
+  account issues backup codes, and they are deleted with the last one.
 - **Password reset** — single-use, 15-minute tokens delivered by email; links are built only from
   `PUBLIC_URL`.
 - **Share links** — single-use, 15-minute, unauthenticated download tokens for exactly one file.
@@ -46,6 +55,7 @@ full version of the README's security notes.
   salt). Only the admin whose password opens the v1 file can trigger it. Back up `data/` first.
 - The SMTP password is stored encrypted only: saving it while locked returns `503`.
 - TOTP secrets and key passphrases (AES-GCM); passwords (bcrypt); backup codes (SHA-256).
+  Passkey records hold public keys only and are stored as they are.
 - Backups are password-encrypted ZIP archives.
 
 ## What is *not* protected
@@ -63,8 +73,12 @@ full version of the README's security notes.
 - **Operator access** — operators can download private keys for CAs they are granted.
   *Mitigation:* grant narrowly, review `ca.permissions.update` audit entries, revoke by deleting
   the grant or the user.
-- **Key protection** — each admin's password protects a copy of the root passphrase, so TOTP does
-  not add to key protection. *Mitigation:* strong admin passwords and a locked-down `data/`.
+- **Key protection** — each admin's password protects a copy of the root passphrase, so a second
+  factor (TOTP or passkey) does not add to key protection. *Mitigation:* strong admin passwords
+  and a locked-down `data/`.
+- **Second-factor changes** — a signed-in session can add a passkey or set up TOTP without the
+  password; only removing one asks for it. *Mitigation:* a stolen session still cannot sign in
+  again without the password; log out on shared machines.
 - **Backups across instances** — restore does not apply the backup's encryption key, so another
   instance cannot open the restored keys. A backup taken before the v2 migration should be restored only
   onto the version it came from, or onto a cold copy of the old `data/` folder.
@@ -76,7 +90,8 @@ full version of the README's security notes.
 1. Put GLcert behind a TLS reverse proxy; never expose the raw port to the internet.
 2. Run as a non-root user and lock down `data/` (e.g. `chmod 700`) — it holds the master key and
    every private key.
-3. Enable MFA for admins; when people leave, delete their accounts (sessions cascade).
+3. Enable two-factor (a passkey or TOTP) for admins; when people leave, delete their accounts
+   (sessions cascade).
 4. Keep `LOG_LEVEL` at `info` outside debugging sessions.
 5. Back up regularly (`POST /api/backup/create`); store the backup password separately from the
    backup file.

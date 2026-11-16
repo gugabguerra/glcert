@@ -9,6 +9,7 @@ import { useAuth } from '../hooks/useAuth';
 import { PasswordStrengthIndicator } from '../components/PasswordStrengthIndicator';
 import { DeleteDialog } from '../components/timeline/DetailsPanel';
 import type { AuthorityListItem } from '../types/pki';
+import { hasTwoFactor } from '../types/user';
 import classes from './Admin.module.css';
 import users from './Users.module.css';
 
@@ -18,6 +19,7 @@ interface User {
   email: string;
   role: string;
   totpEnabled: boolean;
+  passkeyCount?: number;
   createdAt: string;
 }
 
@@ -166,10 +168,10 @@ function Users() {
                   <span
                     role="cell"
                     style={{
-                      color: u.totpEnabled ? 'var(--gl-text-soft)' : 'var(--gl-text-muted)',
+                      color: hasTwoFactor(u) ? 'var(--gl-text-soft)' : 'var(--gl-text-muted)',
                     }}
                   >
-                    {u.totpEnabled ? 'On' : 'Off'}
+                    {hasTwoFactor(u) ? 'On' : 'Off'}
                   </span>
                   <span role="cell" className={users.authorities}>
                     {authoritiesText(u)}
