@@ -3,7 +3,7 @@
 All notable changes to GLcert. Newest first; versions match the git tags and the root `VERSION`
 file.
 
-## [Unreleased]
+## [1.2.0] — 2026-11-16
 
 ### Added
 
