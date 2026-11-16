@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to GLCert. Newest first; versions match the git tags and the root `VERSION`
+All notable changes to GLcert. Newest first; versions match the git tags and the root `VERSION`
 file.
 
 ## [1.1.3] — 2026-11-15

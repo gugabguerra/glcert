@@ -1,23 +1,27 @@
-# GLCert
+# ![GLcert logo](assets/logo/glcert-mark.svg)  GLcert
 
 Self-hosted PKI manager for lab and private environments. Create certificate authorities, issue and
 manage TLS certificates, and control access from a web interface — without using OpenSSL.
 
-> **Deployment note:** GLCert serves plain HTTP. Put it behind a TLS reverse proxy before using it
+> **Deployment note:** GLcert serves plain HTTP. Put it behind a TLS reverse proxy before using it
 > across an untrusted network, and do not expose its application port directly to the internet.
 > See the [security model](docs/SECURITY.md) for deployment assumptions and hardening steps.
 
 ## Screenshots
 
-Screenshots are coming soon. Replace each placeholder below with an image when they are ready.
+**Light and Dark theme**
 
 | Dashboard | Certificate authorities |
 |---|---|
-| *Screenshot placeholder* | *Screenshot placeholder* |
+| [![Light Dashboard](docs/images/dashboard-light.png)](docs/images/dashboard-light.png) [![Dark Dashboard](docs/images/dashboard.png)](docs/images/dashboard.png) | [![Light CA](docs/images/certificate-authorities-light.png)](docs/images/certificate-authorities-light.png) [![Dark CA](docs/images/certificate-authorities.png)](docs/images/certificate-authorities.png) |
 
 | Certificate details | User administration |
 |---|---|
-| *Screenshot placeholder* | *Screenshot placeholder* |
+| [![Light certificate details](docs/images/certificate-details-light.png)](docs/images/certificate-details-light.png) [![Dark certificate details](docs/images/certificate-details.png)](docs/images/certificate-details.png) | [![Light users, roles, and per-authority access](docs/images/users-light.png)](docs/images/users-light.png) [![Dark users, roles, and per-authority access](docs/images/users.png)](docs/images/users.png) |
+
+| Sign in | |
+|---|---|
+| [![Light sign-in page](docs/images/login-light.png)](docs/images/login-light.png) | [![Dark sign-in page](docs/images/login.png)](docs/images/login.png) |
 
 ## Features
 
@@ -142,7 +146,7 @@ services](https://shoutrrr.nickfedor.com/services/overview/), including Discord,
 and Gotify. Configure the destination and alert threshold in **Settings → Notifications**. You can
 send a test notification from the same page.
 
-GLCert also supports SMTP for password-reset, share-link, and expiration-alert email; reset and
+GLcert also supports SMTP for password-reset, share-link, and expiration-alert email; reset and
 share links are built from `PUBLIC_URL`. Treat webhook URLs and SMTP credentials as secrets; keep
 them out of tracked files.
 
@@ -162,7 +166,7 @@ hardening checklist, and vulnerability reporting process.
 
 ## Project status
 
-GLCert is maintained as a personal homelab project. There is no support service, response-time
+GLcert is maintained as a personal homelab project. There is no support service, response-time
 commitment, release schedule, or compatibility guarantee. Issues and pull requests may go
 unanswered. Forking and maintaining your own copy is encouraged; contributions are welcome on a
 best-effort basis. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.

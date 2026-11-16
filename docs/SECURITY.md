@@ -1,6 +1,6 @@
 # Security
 
-GLCert is a self-hosted PKI manager for lab and private environments. It assumes an operator team
+GLcert is a self-hosted PKI manager for lab and private environments. It assumes an operator team
 you trust, running on a network you control, behind a TLS reverse proxy. This document is the
 full version of the README's security notes.
 
@@ -50,7 +50,7 @@ full version of the README's security notes.
 
 ## What is *not* protected
 
-- **Transport** — GLCert speaks plain HTTP; anyone on the path can read traffic, including
+- **Transport** — GLcert speaks plain HTTP; anyone on the path can read traffic, including
   tokens. *Mitigation:* run behind a TLS reverse proxy (Caddy, nginx) or a private tunnel
   (Tailscale); never expose the raw port to the internet.
 - **Database at rest** — `data/database.sqlite` is not encrypted: metadata (names, subjects,
@@ -73,7 +73,7 @@ full version of the README's security notes.
 
 ## Hardening checklist
 
-1. Put GLCert behind a TLS reverse proxy; never expose the raw port to the internet.
+1. Put GLcert behind a TLS reverse proxy; never expose the raw port to the internet.
 2. Run as a non-root user and lock down `data/` (e.g. `chmod 700`) — it holds the master key and
    every private key.
 3. Enable MFA for admins; when people leave, delete their accounts (sessions cascade).
@@ -90,5 +90,5 @@ Use GitHub's **private vulnerability reporting** on the repository — it keeps 
 the public issue tracker and needs no email contact. Responses are **best-effort with no service
 level**: this project is maintained for personal use (see README § Project status), so a fix may
 be slow or never come. Include the version from `docs/CHANGELOG.md` and log output at
-`LOG_LEVEL` — logs contain no secrets, so they are safe to share. If you depend on GLCert
+`LOG_LEVEL` — logs contain no secrets, so they are safe to share. If you depend on GLcert
 seriously, maintain your own fork.

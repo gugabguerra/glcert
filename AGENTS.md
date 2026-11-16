@@ -1,6 +1,6 @@
 # AGENTS.md
 
-GLCert — self-hosted PKI manager. Backend: Go 1.27, Chi, pure-Go SQLite (no CGO). Frontend:
+GLcert — self-hosted PKI manager. Backend: Go 1.27, Chi, pure-Go SQLite (no CGO). Frontend:
 React 19, TypeScript, Mantine v9, Vite. Desktop variant: webview shell with the frontend embedded
 via `go:embed`. Node 24+ and npm for frontend work.
 
